@@ -4,3 +4,12 @@
 /musiku-rs/ui-src/node_modules/
 /src.zip
 /olshop/
+
+# web / local build artifacts
+/node_modules
+/.next/
+/out/
+/dist/
+.env*
+*.tsbuildinfo
+next-env.d.ts
