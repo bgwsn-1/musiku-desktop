@@ -1,0 +1,15 @@
+# Konfigurasi cargo untuk workspace Musiku.
+#
+# Bagian penting: linker Windows. Saat cross-compile dari Linux ke
+# `x86_64-pc-windows-msvc` (lihat `build-exe.sh`), `cargo-xwin` menaruh
+# `lld-link` + library MSVC di `~/.cache/cargo-xwin`. Kita cukup menunjuk
+# linker-nya; env `XWIN_*` diisi otomatis oleh `cargo xwin`.
+#
+# Bagian ini tidak berpengaruh pada build Linux/`musiku-server`.
+
+[target.x86_64-pc-windows-msvc]
+linker = "lld-link"
+# `rust-lld` tidak dipakai; cargo-xwin menyiapkan lld-link sendiri.
+
+[net]
+git-fetch-with-cli = true

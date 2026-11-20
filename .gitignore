@@ -1,0 +1,6 @@
+
+# musiku-rs build output & local-only extras
+/musiku-rs/target/
+/musiku-rs/ui-src/node_modules/
+/src.zip
+/olshop/

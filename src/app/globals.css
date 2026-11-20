@@ -1,0 +1,1049 @@
+@import "tailwindcss" source(none);
+/* Scan only the app source. Auto-detection walks up from this file and, in this
+   repo (no git, sibling 14GB Rust project), ends up crawling far more than the
+   UI — which is both slow and enough to OOM the build. */
+@source "../../src";
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Musiku · design system
+   Two layers (liquid-glass.md › The two layers):
+     content layer    → artwork, lists, text. Opaque/transparent, never glass.
+     functional layer → sidebar, toolbar, player, tab bar, sheets. Glass.
+   Color is spent in one place: the artwork. The accent only marks the
+   primary action and "this is on / this is playing".
+   ═══════════════════════════════════════════════════════════════════════ */
+
+:root {
+  color-scheme: light dark;
+
+  /* surfaces */
+  --bg-window: #f2f2f7;
+  --surface-solid: #fbfbfd; /* opaque fallback for glass */
+  --fill-1: rgba(60, 60, 67, 0.08);
+  --fill-2: rgba(60, 60, 67, 0.14);
+  --hairline: rgba(60, 60, 67, 0.14);
+  --track: rgba(60, 60, 67, 0.22);
+
+  /* labels — contrast measured on --bg-window (light) */
+  --label-1: #1c1c1e; /* 15.3:1 */
+  --label-2: #55555d; /* 6.6:1  */
+  --label-3: #6c6c75; /* 4.7:1  */
+  --lyric-dim: rgba(28, 28, 30, 0.6);
+
+  /* accent: text/icons use --accent, filled buttons use --accent-fill (white text 5.1:1) */
+  --accent: #d60f33; /* 4.7:1 */
+  --accent-hover: #b50c2b;
+  --accent-fill: #d91a36;
+  --accent-fill-hover: #c4152f;
+  --accent-muted: rgba(217, 26, 54, 0.12);
+
+  /* glass */
+  --glass-fill: rgba(255, 255, 255, 0.58);
+  --glass-fill-strong: rgba(250, 250, 253, 0.8);
+  --glass-edge-top: rgba(255, 255, 255, 0.95);
+  --glass-edge: rgba(60, 60, 67, 0.1);
+  --glass-shadow: 0 12px 40px -14px rgba(30, 30, 70, 0.28),
+    0 2px 8px rgba(30, 30, 70, 0.08);
+  --glass-hover: rgba(255, 255, 255, 0.5);
+  --seg-thumb: #ffffff;
+
+  /* content */
+  --shadow-art: 0 6px 20px -6px rgba(20, 20, 40, 0.35),
+    0 1px 3px rgba(20, 20, 40, 0.18);
+  --ambient-opacity: 0.4;
+  --ambient-brightness: 1.05;
+  --backdrop-opacity: 0.5;
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-window: #0b0b0e;
+    --surface-solid: #1c1c21;
+    --fill-1: rgba(255, 255, 255, 0.08);
+    --fill-2: rgba(255, 255, 255, 0.14);
+    --hairline: rgba(255, 255, 255, 0.1);
+    --track: rgba(255, 255, 255, 0.22);
+
+    --label-1: #f5f5f7; /* 18.0:1 */
+    --label-2: #b3b3ba; /* 9.4:1  */
+    --label-3: #8f8f98; /* 6.1:1  */
+    --lyric-dim: rgba(245, 245, 247, 0.5); /* 4.8:1 on glass */
+
+    --accent: #ff4d63; /* 6.1:1 */
+    --accent-hover: #ff7587;
+    --accent-fill: #d91a36;
+    --accent-fill-hover: #ec2a47;
+    --accent-muted: rgba(255, 77, 99, 0.16);
+
+    --glass-fill: rgba(34, 34, 40, 0.56);
+    --glass-fill-strong: rgba(28, 28, 33, 0.8);
+    --glass-edge-top: rgba(255, 255, 255, 0.2);
+    --glass-edge: rgba(255, 255, 255, 0.07);
+    --glass-shadow: 0 14px 44px -12px rgba(0, 0, 0, 0.7),
+      0 2px 8px rgba(0, 0, 0, 0.3);
+    --glass-hover: rgba(255, 255, 255, 0.1);
+    --seg-thumb: rgba(255, 255, 255, 0.2);
+
+    --shadow-art: 0 8px 24px -8px rgba(0, 0, 0, 0.7),
+      0 1px 3px rgba(0, 0, 0, 0.5);
+    --ambient-opacity: 0.4;
+    --ambient-brightness: 0.75;
+    --backdrop-opacity: 0.55;
+  }
+}
+
+@theme inline {
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
+    var(--font-geist-sans), "Segoe UI", system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono);
+
+  --color-surface: var(--surface-solid);
+  --color-label1: var(--label-1);
+  --color-label2: var(--label-2);
+  --color-label3: var(--label-3);
+  --color-fill1: var(--fill-1);
+  --color-fill2: var(--fill-2);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-fill: var(--accent-fill);
+  --color-accent-fill-hover: var(--accent-fill-hover);
+  --color-window: var(--bg-window);
+}
+
+html,
+body {
+  background: var(--bg-window);
+  accent-color: var(--accent);
+  -webkit-tap-highlight-color: transparent;
+  text-size-adjust: 100%;
+}
+
+/* ─── Shell geometry. The scroller spans the whole window; glass floats on top. ─── */
+.shell {
+  --pad-l: 16px;
+  --pad-r: 16px;
+  --pad-t: calc(max(12px, env(safe-area-inset-top)) + 64px);
+  /* tab bar + (search dock | mini player) above it */
+  --pad-b: calc(env(safe-area-inset-bottom) + 156px);
+}
+@media (min-width: 1024px) {
+  .shell {
+    --pad-l: 288px; /* sidebar 12 + 252 + 24 gutter */
+    --pad-r: 32px;
+    --pad-t: 84px;
+    --pad-b: 128px;
+  }
+}
+@media (min-width: 1024px) {
+  .shell:not(:has(.dock-in)) {
+    --pad-b: 56px;
+  }
+}
+.page-scroll {
+  padding: var(--pad-t) var(--pad-r) var(--pad-b) var(--pad-l);
+  scroll-padding-top: var(--pad-t);
+  overscroll-behavior: contain;
+}
+
+/* ─── Glass (functional layer only) ─── */
+.glass {
+  /* callers set positioning (absolute / fixed / relative): unlayered CSS beats
+     Tailwind utilities, so this class must not set `position` itself */
+  background: var(--glass-fill);
+  -webkit-backdrop-filter: blur(28px) saturate(1.7);
+  backdrop-filter: blur(28px) saturate(1.7);
+  box-shadow: var(--glass-shadow);
+}
+.glass-lg {
+  /* larger surfaces are more opaque so text on them stays legible */
+  background: var(--glass-fill-strong);
+  -webkit-backdrop-filter: blur(40px) saturate(1.6);
+  backdrop-filter: blur(40px) saturate(1.6);
+}
+.glass::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: inset 0 1px 0 var(--glass-edge-top),
+    inset 0 0 0 1px var(--glass-edge);
+}
+/* interactive glass control (toolbar buttons) */
+.glass-btn {
+  transition: background-color 0.15s ease, transform 0.18s var(--ease-spring),
+    opacity 0.15s ease;
+}
+.glass-btn:hover:not(:disabled) {
+  background: var(--glass-hover);
+}
+.glass-btn:active:not(:disabled) {
+  transform: scale(0.94);
+}
+.glass-btn:disabled {
+  opacity: 0.4;
+}
+/* over artwork/photos the system uses clear glass + a dimming layer (~35%) */
+.glass-clear {
+  background: rgba(0, 0, 0, 0.38);
+  -webkit-backdrop-filter: blur(14px) saturate(1.5);
+  backdrop-filter: blur(14px) saturate(1.5);
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+
+/* Reduce Transparency / Increase Contrast / no backdrop-filter → opaque */
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .glass,
+  .glass-lg {
+    background: var(--surface-solid);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .glass::after {
+    box-shadow: inset 0 0 0 1px var(--label-3);
+  }
+  .glass-clear {
+    background: rgba(0, 0, 0, 0.78);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .window-ambient,
+  .media-backdrop {
+    opacity: 0.35;
+  }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass,
+  .glass-lg {
+    background: var(--surface-solid);
+  }
+  .glass-clear {
+    background: rgba(0, 0, 0, 0.7);
+  }
+}
+
+/* ─── Scroll edge effect: content blurs + fades where it meets floating controls ─── */
+.scroll-edge {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  pointer-events: none;
+}
+.scroll-edge-top {
+  top: 0;
+  height: calc(var(--pad-t) + 12px);
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--bg-window) 85%, transparent) 0%,
+    color-mix(in srgb, var(--bg-window) 40%, transparent) 55%,
+    transparent 100%
+  );
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  mask-image: linear-gradient(to bottom, #000 45%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 45%, transparent 100%);
+}
+.scroll-edge-bottom {
+  bottom: 0;
+  height: calc(var(--pad-b) - 36px);
+  background: linear-gradient(
+    to top,
+    color-mix(in srgb, var(--bg-window) 90%, transparent) 0%,
+    color-mix(in srgb, var(--bg-window) 40%, transparent) 60%,
+    transparent 100%
+  );
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  mask-image: linear-gradient(to top, #000 40%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to top, #000 40%, transparent 100%);
+}
+@media (prefers-reduced-transparency: reduce) {
+  .scroll-edge {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/* ─── Artwork colour floods the window, under the glass ───
+   Port LyricsBackgroundLayerView (Apple Music Android 7.0.0):
+   artwork 3 lapis berotasi pelan (120s/90s/70s, arah selang-seling).
+   Pipeline Apple: downscale ÷24 → blur di bitmap KECIL → upscale. Terjemahan
+   web-nya: img 16vmin + blur ringan, lalu di-scale puluhan kali oleh
+   transform — GPU meng-upscale raster kecil (bilinear), bukan mem-blur
+   texture raksasa. Perf guard Apple (3 frame >15ms → animasi berhenti)
+   diimplement di AmbientWindow.tsx sebagai kelas .liquid-off. */
+.window-ambient {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.liquid-field {
+  position: absolute;
+  /* bleed biar rotasi tidak pernah menampakkan tepi bitmap */
+  inset: -20%;
+  opacity: var(--ambient-opacity);
+}
+.liquid-layer {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  /* pra-blur di canvas kecil ( sekali per lagu) → background-image;
+     kompositor TIDAK mem-blur apa pun — hanya transform ulang raster */
+  background-size: cover;
+  background-position: center;
+}
+.liquid-layer > * {
+  width: 10vmin;
+  height: 10vmin;
+}
+.liquid-a,
+.liquid-b,
+.liquid-c {
+  will-change: transform;
+}
+/* rotasi Apple: 0→-360° 120s, 0→360° 90s, 0→360° 70s (LinearInterpolator).
+   translate(offset) SETELAH rotate = pusat lapis mengorbit sambil berputar */
+.liquid-a {
+  animation: liquidSpinA 120s linear infinite;
+}
+.liquid-b {
+  animation: liquidSpinB 90s linear infinite;
+}
+.liquid-c {
+  animation: liquidSpinC 70s linear infinite;
+}
+@keyframes liquidSpinA {
+  from {
+    transform: rotate(0deg) scale(1.6);
+  }
+  to {
+    transform: rotate(-360deg) scale(1.6);
+  }
+}
+@keyframes liquidSpinB {
+  from {
+    transform: rotate(0deg) translate(-16%, -12%) scale(1.9);
+  }
+  to {
+    transform: rotate(360deg) translate(-16%, -12%) scale(1.9);
+  }
+}
+@keyframes liquidSpinC {
+  from {
+    transform: rotate(0deg) translate(10%, 13%) scale(1.7);
+  }
+  to {
+    transform: rotate(360deg) translate(10%, 13%) scale(1.7);
+  }
+}
+/* perf guard: GPU kewalahan → rotasi berhenti, bidang warna tetap tampil */
+.liquid-off .liquid-layer {
+  animation: none;
+  will-change: auto;
+}
+/* perf guard: GPU kewalahan → rotasi berhenti, bidang warna tetap tampil */
+.liquid-off .liquid-layer {
+  animation: none;
+}
+/* scrim hitam Apple (lyrics_bg_layer_black_scrim) — versi web lebih ringan
+   karena konten halaman (bukan lirik layar penuh) harus tetap terbaca */
+.window-ambient::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.12);
+  z-index: 1;
+}
+.window-ambient::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  /* scrim terang + leburan ke warna jendela: teks di atas kaca tetap legible */
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--bg-window) 42%, transparent) 0%,
+    color-mix(in srgb, var(--bg-window) 20%, transparent) 45%,
+    var(--bg-window) 92%
+  );
+}
+/* fade-in tiap ganti lagu ditangani transition opacity inline di komponen */
+@media (prefers-reduced-motion: reduce) {
+  .liquid-a,
+  .liquid-b,
+  .liquid-c {
+    animation: none;
+  }
+}
+
+/* page header backdrop: album/artist colour extends full-bleed beneath
+   the sidebar and toolbar, so the glass has something to reflect */
+.media-backdrop {
+  position: absolute;
+  z-index: -1;
+  top: calc(var(--pad-t) * -1);
+  left: calc(var(--pad-l) * -1);
+  right: calc(var(--pad-r) * -1);
+  height: 440px;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: var(--backdrop-opacity);
+  -webkit-mask-image: linear-gradient(to bottom, #000 25%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 25%, transparent 100%);
+}
+.media-backdrop img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scale(1.5);
+  filter: blur(64px) saturate(1.6);
+}
+
+/* ─── Artist header: HD photo band that drifts slowly (the GIF feel),
+       dark scrim so name/logo and stats stay legible over any photo ─── */
+.artist-hero {
+  --hero-fade: 64px;
+  /* bleed to the window edges, including under the floating toolbar */
+  margin: calc(var(--pad-t) * -1) calc(var(--pad-r) * -1) 8px
+    calc(var(--pad-l) * -1);
+}
+@media (min-width: 768px) {
+  .artist-hero {
+    --hero-fade: clamp(80px, 10vh, 118px);
+  }
+}
+.artist-hero-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 30%;
+  transform-origin: 50% 38%;
+  animation: heroDrift 26s ease-in-out infinite alternate;
+  will-change: transform;
+}
+@keyframes heroDrift {
+  from {
+    transform: scale(1.06) translate3d(1.1%, 0.6%, 0);
+  }
+  to {
+    transform: scale(1.16) translate3d(-1.1%, -0.6%, 0);
+  }
+}
+/* klip video resmi artis: menutup poster setelah frame pertama siap */
+.artist-hero-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 30%;
+  opacity: 0;
+  transition: opacity 0.9s ease;
+  pointer-events: none;
+}
+.artist-hero-video.is-playing {
+  opacity: 1;
+}
+.artist-hero:has(.artist-hero-video.is-playing) .artist-hero-img {
+  animation-play-state: paused;
+}
+.artist-hero-scrim {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(
+      to top,
+      rgba(0, 0, 0, 0.88) 0%,
+      rgba(0, 0, 0, 0.55) 30%,
+      rgba(0, 0, 0, 0.12) 62%,
+      rgba(0, 0, 0, 0) 100%
+    ),
+    linear-gradient(
+      to right,
+      rgba(0, 0, 0, 0.45) 0%,
+      rgba(0, 0, 0, 0) 65%
+    );
+}
+/* clear glass band at the bottom edge: blurs the video and dissolves it into
+   the page colour, so the header meets the list without a hard cut */
+.artist-hero-fade {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--hero-fade);
+  pointer-events: none;
+  background: linear-gradient(
+    to top,
+    var(--bg-window) 0%,
+    color-mix(in srgb, var(--bg-window) 86%, transparent) 28%,
+    color-mix(in srgb, var(--bg-window) 55%, transparent) 60%,
+    transparent 100%
+  );
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-mask-image: linear-gradient(
+    to top,
+    #000 18%,
+    rgba(0, 0, 0, 0.72) 55%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to top,
+    #000 18%,
+    rgba(0, 0, 0, 0.72) 55%,
+    transparent 100%
+  );
+}
+@media (prefers-reduced-transparency: reduce) {
+  .artist-hero-fade {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+/* clear glass over the photo: dimmed so the label stays readable */
+.artist-hero .btn-quiet {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  -webkit-backdrop-filter: blur(14px) saturate(1.5);
+  backdrop-filter: blur(14px) saturate(1.5);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+.artist-hero .btn-quiet:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.28);
+}
+@media (prefers-reduced-motion: reduce) {
+  .artist-hero-img {
+    animation: none;
+    transform: scale(1.04);
+  }
+  .artist-hero-video {
+    display: none;
+  }
+}
+
+/* ─── Type roles ─── */
+.t-large {
+  font-size: clamp(28px, 3.4vw + 8px, 40px);
+  line-height: 1.08;
+  font-weight: 700;
+  letter-spacing: -0.026em;
+  text-wrap: balance;
+}
+.t-title {
+  font-size: 22px;
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: -0.018em;
+}
+.t-eyebrow {
+  font-size: 12px;
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--label-2);
+}
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─── Reveal: hover/focus on pointer devices, always visible on touch ─── */
+.reveal {
+  opacity: 0;
+  transition: opacity 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+}
+.group:hover .reveal,
+.group:focus-within .reveal,
+.reveal:focus-visible,
+.reveal[aria-pressed="true"],
+.reveal.is-on {
+  opacity: 1;
+}
+@media (hover: none) {
+  .reveal {
+    opacity: 1;
+  }
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* ─── Sliders ─── */
+.appleslider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 28px;
+  background: transparent;
+  cursor: pointer;
+  color: var(--label-1);
+}
+.appleslider::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    currentColor var(--fill, 50%),
+    var(--track) var(--fill, 50%)
+  );
+}
+.appleslider::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    currentColor var(--fill, 50%),
+    var(--track) var(--fill, 50%)
+  );
+}
+.appleslider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+  margin-top: -5px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.appleslider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: none;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.appleslider:hover::-webkit-slider-thumb,
+.appleslider:focus-visible::-webkit-slider-thumb,
+.appleslider:active::-webkit-slider-thumb {
+  opacity: 1;
+}
+.appleslider:hover::-moz-range-thumb,
+.appleslider:focus-visible::-moz-range-thumb,
+.appleslider:active::-moz-range-thumb {
+  opacity: 1;
+}
+
+/* ─── Equalizer: the playing state is a shape, not only a colour ─── */
+.eq {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 14px;
+}
+.eq span {
+  width: 3px;
+  border-radius: 1.5px;
+  background: currentColor;
+  height: 5px;
+}
+.eq:not(.on) span:nth-child(1) { height: 7px; }
+.eq:not(.on) span:nth-child(2) { height: 12px; }
+.eq:not(.on) span:nth-child(3) { height: 9px; }
+.eq.on span {
+  animation: eqb 0.9s ease-in-out infinite;
+}
+.eq.on span:nth-child(2) {
+  animation-delay: 0.25s;
+}
+.eq.on span:nth-child(3) {
+  animation-delay: 0.55s;
+}
+@keyframes eqb {
+  0%,
+  100% {
+    height: 4px;
+  }
+  50% {
+    height: 14px;
+  }
+}
+
+/* ─── Motion: brief, springy, cancellable ─── */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes slidePanel {
+  from {
+    opacity: 0;
+    transform: translateX(28px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes slideSheet {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(var(--drag, 0px));
+  }
+}
+@keyframes slidePanelOut {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateX(28px) scale(0.985); }
+}
+@keyframes slideSheetOut {
+  from { transform: translateY(var(--drag, 0px)); }
+  to { transform: translateY(100%); }
+}
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+@keyframes popIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes heartPop {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.4); }
+  65% { transform: scale(0.88); }
+  100% { transform: scale(1); }
+}
+@keyframes artIn {
+  from { opacity: 0; transform: scale(0.9) translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes dockIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.page-fade {
+  animation: rise 0.36s var(--ease-out) both;
+}
+.card-anim {
+  animation: rise 0.45s var(--ease-out) both;
+  animation-delay: calc(min(var(--i, 0), 10) * 32ms);
+}
+.panel-in {
+  animation: slidePanel 0.3s var(--ease-out) both;
+}
+.scrim-in {
+  animation: fadeIn 0.2s ease both;
+}
+.panel-out {
+  animation: slidePanelOut 0.28s var(--ease-out) both;
+}
+.scrim-out {
+  animation: fadeOut 0.28s ease both;
+}
+.dialog-in {
+  animation: popIn 0.38s var(--ease-spring) both;
+}
+.heart-pop svg {
+  animation: heartPop 0.55s var(--ease-spring);
+}
+.art-in {
+  animation: artIn 0.7s var(--ease-spring) both;
+}
+/* logo artis menggantikan nama: muncul dengan skala kecil yang memantul lembut */
+.mark-in {
+  animation: markIn 0.45s var(--ease-spring) both;
+}
+@keyframes markIn {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+/* search field: grows and lights up while focused (no outline rectangle) */
+.search-pill {
+  transition: max-width 0.5s var(--ease-spring), flex-basis 0.5s var(--ease-spring),
+    padding 0.5s var(--ease-spring), background-color 0.25s ease, box-shadow 0.25s ease;
+}
+/* folded into a round button while the page title lives in the toolbar */
+.search-pill.is-collapsed:not(:focus-within) {
+  flex: 0 0 48px;
+  max-width: 48px;
+  padding-left: 15px;
+  padding-right: 0;
+  cursor: pointer;
+}
+.search-pill.is-collapsed:not(:focus-within) > :not(svg) {
+  opacity: 0;
+  pointer-events: none;
+}
+.search-pill:focus-within {
+  max-width: 640px;
+  background: var(--glass-fill-strong);
+  box-shadow: var(--glass-shadow), 0 0 0 4px var(--fill-2);
+}
+/* search field parked in the phone dock: full width, same height as the mini
+   player it replaces, and it lights up when focused */
+.search-dock {
+  background: var(--glass-fill-strong);
+  transition: box-shadow 0.25s ease, background-color 0.25s ease;
+}
+.search-dock:focus-within {
+  box-shadow: var(--glass-shadow), 0 0 0 4px var(--fill-2);
+}
+.dock-in {
+  animation: dockIn 0.45s var(--ease-out) both;
+}
+.anim-pop {
+  animation: popIn 0.2s var(--ease-spring) both;
+}
+@media (max-width: 1023px) {
+  .panel-in {
+    animation: slideSheet 0.34s var(--ease-out) both;
+  }
+  .panel-out {
+    animation: slideSheetOut 0.28s var(--ease-out) both;
+  }
+  .dialog-in {
+    animation: slideSheet 0.34s var(--ease-out) both;
+  }
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.spin {
+  animation: spin 0.8s linear infinite;
+}
+
+/* every button gives a physical response; glass buttons add their own */
+button:not([disabled]):not(.glass-btn) {
+  transition: transform 0.16s var(--ease-spring), color 0.15s ease,
+    background-color 0.15s ease, opacity 0.15s ease;
+}
+button:not([disabled]):not(.glass-btn):active {
+  transform: scale(0.96);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .eq.on span {
+    animation: none;
+    height: 9px;
+  }
+  .spin {
+    animation: spin 2.5s linear infinite !important;
+    animation-duration: 2.5s !important;
+    animation-iteration-count: infinite !important;
+  }
+  button:not([disabled]):active,
+  .glass-btn:active {
+    transform: none !important;
+  }
+}
+
+/* ─── Scrollbars ─── */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--track) transparent;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--track);
+  border: 2px solid transparent;
+  background-clip: content-box;
+  border-radius: 999px;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+/* text fields draw focus on their container, never a hard rectangle */
+input:focus-visible,
+textarea:focus-visible {
+  outline: none;
+}
+::selection {
+  background: var(--accent-muted);
+}
+
+/* ─── Buttons (shared) ─── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 22px;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.btn:disabled {
+  opacity: 0.45;
+}
+.btn-primary {
+  background: var(--accent-fill);
+  color: #fff;
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent-fill-hover);
+}
+.btn-quiet {
+  background: var(--fill-1);
+  color: var(--label-1);
+}
+.btn-quiet:hover:not(:disabled) {
+  background: var(--fill-2);
+}
+.btn-quiet.is-danger {
+  color: var(--accent);
+}
+
+/* ─── Now Playing (phone + desktop): always dark, tinted by the artwork.
+   `color` must be set here: colour is inherited as a computed value, so
+   redefining --label-1 alone leaves children on the light-mode text colour.
+   The glass tokens keep portalled menus dark inside the player. ─── */
+.force-dark {
+  color-scheme: dark;
+  color: var(--label-1);
+  --bg-window: #0b0b0e;
+  --surface-solid: #1c1c21;
+  --fill-1: rgba(255, 255, 255, 0.1);
+  --fill-2: rgba(255, 255, 255, 0.18);
+  --hairline: rgba(255, 255, 255, 0.12);
+  --track: rgba(255, 255, 255, 0.34);
+  --label-1: #f5f5f7;
+  --label-2: #c0c0c7;
+  --label-3: #9a9aa3;
+  --accent: #ff4d63;
+  --accent-hover: #ff7587;
+  --lyric-dim: rgba(245, 245, 247, 0.5);
+  --seg-thumb: rgba(255, 255, 255, 0.22);
+  --glass-fill: rgba(30, 30, 33, 0.86);
+  --glass-fill-strong: rgba(28, 28, 33, 0.92);
+  --glass-edge-top: rgba(255, 255, 255, 0.16);
+  --glass-edge: rgba(255, 255, 255, 0.08);
+  --glass-shadow: 0 24px 60px -8px rgba(0, 0, 0, 0.75),
+    0 2px 8px rgba(0, 0, 0, 0.4);
+  --glass-hover: rgba(255, 255, 255, 0.12);
+}
+.np-backdrop {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.np-backdrop img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scale(1.6);
+  filter: blur(70px) saturate(1.9) brightness(0.8);
+  opacity: 0.6;
+  animation: npIn 0.9s ease both;
+}
+@keyframes npIn {
+  from { opacity: 0; }
+  to { opacity: 0.6; }
+}
+.np-backdrop::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.9));
+}
+
+/* thicker volume slider (Now Playing) */
+.appleslider.thick::-webkit-slider-runnable-track { height: 6px; }
+.appleslider.thick::-moz-range-track { height: 6px; }
+.appleslider.thick::-webkit-slider-thumb { margin-top: -4px; }
+
+/* Now Playing floating menu */
+@keyframes pmenuIn {
+  from { opacity: 0; transform: scale(0.86) translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes pmenuOut {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: scale(0.9) translateY(6px); }
+}
+.pmenu-in { animation: pmenuIn 0.28s var(--ease-spring) both; transform-origin: bottom right; }
+.pmenu-out { animation: pmenuOut 0.16s ease both; transform-origin: bottom right; }
+@media (prefers-reduced-motion: reduce) {
+  .pmenu-in, .pmenu-out { animation-duration: 0.01ms; }
+}
+
+/* Lyrics: entrance, instrumental dots */
+@keyframes lyricIn {
+  from { opacity: 0; transform: translateY(26px); }
+  to { opacity: 1; transform: none; }
+}
+.lyric-in { animation: lyricIn 0.7s var(--ease-out) backwards; }
+.lyric-dots { display: inline-flex; gap: 8px; align-items: center; height: 34px; }
+.lyric-dots i {
+  display: block; width: 12px; height: 12px; border-radius: 50%; background: currentColor;
+  transition: opacity 0.5s ease;
+}
+.lyric-dots.on { animation: lyricBreath 2.4s ease-in-out infinite; }
+@keyframes lyricBreath {
+  0%, 100% { transform: scale(0.9); }
+  50% { transform: scale(1.12); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lyric-in, .lyric-dots.on { animation: none; }
+}

@@ -1,0 +1,19 @@
+[package]
+name = "musiku-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+reqwest.workspace = true
+moka.workspace = true
+tracing.workspace = true
+anyhow.workspace = true
+regex = "1"
+md5 = "0.7"
+rustypipe = { version = "0.11.4", default-features = false, features = [
+  "rustls-tls-webpki-roots",
+] }

@@ -1,0 +1,16 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   CSS untuk UI Musiku desktop / Tauri.
+   - @font-face  → disalin dari output `next/font` (assets/fonts/)
+   - globals.css → design system asli web app, dipakai APA ADANYA
+   Dihasilkan oleh ui-src/build-css.mjs — jangan edit manual.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* 1. Font Geist / Geist Mono */
+@import "../ui-src/fonts.css";
+
+/* 2. Design system web app (Tailwind v4 CSS-first) */
+@import "../../src/app/globals.css";
+
+/* 3. Pindai komponen web + shell desktop untuk semua utility terpakai */
+@source "../../src";
+@source "../crates/server/ui";
