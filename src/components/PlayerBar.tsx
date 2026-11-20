@@ -28,6 +28,8 @@ import { SearchForm } from "@/components/SearchForm";
 
 const iconBtn =
   "glass-btn flex h-10 w-10 items-center justify-center rounded-full text-label2 hover:text-label1";
+const iconBtnSm =
+  "glass-btn flex h-8 w-8 items-center justify-center rounded-full text-label2 hover:text-label1";
 
 export function PlayerBar() {
   const p = usePlayer();
@@ -206,31 +208,77 @@ export function PlayerBar() {
         </div>
       )}
 
-      {/* ── Desktop: floating glass capsule (only once something plays) ── */}
+      {/* ── Desktop: floating glass pill (only once something plays) ── */}
       {t && (
         <div className="pointer-events-none absolute bottom-4 left-[var(--pad-l)] right-[var(--pad-r)] z-40 hidden lg:block">
           <section
-            className="dock-in pointer-events-auto glass relative mx-auto grid h-[76px] max-w-[1020px] grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_minmax(0,1.1fr)] items-center gap-5 rounded-[28px] px-4"
+            className="dock-in player-dock pointer-events-auto glass relative mx-auto flex h-[78px] max-w-[1000px] items-center gap-3 rounded-full px-3.5"
             aria-label="Kontrol pemutar"
           >
-            {/* now playing */}
-            <div className="flex min-w-0 items-center gap-3">
+            {/* kiri: transport */}
+            <div className="flex shrink-0 items-center gap-0.5">
+              <button
+                onClick={p.toggleShuffle}
+                className={`${iconBtnSm} ${p.shuffle ? "!text-accent" : ""}`}
+                aria-pressed={p.shuffle}
+                aria-label="Acak"
+              >
+                <IconShuffle className="h-4 w-4" />
+              </button>
+              <button onClick={p.prev} disabled={!t} className={iconBtn} aria-label="Lagu sebelumnya">
+                <IconPrev className="h-5 w-5" />
+              </button>
+              {playBtn("mx-0.5 h-11 w-11", "h-5 w-5")}
+              <button onClick={p.next} disabled={!t} className={iconBtn} aria-label="Lagu berikutnya">
+                <IconNext className="h-5 w-5" />
+              </button>
+              <button
+                onClick={p.cycleRepeat}
+                className={`${iconBtnSm} ${p.repeat !== "off" ? "!text-accent" : ""}`}
+                aria-pressed={p.repeat !== "off"}
+                aria-label={`Ulangi: ${p.repeat === "off" ? "mati" : p.repeat === "all" ? "semua" : "satu lagu"}`}
+              >
+                {p.repeat === "one" ? (
+                  <IconRepeatOne className="h-4 w-4" />
+                ) : (
+                  <IconRepeat className="h-4 w-4" />
+                )}
+              </button>
+            </div>
+
+            {/* tengah: now playing + progress tipis */}
+            <div className="flex min-w-0 flex-1 items-center gap-3">
               <button
                 onClick={() => setFull(true)}
-                className={`block h-[52px] w-[52px] shrink-0 overflow-hidden rounded-xl bg-fill2 shadow-[var(--shadow-art)] transition-transform duration-500 ease-[var(--ease-spring)] ${p.playing ? "scale-100" : "scale-[0.9]"}`}
+                className={`block h-[54px] w-[54px] shrink-0 overflow-hidden rounded-[17px] bg-fill2 shadow-[var(--shadow-art)] transition-transform duration-500 ease-[var(--ease-spring)] ${p.playing ? "scale-100" : "scale-[0.92]"}`}
                 aria-label="Buka pemutar layar penuh"
                 title="Pemutar layar penuh (F)"
               >
                 {art}
               </button>
               <div className="min-w-0 flex-1">
-                <div className="truncate text-[15px] font-semibold leading-tight text-label1">
+                <div className="truncate text-[14px] font-semibold leading-tight text-label1">
                   {t.title}
                 </div>
-                <div className="truncate text-[13px] leading-tight text-label2">
+                <div className="truncate text-[12px] leading-tight text-label2">
                   {t.artist}
                 </div>
+                <div className="mt-1 flex items-center gap-2 text-[10px] text-label3 tnum">
+                  <span className="w-8 text-right">{fmtTime(p.position)}</span>
+                  <Scrubber
+                    position={p.position}
+                    duration={p.duration || 0}
+                    onSeek={p.seek}
+                    thin
+                    className="flex-1"
+                  />
+                  <span className="w-8">{fmtTime(p.duration)}</span>
+                </div>
               </div>
+            </div>
+
+            {/* kanan: panel + volume */}
+            <div className="flex shrink-0 items-center gap-0.5">
               <button
                 onClick={() => {
                   if (!liked) {
@@ -239,115 +287,68 @@ export function PlayerBar() {
                   }
                   p.toggleLike(t);
                 }}
-                className={`glass-btn flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
-                  liked ? "text-accent" : "text-label2 hover:text-label1"
+                className={`${iconBtnSm} ${
+                  liked ? "!text-accent" : ""
                 } ${pop ? "heart-pop" : ""}`}
                 aria-label={liked ? "Hapus dari favorit" : "Tambahkan ke favorit"}
                 aria-pressed={liked}
               >
-                <IconHeart filled={liked} className="h-[18px] w-[18px]" />
-              </button>
-            </div>
-
-          {/* transport */}
-          <div className="flex min-w-0 flex-col items-center">
-            <div className="flex items-center gap-1">
-              <button
-                onClick={p.toggleShuffle}
-                className={`${iconBtn} ${p.shuffle ? "!text-accent" : ""}`}
-                aria-pressed={p.shuffle}
-                aria-label="Acak"
-              >
-                <IconShuffle className="h-[18px] w-[18px]" />
-              </button>
-              <button onClick={p.prev} disabled={!t} className={iconBtn} aria-label="Lagu sebelumnya">
-                <IconPrev className="h-[18px] w-[18px]" />
-              </button>
-              {playBtn("mx-1 h-11 w-11", "h-5 w-5")}
-              <button onClick={p.next} disabled={!t} className={iconBtn} aria-label="Lagu berikutnya">
-                <IconNext className="h-[18px] w-[18px]" />
+                <IconHeart filled={liked} className="h-[17px] w-[17px]" />
               </button>
               <button
-                onClick={p.cycleRepeat}
-                className={`${iconBtn} ${p.repeat !== "off" ? "!text-accent" : ""}`}
-                aria-pressed={p.repeat !== "off"}
-                aria-label={`Ulangi: ${p.repeat === "off" ? "mati" : p.repeat === "all" ? "semua" : "satu lagu"}`}
+                onClick={() => p.toggleUi("lyrics")}
+                className={`${iconBtn} ${p.ui === "lyrics" ? "!bg-fill2 !text-label1" : ""}`}
+                aria-pressed={p.ui === "lyrics"}
+                aria-label="Lirik"
               >
-                {p.repeat === "one" ? (
-                  <IconRepeatOne className="h-[18px] w-[18px]" />
+                <IconLyrics className="h-5 w-5" />
+              </button>
+              <button
+                onClick={() => p.toggleUi("queue")}
+                className={`${iconBtn} ${p.ui === "queue" ? "!bg-fill2 !text-label1" : ""}`}
+                aria-pressed={p.ui === "queue"}
+                aria-label="Antrian"
+              >
+                <IconQueue className="h-5 w-5" />
+              </button>
+              <button
+                onClick={() => setFull(true)}
+                disabled={!t}
+                className={`${iconBtnSm} disabled:opacity-40`}
+                aria-label="Buka pemutar layar penuh"
+                title="Expand (F)"
+              >
+                <IconExpand className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => setHelp(true)}
+                className={iconBtnSm}
+                aria-label="Pintasan keyboard"
+                title="Pintasan keyboard (?)"
+              >
+                <IconKeyboard className="h-4 w-4" />
+              </button>
+              <button onClick={p.toggleMute} className={iconBtn} aria-label={p.muted ? "Suarakan" : "Bisukan"}>
+                {p.muted || p.volume === 0 ? (
+                  <IconVolumeMute className="h-5 w-5" />
                 ) : (
-                  <IconRepeat className="h-[18px] w-[18px]" />
+                  <IconVolume className="h-5 w-5" />
                 )}
               </button>
-            </div>
-            <div className="-mt-0.5 flex w-full items-center gap-2.5 text-[12px] text-label2 tnum">
-              <span className="w-10 text-right">{fmtTime(p.position)}</span>
-              <Scrubber
-                position={p.position}
-                duration={p.duration || 0}
-                onSeek={p.seek}
-                className="flex-1"
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={p.muted ? 0 : p.volume}
+                onChange={(e) => p.setVolume(Number(e.target.value))}
+                className="appleslider ml-1 hidden w-14 xl:block"
+                style={{ ["--fill" as string]: `${(p.muted ? 0 : p.volume) * 100}%` } as React.CSSProperties}
+                aria-label="Volume"
               />
-              <span className="w-10">{fmtTime(p.duration)}</span>
             </div>
-          </div>
-
-          {/* panels + volume */}
-          <div className="flex items-center justify-end gap-0.5">
-            <button
-              onClick={() => p.toggleUi("lyrics")}
-              className={`${iconBtn} ${p.ui === "lyrics" ? "!bg-fill2 !text-label1" : ""}`}
-              aria-pressed={p.ui === "lyrics"}
-              aria-label="Lirik"
-            >
-              <IconLyrics className="h-5 w-5" />
-            </button>
-            <button
-              onClick={() => p.toggleUi("queue")}
-              className={`${iconBtn} ${p.ui === "queue" ? "!bg-fill2 !text-label1" : ""}`}
-              aria-pressed={p.ui === "queue"}
-              aria-label="Antrian"
-            >
-              <IconQueue className="h-5 w-5" />
-            </button>
-            <button
-              onClick={() => setFull(true)}
-              disabled={!t}
-              className={`${iconBtn} disabled:opacity-40`}
-              aria-label="Buka pemutar layar penuh"
-              title="Expand (F)"
-            >
-              <IconExpand className="h-[18px] w-[18px]" />
-            </button>
-            <button
-              onClick={() => setHelp(true)}
-              className={iconBtn}
-              aria-label="Pintasan keyboard"
-              title="Pintasan keyboard (?)"
-            >
-              <IconKeyboard className="h-[18px] w-[18px]" />
-            </button>
-            <button onClick={p.toggleMute} className={iconBtn} aria-label={p.muted ? "Suarakan" : "Bisukan"}>
-              {p.muted || p.volume === 0 ? (
-                <IconVolumeMute className="h-5 w-5" />
-              ) : (
-                <IconVolume className="h-5 w-5" />
-              )}
-            </button>
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.01}
-              value={p.muted ? 0 : p.volume}
-              onChange={(e) => p.setVolume(Number(e.target.value))}
-              className="appleslider hidden w-16 xl:block"
-              style={{ ["--fill" as string]: `${(p.muted ? 0 : p.volume) * 100}%` } as React.CSSProperties}
-              aria-label="Volume"
-            />
-          </div>
-        </section>
-      </div>
+          </section>
+        </div>
       )}
     </>
   );

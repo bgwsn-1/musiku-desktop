@@ -38,6 +38,8 @@ const options = {
   },
   alias: {
     "@": WEB_SRC,
+    // Desktop (Win/Linux) pakai ikon Phosphor; web/Android tetap SVG asli.
+    "@/components/Icons": path.join(__dirname, "icons/Icons.ios.jsx"),
     "next/link": path.join(__dirname, "shims/next-link.jsx"),
     "next/navigation": path.join(__dirname, "shims/next-navigation.js"),
     "next/font/google": path.join(__dirname, "shims/next-font.js"),
