@@ -3,7 +3,7 @@
 import { usePlayer } from "@/lib/player";
 import { IconClose } from "@/components/Icons";
 import { Artwork } from "@/components/Artwork";
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Lyrics as LyricsData } from "@/lib/types";
 
 type LrcLine = { time: number; text: string };
@@ -199,15 +199,14 @@ export function LyricsPanel() {
                           acc += w.length + 1;
                           const lit = prog >= start;
                           return (
-                            <Fragment key={k}>
-                              <span
-                                className={`lyric-word transition-opacity duration-500 ease-out ${lit ? "lyric-word-hit" : ""}`}
-                                style={{ opacity: lit ? 1 : 0.42 }}
-                              >
-                                {w}
-                              </span>
+                            <span
+                              key={k}
+                              className="transition-opacity duration-500 ease-out"
+                              style={{ opacity: lit ? 1 : 0.42 }}
+                            >
+                              {w}
                               {k < words.length - 1 ? " " : ""}
-                            </Fragment>
+                            </span>
                           );
                         })
                       ) : (

@@ -1034,18 +1034,6 @@ textarea:focus-visible {
   to { opacity: 1; transform: none; }
 }
 .lyric-in { animation: lyricIn 0.7s var(--ease-out) backwards; }
-
-/* Karaoke word bounce: kata yang menyala pop halus sekali, mirip Apple Music.
-   inline-block diperlukan agar transform bekerja pada span teks. */
-@keyframes lyricWordBounce {
-  0% { transform: translateY(0) scale(1); }
-  35% { transform: translateY(-3px) scale(1.075); }
-  68% { transform: translateY(1px) scale(0.985); }
-  100% { transform: translateY(0) scale(1); }
-}
-.lyric-word { display: inline-block; transform-origin: center bottom; }
-.lyric-word-hit { animation: lyricWordBounce 0.38s cubic-bezier(0.34, 1.4, 0.64, 1) both; }
-
 .lyric-dots { display: inline-flex; gap: 8px; align-items: center; height: 34px; }
 .lyric-dots i {
   display: block; width: 12px; height: 12px; border-radius: 50%; background: currentColor;
@@ -1057,5 +1045,5 @@ textarea:focus-visible {
   50% { transform: scale(1.12); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .lyric-in, .lyric-dots.on, .lyric-word-hit { animation: none; }
+  .lyric-in, .lyric-dots.on { animation: none; }
 }
