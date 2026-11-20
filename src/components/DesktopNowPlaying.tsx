@@ -7,6 +7,7 @@ import {
   IconCrossfade,
   IconEllipsis,
   IconHeart,
+  IconLyrics,
   IconPause,
   IconPlay,
   IconPrev,
@@ -22,6 +23,7 @@ import { Scrubber } from "@/components/Scrubber";
 import { Artwork } from "@/components/Artwork";
 import { shareTrack } from "@/components/ShareCard";
 import { LyricsPanel } from "@/components/LyricsPanel";
+import { ImmersiveLyrics } from "@/components/ImmersiveLyrics";
 import { QueuePanel } from "@/components/QueuePanel";
 import { toast } from "@/components/Toast";
 import { TrackMenu, type MenuAnchor } from "@/components/TrackMenu";
@@ -46,15 +48,23 @@ export function DesktopNowPlaying({
   const [pop, setPop] = useState(false);
   const [ctx, setCtx] = useState<MenuAnchor | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [immersive, setImmersive] = useState(false);
+  const [desktopClient, setDesktopClient] = useState(false);
   const closeBtn = useRef<HTMLButtonElement | null>(null);
+
+  // Tauri menyuntik `__TAURI_INTERNALS__`; browser biasa (web/Android) tidak.
+  useEffect(() => {
+    setDesktopClient(typeof window !== "undefined" && "__TAURI_INTERNALS__" in window);
+  }, []);
 
   // lagu habis → lamanenya gak nyangka, tutup
   useEffect(() => {
+    if (!open) setImmersive(false);
     if (open && !t) onClose();
   }, [open, t, onClose]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || immersive) return;
     closeBtn.current?.focus({ preventScroll: true });
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !document.querySelector("[role=dialog],[role=menu]")) {
@@ -63,9 +73,12 @@ export function DesktopNowPlaying({
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  }, [open, onClose, immersive]);
 
   if (!open || !t) return null;
+  if (immersive && desktopClient) {
+    return <ImmersiveLyrics onExit={() => setImmersive(false)} />;
+  }
   const liked = p.isLiked(t.videoId);
   const remaining = Math.max(0, (p.duration || 0) - p.position);
 
@@ -86,7 +99,17 @@ export function DesktopNowPlaying({
       </div>
 
       <div className="relative flex min-h-0 flex-1 flex-col p-8 xl:p-10">
-        <div className="flex shrink-0 items-center justify-end">
+        <div className="flex shrink-0 items-center justify-end gap-2">
+          {desktopClient && (
+            <button
+              onClick={() => setImmersive(true)}
+              className={`${round} h-11 w-11 text-label2 hover:text-label1`}
+              aria-label="Aktifkan mode lirik imersif"
+              title="Mode lirik imersif"
+            >
+              <IconLyrics className="h-5 w-5" />
+            </button>
+          )}
           <button
             ref={closeBtn}
             onClick={onClose}

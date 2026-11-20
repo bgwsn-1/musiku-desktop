@@ -7,6 +7,7 @@
 //! Aturan: bentuk JSON tiap tipe & endpoint harus identik dengan versi TS,
 //! supaya sisi UI tidak perlu diubah.
 
+pub mod apple;
 pub mod artist_logo;
 pub mod cache;
 pub mod music;

@@ -18,6 +18,7 @@ use serde_json::{json, Value};
 use std::sync::OnceLock;
 use std::time::Duration;
 
+use musiku_core::apple::apple_artwork;
 use musiku_core::artist_logo::{artist_logo, artist_logo_candidates};
 use musiku_core::cache::BytesCache;
 use musiku_core::music::{global, FILTERS, UA};
@@ -125,6 +126,30 @@ async fn song_handler(Path(id): Path<String>) -> Result<Json<Value>, ApiError> {
 
 async fn lyrics_handler(Path(id): Path<String>) -> Result<Json<Value>, ApiError> {
     global().lyrics(&id).await.map(Json).map_err(upstream)
+}
+
+// ── /api/apple-artwork ────────────────────────────────────────────────────
+// Dipakai mode immersive desktop. Selalu 200 dengan field null kalau tidak
+// ketemu — UI tinggal jatuh ke cover YouTube Music yang sekarang.
+
+#[derive(Debug, Deserialize)]
+struct AppleArtworkParams {
+    title: Option<String>,
+    artist: Option<String>,
+}
+
+async fn apple_artwork_handler(Query(p): Query<AppleArtworkParams>) -> Json<Value> {
+    let title = p.title.unwrap_or_default().trim().to_string();
+    let artist = p.artist.map(|a| a.trim().to_string()).filter(|a| !a.is_empty());
+    if title.is_empty() {
+        return Json(json!({ "motion": null, "still": null, "album": null, "artist": null, "url": null }));
+    }
+    let found = apple_artwork(&title, artist.as_deref()).await;
+    Json(found
+        .and_then(|a| serde_json::to_value(a).ok())
+        .unwrap_or_else(|| {
+            json!({ "motion": null, "still": null, "album": null, "artist": null, "url": null })
+        }))
 }
 
 // ── /api/stream/:id ──────────────────────────────────────────────────────
@@ -419,6 +444,7 @@ pub fn app() -> Router {
         .route("/api/artist/{id}", get(artist_handler))
         .route("/api/song/{id}", get(song_handler))
         .route("/api/lyrics/{id}", get(lyrics_handler))
+        .route("/api/apple-artwork", get(apple_artwork_handler))
         .route("/api/stream/{id}", get(stream_handler))
         .route("/api/artwork-proxy", get(artwork_proxy))
         .route("/api/artist-logo", get(artist_logo_json))

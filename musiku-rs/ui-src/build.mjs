@@ -37,9 +37,11 @@ const options = {
     "process.env.NODE_ENV": JSON.stringify(watch ? "development" : "production"),
   },
   alias: {
-    "@": WEB_SRC,
-    // Desktop (Win/Linux) pakai ikon Phosphor; web/Android tetap SVG asli.
+    // Mode imersif & ikon Apple Music hanya untuk desktop (Win/Linux).
+    // Web/Android tetap memakai komponen asli di src/ lewat alias `@` di bawah.
+    "@/components/ImmersiveLyrics": path.join(__dirname, "desktop/ImmersiveLyrics.jsx"),
     "@/components/Icons": path.join(__dirname, "icons/Icons.ios.jsx"),
+    "@": WEB_SRC,
     "next/link": path.join(__dirname, "shims/next-link.jsx"),
     "next/navigation": path.join(__dirname, "shims/next-navigation.js"),
     "next/font/google": path.join(__dirname, "shims/next-font.js"),
