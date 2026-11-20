@@ -159,6 +159,18 @@ mengunduh `linuxdeploy` sendiri saat pertama kali.
 ia memakai WebView OS (WebKitGTK di Linux, WebView2 di Windows, WKWebView di
 macOS). Itu sebabnya installer-nya kecil.
 
+### Pembaruan dari GitHub Release
+
+Shell desktop mengecek rilis terbaru lewat `/api/update/check` (cache 30 menit)
+dan menampilkan entri di bawah sidebar. Tombol "Unduh & pasang" memanggil
+`/api/update/install`, yang mengunduh aset sesuai OS, memverifikasi SHA-256 dari
+field `digest` GitHub, lalu menjalankan installer NSIS silent (Windows) atau
+membuka `.deb` dengan `xdg-open` (Linux). Tombol "Buka di GitHub" memakai
+command Tauri `open_external` yang di-whitelist ke repo ini.
+
+Rilis harus memuat aset bernama `*setup.exe` (Windows) dan `.deb`/`.AppImage`
+(Linux); tanpa itu tombol unduh melaporkan tidak ada aset untuk platform ini.
+
 ### Build Windows dari Linux (tanpa mesin Windows)
 
 `cargo-xwin` bisa menghasilkan exe Windows, dan NSIS bisa dijalankan lewat

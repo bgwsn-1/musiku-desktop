@@ -123,7 +123,7 @@ export function LyricsPanel() {
           : "Tidak ada lirik";
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="flex h-full min-h-0 flex-1 flex-col">
       <div className="flex shrink-0 items-center gap-3 px-5 pb-3 pt-1 lg:pt-4">
         <Artwork
           src={t?.thumbs}

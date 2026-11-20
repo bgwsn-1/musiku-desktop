@@ -14,6 +14,7 @@ import {
 } from "@/components/Icons";
 import { ConfirmDialog, NewPlaylistDialog } from "@/components/Dialog";
 import { Artwork } from "@/components/Artwork";
+import { UpdateIndicator } from "@/components/UpdateIndicator";
 
 /** Wordmark whose bars move only while music plays — the one brand moment. */
 function Wordmark() {
@@ -141,6 +142,8 @@ export function Sidebar() {
           );
         })}
       </div>
+
+      <UpdateIndicator />
 
       <NewPlaylistDialog
         open={creating}

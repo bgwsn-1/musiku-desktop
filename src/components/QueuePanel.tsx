@@ -10,7 +10,7 @@ export function QueuePanel() {
   const p = usePlayer();
   const rest = Math.max(0, p.queue.length - p.index - 1);
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="flex h-full min-h-0 flex-1 flex-col">
       <div className="flex shrink-0 items-center justify-between gap-3 px-5 pb-3 pt-1 lg:pt-4">
         <div className="min-w-0">
           <h2 className="text-[20px] font-bold leading-tight tracking-tight text-label1">Antrian</h2>

@@ -11,7 +11,7 @@ use axum::body::Body;
 use axum::extract::{Path, Query};
 use axum::http::{header, HeaderMap, StatusCode};
 use axum::response::{Html, IntoResponse, Response};
-use axum::routing::get;
+use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -22,6 +22,8 @@ use musiku_core::artist_logo::{artist_logo, artist_logo_candidates};
 use musiku_core::cache::BytesCache;
 use musiku_core::music::{global, FILTERS, UA};
 use musiku_core::stream::{resolve_audio, resolve_video, valid_video_id};
+
+mod update;
 
 /// Cache byte gambar sampul (24 jam). Mencegah hit berulang ke CDN Google.
 fn artwork_cache() -> &'static BytesCache {
@@ -390,6 +392,19 @@ async fn asset_font(Path(name): Path<String>) -> Response {
     }
 }
 
+// ── /api/update/* ────────────────────────────────────────────────────────
+
+async fn update_check() -> std::result::Result<Json<Value>, ApiError> {
+    update::check()
+        .await
+        .map(|v| Json(json!(v)))
+        .map_err(|e| upstream(e))
+}
+
+async fn update_install() -> std::result::Result<Json<Value>, ApiError> {
+    update::install().await.map(Json).map_err(|e| upstream(e))
+}
+
 /// Router lengkap: API + UI.
 pub fn app() -> Router {
     Router::new()
@@ -408,6 +423,8 @@ pub fn app() -> Router {
         .route("/api/artwork-proxy", get(artwork_proxy))
         .route("/api/artist-logo", get(artist_logo_json))
         .route("/api/artist-logo/file", get(artist_logo_file))
+        .route("/api/update/check", get(update_check))
+        .route("/api/update/install", post(update_install))
         // SPA fallback: rute tak dikenal balikin UI.
         .fallback(index)
 }

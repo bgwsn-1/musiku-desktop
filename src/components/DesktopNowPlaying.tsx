@@ -257,7 +257,7 @@ export function DesktopNowPlaying({
                 </button>
               ))}
             </div>
-            <div className="min-h-0 flex-1">{tab === "lyrics" ? <LyricsPanel /> : <QueuePanel />}</div>
+            <div className="flex min-h-0 flex-1">{tab === "lyrics" ? <LyricsPanel /> : <QueuePanel />}</div>
           </div>
         </div>
       </div>
