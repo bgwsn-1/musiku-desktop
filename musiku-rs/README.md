@@ -159,6 +159,30 @@ mengunduh `linuxdeploy` sendiri saat pertama kali.
 ia memakai WebView OS (WebKitGTK di Linux, WebView2 di Windows, WKWebView di
 macOS). Itu sebabnya installer-nya kecil.
 
+### Build Windows dari Linux (tanpa mesin Windows)
+
+`cargo-xwin` bisa menghasilkan exe Windows, dan NSIS bisa dijalankan lewat
+Wine — jadi installer pun bisa dibuat di sini:
+
+```bash
+cd musiku-rs
+./build-exe.sh              # butuh cargo-xwin + clang/nasm/lld di PATH
+./build-installer-local.sh  # butuh wine, curl, unzip
+```
+
+Hasilnya: `target/windows-installer/Musiku-<versi>-setup.exe` (per-user,
+tanpa UAC) plus `target/x86_64-pc-windows-msvc/release/musiku-desktop.exe`.
+Installer menyertakan WebView2 Evergreen bootstrapper (~1,8 MB) dan hanya
+menjalankannya kalau runtime belum terpasang. NSIS 3.11 dan bootstrapper
+diunduh sekali ke `~/.cache/musiku-windows-build`.
+
+Di Windows, jalankan installer, lalu buka Musiku dari Start Menu. Kalau
+Windows 10 belum punya WebView2, bootstrapper akan memasangnya saat instal.
+
+> Catatan CI: `.github/workflows/build-windows.yml` butuh OAuth token dengan
+> scope `workflow` untuk bisa di-push. Token tanpa scope itu tetap bisa
+> memakai jalur lokal di atas.
+
 **Ukuran binary.** Build `debug` membawa seluruh simbol & tanpa optimasi —
 `musiku-desktop` bisa **±327 MB**. Itu **normal** dan tidak pernah dipakai
 untuk distribusi. Pakai `cargo build --release`:
