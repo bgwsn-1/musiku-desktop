@@ -3,7 +3,7 @@
 import { usePlayer } from "@/lib/player";
 import { IconClose } from "@/components/Icons";
 import { Artwork } from "@/components/Artwork";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { Lyrics as LyricsData } from "@/lib/types";
 
 type LrcLine = { time: number; text: string };
@@ -192,7 +192,6 @@ export function LyricsPanel() {
                         "opacity 0.6s ease, filter 0.6s ease, transform 0.7s cubic-bezier(0.22, 1, 0.36, 1)",
                     }}
                   >
-                    <span className={active ? "lyric-jiggle" : undefined}>
                     {l.text ? (
                       active ? (
                         words.map((w, k) => {
@@ -200,14 +199,15 @@ export function LyricsPanel() {
                           acc += w.length + 1;
                           const lit = prog >= start;
                           return (
-                            <span
-                              key={k}
-                              className="transition-opacity duration-500 ease-out"
-                              style={{ opacity: lit ? 1 : 0.42 }}
-                            >
-                              {w}
+                            <Fragment key={k}>
+                              <span
+                                className={`lyric-word transition-opacity duration-500 ease-out ${lit ? "lyric-word-hit" : ""}`}
+                                style={{ opacity: lit ? 1 : 0.42 }}
+                              >
+                                {w}
+                              </span>
                               {k < words.length - 1 ? " " : ""}
-                            </span>
+                            </Fragment>
                           );
                         })
                       ) : (
@@ -220,7 +220,6 @@ export function LyricsPanel() {
                         ))}
                       </span>
                     )}
-                    </span>
                   </button>
                 </div>
               );
