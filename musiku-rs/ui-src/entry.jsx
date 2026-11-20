@@ -27,7 +27,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 
 import SearchPage from "@/app/search/page";
 import LikedPage from "@/app/liked/page";
-import PlaylistPage from "@/app/playlist/[id]/page";
+import { PlaylistView } from "@/components/PlaylistView";
 
 // ── helper kecil ─────────────────────────────────────────────────────────
 async function jget(url) {
@@ -325,7 +325,7 @@ function useRoute() {
   if (pathname.startsWith("/liked")) return { page: <LikedPage /> };
   if ((m = pathname.match(/^\/album\/(.+)$/))) return { page: <AlbumPage id={decodeURIComponent(m[1])} /> };
   if ((m = pathname.match(/^\/artist\/(.+)$/))) return { page: <ArtistPage id={decodeURIComponent(m[1])} /> };
-  if ((m = pathname.match(/^\/playlist\/(.+)$/))) return { page: <PlaylistPage params={Promise.resolve({ id: decodeURIComponent(m[1]) })} /> };
+  if ((m = pathname.match(/^\/playlist\/(.+)$/))) return { page: <PlaylistView id={decodeURIComponent(m[1])} /> };
   void searchParams;
   return { page: <Centered title="Halaman tidak ditemukan" sub="Tautan mungkin salah." /> };
 }
@@ -341,7 +341,13 @@ function Shell() {
         Lompat ke konten
       </a>
       <main id="main" tabIndex={-1} className="page-scroll absolute inset-0 z-10 overflow-y-auto outline-none">
-        <PageFade>{page}</PageFade>
+        <Suspense
+          fallback={
+            <div className="px-5 py-24 text-center text-[15px] text-label2">Memuat…</div>
+          }
+        >
+          <PageFade>{page}</PageFade>
+        </Suspense>
       </main>
       <div className="scroll-edge scroll-edge-top" aria-hidden="true" />
       <div className="scroll-edge scroll-edge-bottom" aria-hidden="true" />

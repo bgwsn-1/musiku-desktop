@@ -1034,6 +1034,22 @@ textarea:focus-visible {
   to { opacity: 1; transform: none; }
 }
 .lyric-in { animation: lyricIn 0.7s var(--ease-out) backwards; }
+
+/* Jiggle singkat saat sebuah baris jadi aktif. Dipasang di span dalam, bukan
+   di wrapper .lyric-in yang transform-nya dipakai efek follow-scroll. */
+@keyframes lyricJiggle {
+  0% { transform: translateX(0) rotate(0deg); }
+  22% { transform: translateX(2px) rotate(-1.2deg); }
+  48% { transform: translateX(-1.6px) rotate(0.85deg); }
+  72% { transform: translateX(0.9px) rotate(-0.4deg); }
+  100% { transform: translateX(0) rotate(0deg); }
+}
+.lyric-jiggle {
+  display: inline-block;
+  transform-origin: left center;
+  animation: lyricJiggle 0.5s var(--ease-spring) both;
+}
+
 .lyric-dots { display: inline-flex; gap: 8px; align-items: center; height: 34px; }
 .lyric-dots i {
   display: block; width: 12px; height: 12px; border-radius: 50%; background: currentColor;
@@ -1045,5 +1061,5 @@ textarea:focus-visible {
   50% { transform: scale(1.12); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .lyric-in, .lyric-dots.on { animation: none; }
+  .lyric-in, .lyric-dots.on, .lyric-jiggle { animation: none; }
 }

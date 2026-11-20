@@ -192,6 +192,7 @@ export function LyricsPanel() {
                         "opacity 0.6s ease, filter 0.6s ease, transform 0.7s cubic-bezier(0.22, 1, 0.36, 1)",
                     }}
                   >
+                    <span className={active ? "lyric-jiggle" : undefined}>
                     {l.text ? (
                       active ? (
                         words.map((w, k) => {
@@ -219,6 +220,7 @@ export function LyricsPanel() {
                         ))}
                       </span>
                     )}
+                    </span>
                   </button>
                 </div>
               );
