@@ -40,6 +40,9 @@ const options = {
     // Mode imersif & ikon Apple Music hanya untuk desktop (Win/Linux).
     // Web/Android tetap memakai komponen asli di src/ lewat alias `@` di bawah.
     "@/components/ImmersiveLyrics": path.join(__dirname, "desktop/ImmersiveLyrics.jsx"),
+    // Lirik ala Spicy dipakai di semua panel lirik desktop (side panel,
+    // now-playing, dan mode imersif). Web/Android tetap pakai LyricsPanel asli.
+    "@/components/LyricsPanel": path.join(__dirname, "desktop/SpicyLyrics.jsx"),
     "@/components/Icons": path.join(__dirname, "icons/Icons.ios.jsx"),
     "@": WEB_SRC,
     "next/link": path.join(__dirname, "shims/next-link.jsx"),
