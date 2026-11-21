@@ -978,6 +978,17 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       if (e.currentTarget !== audioRef.current) return;
       setPlaying(true);
     };
+    const onPlaying = (e: Event) => {
+      const el = e.currentTarget as HTMLAudioElement;
+      // Saat crossfade, elemen bayangan sudah ikut berbunyi sebelum peran
+      // ditukar — spinner lagu baru harus hilang di titik ini juga.
+      if (el !== audioRef.current && !fadingRef.current) return;
+      // `play` hanya berarti play() dipanggil; `playing` baru berarti benar-
+      // benar keluar suara. Pakai ini untuk mematikan spinner, bukan canplay.
+      setPlaying(true);
+      setResolving(false);
+      errCountRef.current = 0;
+    };
     const onPause = (e: Event) => {
       const el = e.currentTarget as HTMLAudioElement;
       if (el !== audioRef.current) return;
@@ -1019,15 +1030,37 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       // ikut lagu baru). Preload di luar fade tidak boleh menimpa durasi
       // lagu yang sedang diputar — progress bar jadi salah.
       if (el !== audioRef.current && !fadingRef.current) return;
-      setDuration(el.duration || 0);
+      // Stream bisa melaporkan Infinity/NaN lebih dulu; jangan dipajang sebagai
+      // durasi (nanti "loncat" saat durationchange dengan angka asli datang).
+      const d = el.duration;
+      setDuration(isFinite(d) && d > 0 ? d : 0);
       setResolving(false);
       errCountRef.current = 0;
       setPosition(0);
       positionRef.current = 0;
       pushPositionState(el);
     };
-    const onWait = () => setResolving(true);
-    const onCanPlay = () => setResolving(false);
+    const onDuration = (e: Event) => {
+      const el = e.currentTarget as HTMLAudioElement;
+      if (el !== audioRef.current && !fadingRef.current) return;
+      const d = el.duration;
+      if (isFinite(d) && d > 0) {
+        setDuration(d);
+        pushPositionState(el);
+      }
+    };
+    // Elemen bayangan ikut memuat (preloadNext). Event waiting/canplay-nya
+    // jangan sampai menyalakan/mematikan spinner lagu yang sedang diputar.
+    const onWait = (e: Event) => {
+      const el = e.currentTarget as HTMLAudioElement;
+      if (el !== audioRef.current && !fadingRef.current) return;
+      setResolving(true);
+    };
+    const onCanPlay = (e: Event) => {
+      const el = e.currentTarget as HTMLAudioElement;
+      if (el !== audioRef.current && !fadingRef.current) return;
+      setResolving(false);
+    };
     const onError = (e: Event) => {
       const el = e.currentTarget as HTMLAudioElement;
       if (el !== audioRef.current) return; // gagal saat masih bayangan: tunggu jadi live
@@ -1052,9 +1085,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     };
     for (const el of [a, s]) {
       el.addEventListener("play", onPlay);
+      el.addEventListener("playing", onPlaying);
       el.addEventListener("pause", onPause);
       el.addEventListener("timeupdate", onTime);
       el.addEventListener("loadedmetadata", onMeta);
+      el.addEventListener("durationchange", onDuration);
       el.addEventListener("waiting", onWait);
       el.addEventListener("canplay", onCanPlay);
       el.addEventListener("error", onError);
@@ -1063,9 +1098,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     return () => {
       for (const el of [a, s]) {
         el.removeEventListener("play", onPlay);
+        el.removeEventListener("playing", onPlaying);
         el.removeEventListener("pause", onPause);
         el.removeEventListener("timeupdate", onTime);
         el.removeEventListener("loadedmetadata", onMeta);
+        el.removeEventListener("durationchange", onDuration);
         el.removeEventListener("waiting", onWait);
         el.removeEventListener("canplay", onCanPlay);
         el.removeEventListener("error", onError);
