@@ -10,7 +10,7 @@ import { TrackRow } from "@/components/TrackRow";
 import { NewPlaylistDialog } from "@/components/Dialog";
 import { IconChevronRight, IconPlus } from "@/components/Icons";
 
-type Section = "playlist" | "artist" | "album" | "song";
+export type Section = "playlist" | "artist" | "album" | "song" | "recent";
 
 const SECTIONS: { id: Section; label: string }[] = [
   { id: "playlist", label: "Playlist" },
@@ -41,10 +41,14 @@ type AlbumGroup = {
  * Artis dan album diturunkan dari lagu favorit di perangkat — tidak ada
  * permintaan jaringan tambahan, jadi section-nya instan.
  */
-export function LibraryView() {
+export function LibraryView({ initialSection }: { initialSection?: Section }) {
   const p = usePlayer();
   const router = useRouter();
-  const [section, setSection] = useState<Section>("playlist");
+  const [ownSection, setOwnSection] = useState<Section>("playlist");
+  // Tanpa prop, komponen memakai segmented control sendiri (halaman Pustaka
+  // di HP). Dengan prop, sidebar desktop membuka tepat satu bagian saja.
+  const section: Section = initialSection ?? ownSection;
+  const setSection = setOwnSection;
   const [creating, setCreating] = useState(false);
   const tabs = useRef<(HTMLButtonElement | null)[]>([]);
 
@@ -114,7 +118,9 @@ export function LibraryView() {
 
   return (
     <div>
-      {/* ── Segmented control: one track, one thumb, taps move it ── */}
+      {/* ── Segmented control: satu track, satu thumb. Hanya dipakai halaman
+             Pustaka penuh; shortcut desktop membuka satu bagian langsung. ── */}
+      {!initialSection && (
       <div
         role="tablist"
         aria-label="Bagian pustaka"
@@ -148,8 +154,9 @@ export function LibraryView() {
           );
         })}
       </div>
+      )}
 
-      <div className="mt-6">
+      <div className={initialSection ? "" : "mt-6"}>
         {section === "playlist" && (
           <section id="library-panel-playlist" role="tabpanel" aria-label="Playlist">
             <div className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
@@ -262,6 +269,21 @@ export function LibraryView() {
             ) : (
               p.liked.map((t, i) => (
                 <TrackRow key={`${t.videoId}-${i}`} track={t} queue={p.liked} index={i} />
+              ))
+            )}
+          </section>
+        )}
+
+        {section === "recent" && (
+          <section id="library-panel-recent" role="tabpanel" aria-label="Terakhir Diputar">
+            {p.recent.length === 0 ? (
+              <Empty
+                title="Belum ada riwayat"
+                body="Lagu yang kamu putar muncul di sini, paling baru di atas."
+              />
+            ) : (
+              p.recent.map((t, i) => (
+                <TrackRow key={`${t.videoId}-${i}`} track={t} queue={p.recent} index={i} />
               ))
             )}
           </section>

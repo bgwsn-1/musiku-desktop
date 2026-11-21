@@ -28,6 +28,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 
 import SearchPage from "@/app/search/page";
 import LikedPage from "@/app/liked/page";
+import { PustakaSection } from "@/components/PustakaSection";
 import { PlaylistView } from "@/components/PlaylistView";
 
 // ── helper kecil ─────────────────────────────────────────────────────────
@@ -476,6 +477,11 @@ function useRoute() {
   if (pathname === "/" || pathname === "") return { page: <HomePage /> };
   if (pathname.startsWith("/search")) return { page: <SearchPage /> };
   if (pathname.startsWith("/liked")) return { page: <LikedPage /> };
+  if ((m = pathname.match(/^\/pustaka(?:\/([^/]+))?$/))) {
+    return m[1]
+      ? { page: <PustakaSection section={decodeURIComponent(m[1])} /> }
+      : { page: <LikedPage /> };
+  }
   if (pathname.startsWith("/explore")) return { page: <ExplorePage /> };
   if (pathname.startsWith("/radio")) return { page: <RadioPage /> };
   if ((m = pathname.match(/^\/album\/(.+)$/))) return { page: <AlbumPage id={decodeURIComponent(m[1])} /> };
