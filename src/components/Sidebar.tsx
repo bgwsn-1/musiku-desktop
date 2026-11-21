@@ -8,6 +8,10 @@ import {
   IconExplore,
   IconHeart,
   IconHome,
+  IconLibAlbum,
+  IconLibArtists,
+  IconLibPlaylists,
+  IconLibRecent,
   IconLibrary,
   IconPlus,
   IconRadio,
@@ -15,6 +19,23 @@ import {
   IconSidebar,
   IconTrash,
 } from "@/components/Icons";
+
+/** Shortcut di bawah header Pustaka — ikon asli Apple Music dari APK. */
+const PUSTAKA_SHORTCUTS = [
+  { href: "/pustaka/playlist", label: "Playlist", icon: <IconLibPlaylists className="h-5 w-5" /> },
+  { href: "/pustaka/artist", label: "Artis", icon: <IconLibArtists className="h-5 w-5" /> },
+  { href: "/pustaka/album", label: "Album", icon: <IconLibAlbum className="h-5 w-5" /> },
+  {
+    href: "/pustaka/songs",
+    label: "Lagu Favorit",
+    icon: <IconHeart filled className="h-5 w-5" />,
+  },
+  {
+    href: "/pustaka/recent",
+    label: "Terakhir Diputar",
+    icon: <IconLibRecent className="h-5 w-5" />,
+  },
+];
 import { ConfirmDialog, NewPlaylistDialog } from "@/components/Dialog";
 import { Artwork } from "@/components/Artwork";
 import { UpdateIndicator } from "@/components/UpdateIndicator";
@@ -55,7 +76,8 @@ function NavItem({
   icon: React.ReactNode;
   compact: boolean;
 }) {
-  const active = usePathname() === href;
+  const pathname = usePathname();
+  const active = pathname === href || pathname.startsWith(`${href}/`);
   return (
     <Link
       href={href}
@@ -141,7 +163,25 @@ export function Sidebar() {
         <NavItem href="/explore" label="Explore" icon={<IconExplore className="h-5 w-5" />} compact={collapsed} />
         <NavItem href="/radio" label="Radio" icon={<IconRadio className="h-5 w-5" />} compact={collapsed} />
         <div className={`my-2.5 h-px bg-hairline ${collapsed ? "mx-1" : "mx-3"}`} aria-hidden="true" />
-        <NavItem href="/liked" label="Lagu Favorit" icon={<IconHeart filled className="h-5 w-5" />} compact={collapsed} />
+
+        <div
+          className={`mb-1 flex items-center ${
+            collapsed ? "justify-center" : "h-7 pl-3 pr-1"
+          }`}
+        >
+          {!collapsed && (
+            <h2 className="text-[13px] font-semibold tracking-[0.01em] text-label3">Pustaka</h2>
+          )}
+        </div>
+        {PUSTAKA_SHORTCUTS.map((s) => (
+          <NavItem
+            key={s.href}
+            href={s.href}
+            label={s.label}
+            icon={s.icon}
+            compact={collapsed}
+          />
+        ))}
       </nav>
 
       <div className={`mb-1 mt-5 flex items-center ${collapsed ? "justify-center" : "justify-between pl-3 pr-1"}`}>
