@@ -58,18 +58,27 @@ fn open_lyrics_overlay(app: AppHandle, base: State<'_, BaseUrl>) -> Result<(), S
 
     let mut target = tauri::Url::parse(&base.0).map_err(|e| e.to_string())?;
     target.set_query(Some("overlay=lyrics"));
-    WebviewWindowBuilder::new(&app, LYRICS_OVERLAY_LABEL, WebviewUrl::External(target))
+    let builder = WebviewWindowBuilder::new(&app, LYRICS_OVERLAY_LABEL, WebviewUrl::External(target))
         .title("Lirik — Musiku")
         .inner_size(520.0, 520.0)
         .min_inner_size(360.0, 360.0)
         .resizable(true)
         .decorations(false)
-        .transparent(true)
-        .shadow(true)
         .always_on_top(true)
-        .visible(true)
+        .visible(true);
+
+    // Transparansi sering membuat jendela tak terlihat di Linux tanpa
+    // compositor yang mendukung. Di Linux pakai jendela solid saja.
+    #[cfg(not(target_os = "linux"))]
+    let builder = builder.transparent(true);
+
+    builder
+        .shadow(true)
         .build()
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| {
+            eprintln!("[lyrics-overlay] gagal membuat jendela: {e}");
+            e.to_string()
+        })?;
     Ok(())
 }
 

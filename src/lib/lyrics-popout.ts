@@ -1,5 +1,7 @@
 "use client";
 
+import { toast } from "@/components/Toast";
+
 /** Channel shared by the main window and the floating lyrics webview. */
 export const LYRICS_OVERLAY_CHANNEL = "musiku:lyrics-overlay";
 
@@ -35,10 +37,19 @@ export function isDesktopClient(): boolean {
   return Boolean((window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__);
 }
 
+function fire(cmd: string, failure: string): void {
+  const result = invoke(cmd);
+  if (!result) return;
+  result.catch((error: unknown) => {
+    console.error(`[lyrics-popout] ${cmd} gagal`, error);
+    toast(failure);
+  });
+}
+
 export function openLyricsPopout(): void {
-  void invoke("open_lyrics_overlay");
+  fire("open_lyrics_overlay", "Gagal membuka lirik mengambang");
 }
 
 export function closeLyricsPopout(): void {
-  void invoke("close_lyrics_overlay");
+  fire("close_lyrics_overlay", "Gagal menutup lirik mengambang");
 }
