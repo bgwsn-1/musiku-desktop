@@ -30,6 +30,7 @@ import SearchPage from "@/app/search/page";
 import LikedPage from "@/app/liked/page";
 import { PustakaSection } from "@/components/PustakaSection";
 import { PlaylistView } from "@/components/PlaylistView";
+import DiscordPresence from "./desktop/DiscordPresence.jsx";
 
 // ── helper kecil ─────────────────────────────────────────────────────────
 async function jget(url) {
@@ -526,6 +527,7 @@ function Shell() {
 function App() {
   return (
     <PlayerProvider>
+      <DiscordPresence />
       <Shell />
     </PlayerProvider>
   );
