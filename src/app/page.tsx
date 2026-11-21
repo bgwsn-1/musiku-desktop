@@ -34,6 +34,19 @@ export default async function HomePage() {
       {rest.map((sh, si) => (
         <Shelf key={sh.title ?? si} title={sh.title ?? ""}>
           {sh.items.map((it, i) => {
+            if (it.kind === "artist" && it.browseId) {
+              return (
+                <GridCard
+                  key={`ar${i}-${it.browseId}`}
+                  i={i}
+                  title={it.title}
+                  subtitle={it.artist}
+                  href={`/artist/${it.browseId}`}
+                  img={it.thumbs}
+                  round
+                />
+              );
+            }
             if (it.kind === "album" && it.browseId) {
               return (
                 <GridCard
@@ -61,7 +74,7 @@ export default async function HomePage() {
                 i={i}
                 title={it.title}
                 subtitle={it.artist}
-                href={it.browseId ? `/album/${it.browseId}` : undefined}
+                href={it.kind === "album" && it.browseId ? `/album/${it.browseId}` : undefined}
                 img={it.thumbs}
                 track={track}
               />

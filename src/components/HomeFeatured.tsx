@@ -39,10 +39,15 @@ export function FeaturedCarousel({ items }: { items: HomeItem[] }) {
       >
         {items.map((it, i) => {
           const track = toTrack(it);
-          const href = it.browseId && it.kind === "album" ? `/album/${it.browseId}` : null;
+          const href =
+            it.browseId && it.kind === "album"
+              ? `/album/${it.browseId}`
+              : it.browseId && it.kind === "artist"
+                ? `/artist/${it.browseId}`
+                : null;
           const isCurrent = !!track && p.current?.videoId === track.videoId;
           const playing = isCurrent && p.playing;
-          const label = it.kind === "album" ? "Album" : "Lagu";
+          const label = it.kind === "album" ? "Album" : it.kind === "artist" ? "Artis" : "Lagu";
           const body = (
             <>
               <p className="t-eyebrow !text-label3">{label}</p>
@@ -56,7 +61,11 @@ export function FeaturedCarousel({ items }: { items: HomeItem[] }) {
                 <Artwork src={it.thumbs} eager={i < 2} />
                 <div className="absolute inset-x-0 bottom-0 flex items-center gap-3 bg-black/35 px-3.5 py-2.5 text-white backdrop-blur-xl">
                   <span className="min-w-0 flex-1 truncate text-[13px] font-medium leading-snug">
-                    {it.kind === "album" ? "Dengarkan albumnya sekarang" : "Putar lagu ini sekarang"}
+                    {it.kind === "album"
+                      ? "Dengarkan albumnya sekarang"
+                      : it.kind === "artist"
+                        ? "Lihat lagunya sekarang"
+                        : "Putar lagu ini sekarang"}
                   </span>
                   <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/25">
                     {playing ? <IconPause className="h-3.5 w-3.5" /> : <IconPlay className="ml-0.5 h-3.5 w-3.5" />}

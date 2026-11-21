@@ -51,7 +51,7 @@ export type HomeItem = {
   artist: string | null;
   artistId: string | null;
   thumbs: string | null;
-  kind: "album" | "song";
+  kind: "album" | "song" | "artist";
 };
 
 export type HomeShelf = { title: string; items: HomeItem[] };

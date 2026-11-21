@@ -116,6 +116,19 @@ function HomePage() {
       {rest.map((sh, si) => (
         <Shelf key={sh.title ?? si} title={sh.title ?? ""}>
           {sh.items.map((it, i) => {
+            if (it.kind === "artist" && it.browseId) {
+              return (
+                <GridCard
+                  key={`ar${i}-${it.browseId}`}
+                  i={i}
+                  title={it.title}
+                  subtitle={it.artist}
+                  href={`/artist/${it.browseId}`}
+                  img={it.thumbs}
+                  round
+                />
+              );
+            }
             if (it.kind === "album" && it.browseId) {
               return (
                 <GridCard
@@ -143,7 +156,7 @@ function HomePage() {
                 i={i}
                 title={it.title}
                 subtitle={it.artist}
-                href={it.browseId ? `/album/${it.browseId}` : undefined}
+                href={it.kind === "album" && it.browseId ? `/album/${it.browseId}` : undefined}
                 img={it.thumbs}
                 track={track}
               />
@@ -347,6 +360,7 @@ function ExplorePage() {
       return true;
     });
   };
+  const artists = uniqueBy(items.filter((it) => it.kind === "artist"), (it) => it.browseId);
   const albums = uniqueBy(items.filter((it) => it.kind === "album"), (it) => it.browseId);
   const songs = uniqueBy(items.filter((it) => it.videoId), (it) => it.videoId).slice(0, 24);
   const songTracks = songs.map(toTrack).filter(Boolean);
@@ -360,6 +374,22 @@ function ExplorePage() {
       </header>
 
       {lead && lead.items.length > 0 && <FeaturedCarousel items={lead.items.slice(0, 6)} />}
+
+      {artists.length > 0 && (
+        <Shelf title="Artis populer" layout="grid">
+          {artists.slice(0, 24).map((it, i) => (
+            <GridCard
+              key={`ar-${i}-${it.browseId}`}
+              i={i}
+              title={it.title}
+              subtitle={it.artist}
+              href={`/artist/${it.browseId}`}
+              img={it.thumbs}
+              round
+            />
+          ))}
+        </Shelf>
+      )}
 
       {albums.length > 0 && (
         <Shelf title="Album pilihan" layout="grid">

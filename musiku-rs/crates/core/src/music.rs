@@ -165,6 +165,18 @@ fn album_to_home(a: &AlbumItem) -> HomeItem {
     }
 }
 
+fn artist_to_home(a: &ArtistItem) -> HomeItem {
+    HomeItem {
+        title: a.name.clone(),
+        video_id: None,
+        browse_id: Some(a.id.clone()),
+        artist: None,
+        artist_id: Some(a.id.clone()),
+        thumbs: thumb(&a.avatar),
+        kind: HomeItemKind::Artist,
+    }
+}
+
 // ── Endpoint ─────────────────────────────────────────────────────────────
 
 pub const FILTERS: [&str; 4] = ["songs", "videos", "artists", "albums"];
@@ -261,20 +273,13 @@ impl Musiku {
                 );
 
                 if let Some(c) = charts {
-                    // Artis populer → sajian grid di UI.
+                    // Artis populer → sajian grid di UI, tapi tetap bertipe
+                    // `artist`: browseId-nya `UC...`, bukan `MPREb_...`.
                     let artists: Vec<HomeItem> = c
                         .artists
                         .iter()
                         .take(12)
-                        .map(|a| HomeItem {
-                            title: a.name.clone(),
-                            video_id: None,
-                            browse_id: Some(a.id.clone()),
-                            artist: None,
-                            artist_id: Some(a.id.clone()),
-                            thumbs: thumb(&a.avatar),
-                            kind: HomeItemKind::Album, // dikartukan; UI pakai browseId
-                        })
+                        .map(artist_to_home)
                         .collect();
                     push(&mut shelves, "Artis Populer", artists);
 
@@ -293,6 +298,12 @@ impl Musiku {
 
     /// Detail album.
     pub async fn album(&self, browse_id: &str) -> anyhow::Result<serde_json::Value> {
+        // Id artis (`UC...`) bukan id album. Dulu kartu "Artis Populer" dikirim
+        // ke sini dan bikin 502/putus di desktop. Kalau masih ada klien dengan
+        // home cache lama, jawab 404 cepat lewat `{ error }` (dicek handler).
+        if browse_id.starts_with("UC") {
+            return Ok(serde_json::json!({ "error": "bukan id album" }));
+        }
         let key = format!("album:{browse_id}");
         self.cache
             .get_or_try(&key, async {

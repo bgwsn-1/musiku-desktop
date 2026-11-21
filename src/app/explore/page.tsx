@@ -36,6 +36,10 @@ export default async function ExplorePage() {
   }
 
   const items = shelves.flatMap((s) => s.items);
+  const artists = uniqueBy(
+    items.filter((it) => it.kind === "artist"),
+    (it) => it.browseId,
+  );
   const albums = uniqueBy(
     items.filter((it) => it.kind === "album"),
     (it) => it.browseId,
@@ -55,6 +59,22 @@ export default async function ExplorePage() {
       </header>
 
       {lead && lead.items.length > 0 && <FeaturedCarousel items={lead.items.slice(0, 6)} />}
+
+      {artists.length > 0 && (
+        <Shelf title="Artis populer" layout="grid">
+          {artists.slice(0, 24).map((it, i) => (
+            <GridCard
+              key={`ar-${i}-${it.browseId}`}
+              i={i}
+              title={it.title}
+              subtitle={it.artist}
+              href={`/artist/${it.browseId}`}
+              img={it.thumbs}
+              round
+            />
+          ))}
+        </Shelf>
+      )}
 
       {albums.length > 0 && (
         <Shelf title="Album pilihan" layout="grid">

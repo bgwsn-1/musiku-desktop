@@ -157,7 +157,7 @@ pub struct HomeItem {
     pub artist_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub thumbs: Option<String>,
-    /// Di TS: `"album" | "song"`.
+    /// Di TS: `"album" | "song" | "artist"`.
     pub kind: HomeItemKind,
 }
 
@@ -167,6 +167,9 @@ pub enum HomeItemKind {
     Album,
     #[default]
     Song,
+    /// Kartu artis (id `UC...`) dari "Artis Populer". Dialihkan ke `/artist/...`,
+    /// bukan `/album/...` — id artis bukan id album.
+    Artist,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
