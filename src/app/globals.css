@@ -1306,7 +1306,9 @@ textarea:focus-visible {
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  /* Sumber cover bisa 16:9 (maxresdefault) — jangan sampai kepotong. */
+  object-fit: contain;
+  object-position: center;
 }
 .lo-fallback {
   background: radial-gradient(circle at 30% 20%, #6b3a35 0%, #2a1618 55%, #120b0b 100%);
@@ -1320,8 +1322,6 @@ textarea:focus-visible {
     rgba(0, 0, 0, 0.28) 42%,
     rgba(0, 0, 0, 0.78) 100%
   );
-  -webkit-backdrop-filter: blur(8cqw) saturate(140%);
-  backdrop-filter: blur(8cqw) saturate(140%);
 }
 .lo-head {
   position: absolute;
@@ -1425,17 +1425,17 @@ textarea:focus-visible {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 700;
-  font-size: 7.6cqw;
-  line-height: 10.9cqw;
-  letter-spacing: -0.55cqw;
+  font-size: 6.6cqw;
+  line-height: 9.4cqw;
+  letter-spacing: -0.45cqw;
   opacity: 0.2;
   cursor: pointer;
   transition: opacity 300ms ease, font-size 350ms ease, line-height 350ms ease;
 }
 .lo-line.is-active {
-  font-size: 11.6cqw;
-  line-height: 15.1cqw;
-  letter-spacing: -0.86cqw;
+  font-size: 9.8cqw;
+  line-height: 12.9cqw;
+  letter-spacing: -0.72cqw;
   opacity: 1;
 }
 .lo-plain,
@@ -1448,9 +1448,9 @@ textarea:focus-visible {
   padding: 0 6%;
   white-space: pre-line;
   text-align: center;
-  font-size: 6cqw;
+  font-size: 5.2cqw;
   font-weight: 700;
-  line-height: 9cqw;
+  line-height: 7.6cqw;
   opacity: 0.8;
 }
 .lo-controls {

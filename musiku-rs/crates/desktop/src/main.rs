@@ -67,11 +67,11 @@ fn open_lyrics_overlay(app: AppHandle, base: State<'_, BaseUrl>) -> Result<(), S
     // transparent + always-on-top sering bikin jendela tak terlihat (Wayland,
     // WebView2), jadi untuk sekarang prioritaskan jendela yang benar-benar
     // muncul dan bisa dipindahkan seperti jendela lain.
+    // Ukuran dikunci supaya layout lirik tetap presisi (semuanya pakai cqw).
     let win = WebviewWindowBuilder::new(&app, LYRICS_OVERLAY_LABEL, WebviewUrl::External(target))
         .title("Lirik — Musiku")
         .inner_size(520.0, 520.0)
-        .min_inner_size(360.0, 360.0)
-        .resizable(true)
+        .resizable(false)
         .decorations(true)
         .visible(true)
         .build()
