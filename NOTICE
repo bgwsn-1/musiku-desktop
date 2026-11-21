@@ -1,0 +1,14 @@
+Musiku Desktop — Spicy-inspired lyrics UI
+Copyright (c) Musiku contributors
+
+The lyric view in musiku-rs/ui-src/desktop/SpicyLyrics.jsx and
+musiku-rs/ui-src/desktop/spicy-lyrics.css is an original reimplementation for
+Musiku, inspired by Spicy Lyrics by Spikerko:
+
+    https://github.com/Spikerko/spicy-lyrics
+
+Spicy Lyrics is licensed under AGPL-3.0. No source code from that repository
+was copied into Musiku; only the visual behaviour was used as a reference.
+
+Lyrics continue to come from Musiku's existing sources (LRCLIB / YouTube Music)
+through /api/lyrics/[id]. Musiku remains MIT-licensed.
