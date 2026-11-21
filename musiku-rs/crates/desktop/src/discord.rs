@@ -172,11 +172,18 @@ impl Presence {
     }
 
     pub fn clear(&mut self) {
-        if let Some(client) = self.client.as_mut() {
-            if let Err(e) = client.clear_activity() {
-                eprintln!("[discord] gagal menghapus presence: {e}");
-                self.client = None;
-            }
+        // Putuskan koneksinya juga. Cukup mengirim activity=null kadang hanya
+        // mengosongkan detail, tapi Discord masih menampilkan "Playing Musiku"
+        // selama socket RPC-nya terbuka.
+        self.last_try = None;
+        let Some(mut client) = self.client.take() else {
+            return;
+        };
+        if let Err(e) = client.clear_activity() {
+            eprintln!("[discord] gagal menghapus presence: {e}");
+        }
+        if let Err(e) = client.close() {
+            eprintln!("[discord] gagal menutup RPC: {e}");
         }
     }
 }
