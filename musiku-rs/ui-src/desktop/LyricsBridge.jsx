@@ -6,11 +6,57 @@ import { useEffect, useRef } from "react";
 import { usePlayer } from "@/lib/player";
 import { LYRICS_OVERLAY_CHANNEL } from "@/lib/lyrics-popout";
 
+function snapshotOf(player, art) {
+  const t = player.current;
+  const key = t ? `${t.videoId}|${t.title || ""}|${t.artist || ""}` : "";
+  return {
+    type: "snapshot",
+    videoId: t?.videoId ?? null,
+    title: t?.title ?? "",
+    artist: t?.artist ?? "",
+    album: t?.album ?? "",
+    // Cover statis Apple biasanya 1200×1200, jauh lebih tajam dari cover YT.
+    artwork: (art.key === key && art.url) || t?.thumbs || null,
+    playing: player.playing,
+    position: player.position,
+    duration: player.duration,
+  };
+}
+
 export default function LyricsBridge() {
   const p = usePlayer();
   const pRef = useRef(p);
   pRef.current = p;
   const bcRef = useRef(null);
+  const artRef = useRef({ key: "", url: null });
+
+  // Prioritas artwork sama seperti di immersive lyrics: cover statis Apple,
+  // lalu jatuh ke cover YouTube Music kalau Apple tidak menyediakan.
+  useEffect(() => {
+    const t = p.current;
+    const key = t ? `${t.videoId}|${t.title || ""}|${t.artist || ""}` : "";
+    if (!key) {
+      artRef.current = { key, url: null };
+      return;
+    }
+    let live = true;
+    const ac = new AbortController();
+    const q = new URLSearchParams();
+    q.set("title", t.title || "");
+    if (t.artist) q.set("artist", String(t.artist));
+    fetch(`/api/apple-artwork?${q.toString()}`, { signal: ac.signal })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (!live) return;
+        artRef.current = { key, url: j?.still || null };
+        bcRef.current?.postMessage(snapshotOf(pRef.current, artRef.current));
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+      ac.abort();
+    };
+  }, [p.current?.videoId, p.current?.title, p.current?.artist]);
 
   useEffect(() => {
     if (typeof BroadcastChannel === "undefined") return;
@@ -18,19 +64,7 @@ export default function LyricsBridge() {
     bcRef.current = bc;
 
     const publish = () => {
-      const player = pRef.current;
-      const t = player.current;
-      bc.postMessage({
-        type: "snapshot",
-        videoId: t?.videoId ?? null,
-        title: t?.title ?? "",
-        artist: t?.artist ?? "",
-        album: t?.album ?? "",
-        artwork: t?.thumbs ?? null,
-        playing: player.playing,
-        position: player.position,
-        duration: player.duration,
-      });
+      bc.postMessage(snapshotOf(pRef.current, artRef.current));
     };
 
     const onMessage = (event) => {
@@ -75,18 +109,7 @@ export default function LyricsBridge() {
   // tapi postMessage lintas jendela jauh lebih murah daripada IPC asli.
   useEffect(() => {
     if (!bcRef.current) return;
-    const t = p.current;
-    bcRef.current.postMessage({
-      type: "snapshot",
-      videoId: t?.videoId ?? null,
-      title: t?.title ?? "",
-      artist: t?.artist ?? "",
-      album: t?.album ?? "",
-      artwork: t?.thumbs ?? null,
-      playing: p.playing,
-      position: p.position,
-      duration: p.duration,
-    });
+    bcRef.current.postMessage(snapshotOf(p, artRef.current));
   }, [
     p.current?.videoId,
     p.current?.title,

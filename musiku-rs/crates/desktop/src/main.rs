@@ -70,7 +70,7 @@ fn open_lyrics_overlay(app: AppHandle, base: State<'_, BaseUrl>) -> Result<(), S
     // Ukuran dikunci supaya layout lirik tetap presisi (semuanya pakai cqw).
     let win = WebviewWindowBuilder::new(&app, LYRICS_OVERLAY_LABEL, WebviewUrl::External(target))
         .title("Lirik — Musiku")
-        .inner_size(520.0, 520.0)
+        .inner_size(360.0, 360.0)
         .resizable(false)
         .decorations(true)
         .visible(true)
