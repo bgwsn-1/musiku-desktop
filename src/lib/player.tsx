@@ -49,8 +49,6 @@ type PlayerState = {
   next: () => void;
   prev: () => void;
   seek: (t: number) => void;
-  /** Posisi audio persis dari elemen audio live (untuk animasi 60fps). */
-  getPosition: () => number;
   setVolume: (v: number) => void;
   toggleMute: () => void;
   cycleRepeat: () => void;
@@ -1138,13 +1136,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   // ── Media Session: metadata + tombol di lockscreen / Control Center / headphone ──
   const positionRef = useRef(0);
 
-  // `position` state hanya di-update ~4x/detik (timeupdate). Animator lirik
-  // desktop membaca jam audio ini tiap frame supaya sapuan katanya mulus.
-  const getPosition = useCallback(
-    () => audioRef.current?.currentTime ?? positionRef.current ?? 0,
-    [],
-  );
-
   useEffect(() => {
     const ms = mediaSession();
     if (!ms || !current) return;
@@ -1214,7 +1205,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       volume, muted, crossfade, toggleCrossfade, cfSec, cycleCfSec, setCfSec, autoplay, toggleAutoplay, autoplayFrom,
       resolving, error, liked, playlists, recent,
       playTracks, playOne, enqueue, removeFromQueue, jumpTo, toggle, next, prev,
-      seek, getPosition, setVolume, toggleMute, cycleRepeat, toggleShuffle: toggleShuffleFn,
+      seek, setVolume, toggleMute, cycleRepeat, toggleShuffle: toggleShuffleFn,
       toggleLike, isLiked, createPlaylist, deletePlaylist, addToPlaylist, removeFromPlaylist,
       ui, toggleUi,
     }),
@@ -1222,7 +1213,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       current, queue, index, playing, position, duration, shuffle, repeat, volume, muted,
       crossfade, toggleCrossfade, cfSec, cycleCfSec, setCfSec, autoplay, toggleAutoplay, autoplayFrom,
       resolving, error, liked, playlists, recent, playTracks, playOne, enqueue,
-      removeFromQueue, jumpTo, toggle, next, prev, seek, getPosition, setVolume, toggleMute, cycleRepeat,
+      removeFromQueue, jumpTo, toggle, next, prev, seek, setVolume, toggleMute, cycleRepeat,
       toggleShuffleFn, toggleLike, isLiked, createPlaylist, deletePlaylist,
       addToPlaylist, removeFromPlaylist, ui, toggleUi,
     ],

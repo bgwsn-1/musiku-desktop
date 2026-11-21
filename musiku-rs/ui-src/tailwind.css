@@ -11,10 +11,6 @@
 /* 2. Design system web app (Tailwind v4 CSS-first) */
 @import "../../src/app/globals.css";
 
-/* 3. Lirik ala Spicy — CSS khusus bundle desktop, tidak ikut ke web/Android */
-@import "./desktop/spicy-lyrics.css";
-
-/* 4. Pindai komponen web + shell desktop untuk semua utility terpakai */
+/* 3. Pindai komponen web + shell desktop untuk semua utility terpakai */
 @source "../../src";
-@source "./desktop";
 @source "../crates/server/ui";
