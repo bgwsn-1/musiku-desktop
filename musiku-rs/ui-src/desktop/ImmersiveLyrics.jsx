@@ -249,8 +249,8 @@ export function ImmersiveLyrics({ onExit }) {
       </div>
 
       <div className="im-body relative flex min-h-0 flex-1">
-        <div className="im-left relative flex min-w-0 basis-[44%] flex-col items-center justify-center px-10 pb-28 pt-16">
-          <div className="im-art aspect-square w-full max-w-[min(50dvh,460px)]">
+        <div className="im-left relative flex min-w-0 basis-[34%] flex-col items-center justify-center px-10 pb-28 pt-16">
+          <div className="im-art aspect-square w-full max-w-[min(42dvh,400px)]">
             {useMotion ? (
               <video
                 ref={videoRef}
@@ -284,7 +284,7 @@ export function ImmersiveLyrics({ onExit }) {
           </div>
         </div>
 
-        <div className="im-right relative flex min-w-0 flex-1 flex-col py-10 pr-10">
+        <div className="im-right relative flex min-w-0 flex-1 flex-col py-8 pr-8">
           <div
             className="im-lyrics min-h-0 flex-1"
             style={{ "--tone": last?.tone || "#8e8e98" }}

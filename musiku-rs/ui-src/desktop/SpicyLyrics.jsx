@@ -1,60 +1,35 @@
 // Tampilan lirik terinspirasi Spicy Lyrics (github.com/Spikerko/spicy-lyrics).
 // Implementasi ulang untuk Musiku: tetap MIT, tanpa menyalin kode AGPL repo itu.
 // Hanya dipakai bundle desktop lewat alias `@/components/LyricsPanel`.
+//
+// Modul dipecah per tanggung jawab:
+//   lyrics/lrc.js            → parse LRC, estimasi baris, teks status
+//   lyrics/motion.js         → matematika sapuan kata + penulisan CSS variable
+//   lyrics/useSpicyAnimator  → loop rAF yang membaca jam audio asli
+//   lyrics/SpicyLine.jsx     → render satu baris / kata / jeda instrumental
+//   spicy-lyrics.css         → gaya Spicy (base, motion, aksesibilitas)
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePlayer } from "@/lib/player";
 import { Artwork } from "@/components/Artwork";
 import { IconClose } from "@/components/Icons";
+import { buildLyrics, lyricsStatus } from "./lyrics/lrc";
+import { motionOff } from "./lyrics/motion";
+import { SpicyLine } from "./lyrics/SpicyLine";
+import { useSpicyAnimator } from "./lyrics/useSpicyAnimator";
 
-/** Parser LRC — sama persis dengan parser Musiku, ditaruh di sini supaya
- *  alias desktop tidak membuat import melingkar ke LyricsPanel asli. */
-export function parseLrc(raw) {
-  const out = [];
-  for (const line of raw.split(/\r?\n/)) {
-    const matches = [...(line?.matchAll(/\[(\d{1,3}):(\d{1,2})(?:[.:](\d{1,3}))?\]/g) ?? [])];
-    if (!matches.length) continue;
-    const text = line.replace(/\[[^\]]*\]/g, "").trim();
-    for (const m of matches) {
-      const time =
-        Number(m[1]) * 60 + Number(m[2]) + Number((m[3] ?? "0").padEnd(3, "0")) / 1000;
-      out.push({ time, text });
-    }
-  }
-  return out.sort((a, b) => a.time - b.time);
-}
-
-const clamp = (n, a, b) => Math.min(b, Math.max(a, n));
-const motionOff = () =>
-  typeof window !== "undefined" &&
-  window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+// NowPlaying.tsx (web source yang dipakai ulang bundle desktop) mengimpor
+// parseLrc lewat alias `@/components/LyricsPanel`. Jaga kontrak itu tetap ada.
+export { parseLrc } from "./lyrics/lrc";
 
 function openExternal(url) {
   const invoke = window.__TAURI_INTERNALS__?.invoke;
   if (invoke) {
-    void invoke("open_external", { url }).catch(() => window.open(url, "_blank", "noopener,noreferrer"));
+    void invoke("open_external", { url }).catch(() =>
+      window.open(url, "_blank", "noopener,noreferrer"),
+    );
     return;
   }
   window.open(url, "_blank", "noopener,noreferrer");
-}
-
-/** Bagi durasi baris secara proporsional panjang kata. Musiku punya timing
- *  per baris (LRCLIB / YouTube Music), bukan per kata seperti TTML Spicy —
- *  jadi ini hanya estimasi untuk efek sapuan, bukan sinkronisasi asli. */
-function wordSpans(text, progress) {
-  const words = text.split(/\s+/).filter(Boolean);
-  const total = words.reduce((n, w) => n + w.length + 1, 0) || 1;
-  let acc = 0;
-  return words.map((word, k) => {
-    const start = acc / total;
-    acc += word.length + 1;
-    const end = acc / total;
-    return {
-      word,
-      last: k === words.length - 1,
-      fill: clamp((progress - start) / Math.max(0.0001, end - start), 0, 1) * 100,
-      lit: progress >= start,
-    };
-  });
 }
 
 export function LyricsPanel() {
@@ -71,6 +46,7 @@ export function LyricsPanel() {
 
   useEffect(() => {
     setData(null);
+    wraps.current = [];
     if (!id) return;
     let live = true;
     setLoading(true);
@@ -91,16 +67,25 @@ export function LyricsPanel() {
     [],
   );
 
-  const lines = useMemo(() => (data?.synced && data.text ? parseLrc(data.text) : []), [data]);
+  const { lines, estimated, plain } = useMemo(
+    () => buildLyrics(data, p.duration),
+    [data, p.duration],
+  );
+  const status = lyricsStatus(data, loading, estimated);
 
-  const activeIdx = useMemo(() => {
-    let idx = -1;
-    for (let i = 0; i < lines.length; i++) {
-      if (lines[i].time <= p.position) idx = i;
-      else break;
-    }
-    return idx;
-  }, [lines, p.position]);
+  // Baris aktif dihitung rAF dari jam audio yang sama dengan animator, supaya
+  // tidak tertinggal sampai event timeupdate berikutnya.
+  const [activeIdx, setActiveIdx] = useState(-1);
+  const playerRef = useRef(p);
+  playerRef.current = p;
+  const linesRef = useRef(lines);
+  linesRef.current = lines;
+
+  const handleActive = useCallback((idx) => setActiveIdx(idx), []);
+  const registerLine = useCallback((i, el) => {
+    wraps.current[i] = el;
+  }, []);
+  useSpicyAnimator({ playerRef, linesRef, wrapsRef: wraps, onActiveChange: handleActive });
 
   const userMoved = useCallback(() => {
     lastUserScroll.current = Date.now();
@@ -109,32 +94,25 @@ export function LyricsPanel() {
     browseTimer.current = setTimeout(() => setBrowsing(false), 3200);
   }, []);
 
-  const follow = useCallback((smooth = true) => {
-    const sc = scrollRef.current;
-    const el = wraps.current[activeIdx];
-    if (!sc || !el || activeIdx < 0) return;
-    sc.scrollTo({
-      top: Math.max(0, el.offsetTop - sc.clientHeight * 0.3),
-      behavior: smooth && !motionOff() ? "smooth" : "auto",
-    });
-    lastUserScroll.current = 0;
-    setBrowsing(false);
-  }, [activeIdx]);
+  const follow = useCallback(
+    (smooth = true) => {
+      const sc = scrollRef.current;
+      const el = wraps.current[activeIdx];
+      if (!sc || !el || activeIdx < 0) return;
+      sc.scrollTo({
+        top: Math.max(0, el.offsetTop - sc.clientHeight * 0.32),
+        behavior: smooth && !motionOff() ? "smooth" : "auto",
+      });
+      lastUserScroll.current = 0;
+      setBrowsing(false);
+    },
+    [activeIdx],
+  );
 
   useEffect(() => {
     if (Date.now() - lastUserScroll.current < 3200) return;
     follow();
   }, [activeIdx, follow]);
-
-  const plain = !data?.synced && data?.text ? data.text.split(/\r?\n/) : null;
-  const status =
-    data?.source === "lrclib"
-      ? "Lirik sinkron · LRCLIB"
-      : data?.source === "youtube-music"
-        ? "Lirik · YouTube Music"
-        : loading
-          ? "Mencari lirik…"
-          : "Tidak ada lirik";
 
   return (
     <div className="sl-root flex h-full min-h-0 flex-1 flex-col">
@@ -177,56 +155,18 @@ export function LyricsPanel() {
           </p>
         )}
         {!loading && lines.length > 0 && (
-          <div key={id ?? "x"} className="sl-lyrics py-[12dvh] pb-[42dvh]">
-            {lines.map((l, i) => {
-              const active = i === activeIdx;
-              const sung = activeIdx >= 0 && i < activeIdx;
-              const dist = activeIdx < 0 ? 3 : Math.min(4, Math.abs(i - activeIdx));
-              const dur = Math.max(0.6, (lines[i + 1]?.time ?? l.time + 5) - l.time);
-              const prog = sung ? 1 : active ? clamp((p.position - l.time) / dur, 0, 1) : 0;
-              const state = active ? "sl-active" : sung ? "sl-sung" : "sl-next";
-              const fade = active || browsing ? 1 : [1, 0.58, 0.42, 0.3, 0.22][dist - 1];
-              return (
-                <div
-                  key={i}
-                  ref={(el) => {
-                    wraps.current[i] = el;
-                  }}
-                  className={`sl-line ${state}`}
-                  style={{ "--sl-fade": fade, "--sl-blur": active || browsing ? "0px" : `${[0, 0.5, 1.2, 1.8, 2.4][dist - 1]}px` }}
-                >
-                  <button
-                    onClick={() => p.seek(l.time)}
-                    aria-current={active ? "true" : undefined}
-                    aria-label={l.text ? undefined : "Jeda instrumental"}
-                    className="sl-lyric-btn block w-full origin-left rounded-xl px-2 py-1.5 text-left"
-                  >
-                    {l.text ? (
-                      active ? (
-                        wordSpans(l.text, prog).map((s, k) => (
-                          <span
-                            key={k}
-                            className={`sl-word ${s.lit ? "lit" : ""}`}
-                            style={{ "--sl-fill": `${s.fill}%` }}
-                          >
-                            {s.word}
-                            {!s.last ? " " : ""}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="sl-word sl-static">{l.text}</span>
-                      )
-                    ) : (
-                      <span className={`sl-dots ${active ? "on" : ""}`} aria-hidden="true">
-                        {[0, 1, 2].map((d) => (
-                          <i key={d} style={{ opacity: active ? (prog * 3 > d ? 1 : 0.3) : 0.45 }} />
-                        ))}
-                      </span>
-                    )}
-                  </button>
-                </div>
-              );
-            })}
+          <div key={id ?? "x"} className="sl-lyrics py-[14dvh] pb-[44dvh]">
+            {lines.map((l, i) => (
+              <SpicyLine
+                key={i}
+                line={l}
+                i={i}
+                activeIdx={activeIdx}
+                browsing={browsing}
+                onSeek={p.seek}
+                registerRef={registerLine}
+              />
+            ))}
           </div>
         )}
         {!loading && plain && (
@@ -243,7 +183,13 @@ export function LyricsPanel() {
         title="Kembali ke lirik aktif"
       >
         <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
-          <path d="M5 12.5 10 7.5l5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          <path
+            d="M5 12.5 10 7.5l5 5"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </svg>
       </button>
 

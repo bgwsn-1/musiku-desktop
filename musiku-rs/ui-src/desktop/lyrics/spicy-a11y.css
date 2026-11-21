@@ -1,0 +1,68 @@
+/* Lapis 3 — aksesibilitas. Gerak dan transparansi bisa dimatikan tanpa
+   kehilangan lirik; semua fallback tetap memakai warna yang terbaca. */
+
+@media (prefers-reduced-motion: reduce) {
+  .sl-line,
+  .sl-word,
+  .sl-dots i,
+  .sl-back,
+  .sl-line::before {
+    transition: none !important;
+    animation: none !important;
+  }
+  .sl-dots.on i {
+    animation: none !important;
+  }
+  .sl-line,
+  .sl-word {
+    scale: 1 !important;
+  }
+  .sl-word {
+    background-image: none !important;
+    -webkit-text-fill-color: currentColor;
+    transform: none !important;
+    text-shadow: none !important;
+  }
+}
+
+/* Tanpa transparansi / kontras tinggi: tetap terbaca tanpa blur & efek kaca. */
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .sl-line {
+    filter: none !important;
+  }
+  .sl-word {
+    background-image: none !important;
+    -webkit-text-fill-color: currentColor;
+    color: #fff;
+    scale: 1 !important;
+    transform: none !important;
+    text-shadow: none !important;
+  }
+  .sl-line:not(.sl-active)::before,
+  .sl-line:not(.sl-active):hover::before {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: rgba(60, 60, 66, 0.9);
+  }
+  .sl-back {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: #26262b;
+  }
+}
+
+@media (forced-colors: active) {
+  .sl-line,
+  .sl-line.sl-active {
+    opacity: 1 !important;
+    filter: none !important;
+    scale: 1 !important;
+  }
+  .sl-word {
+    background-image: none !important;
+    -webkit-text-fill-color: CanvasText !important;
+    scale: 1 !important;
+    transform: none !important;
+    text-shadow: none !important;
+  }
+}
