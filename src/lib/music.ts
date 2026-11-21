@@ -425,7 +425,7 @@ async function lyrics(videoId: string): Promise<Lyrics> {
       artist = s.artist?.name ?? null;
       duration = s.duration ?? null;
     } catch {
-      /* fall through to YouTube Music lyrics */
+      /* tanpa judul, LRCLIB tidak bisa dipakai */
     }
 
     if (title) {
@@ -433,19 +433,7 @@ async function lyrics(videoId: string): Promise<Lyrics> {
       if (found) return found;
     }
 
-    try {
-      const lines = await yt.getLyrics(videoId);
-      if (lines?.length) {
-        return {
-          text: lines.join("\n"),
-          synced: false,
-          source: "youtube-music",
-        };
-      }
-    } catch {
-      /* no lyrics */
-    }
-
+    // Sumber lirik hanya LRCLIB — tidak ada fallback YouTube Music.
     return { text: null, synced: false, source: null };
   });
 }

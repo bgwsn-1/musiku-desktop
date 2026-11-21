@@ -420,7 +420,7 @@ impl Musiku {
             .await
     }
 
-    /// Lirik: coba lrclib dulu, lalu lirik YouTube Music.
+    /// Lirik: LRCLIB saja, tanpa fallback lirik YouTube Music.
     pub async fn lyrics(&self, video_id: &str) -> anyhow::Result<serde_json::Value> {
         let key = format!("lyrics:{video_id}");
         self.cache
@@ -441,20 +441,6 @@ impl Musiku {
                 if let Some(t) = &title {
                     if let Some(found) = self.from_lrclib(t, artist.as_deref(), duration).await {
                         return Ok(serde_json::to_value(found)?);
-                    }
-                }
-
-                if let Some(d) = details {
-                    if let Some(lid) = d.lyrics_id {
-                        if let Ok(l) = yt.music_lyrics(lid).await {
-                            if !l.body.trim().is_empty() {
-                                return Ok(serde_json::to_value(Lyrics {
-                                    text: Some(l.body),
-                                    synced: false,
-                                    source: Some("youtube-music".into()),
-                                })?);
-                            }
-                        }
                     }
                 }
 
