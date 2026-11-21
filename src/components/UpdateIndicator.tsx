@@ -43,7 +43,7 @@ async function openExternal(url: string) {
 
 /** Entri pembaruan di bawah sidebar. Hanya dipakai shell Tauri; di web
  *  (Next.js) endpoint /api/update/check tidak ada, jadi komponen ini hilang. */
-export function UpdateIndicator() {
+export function UpdateIndicator({ compact = false }: { compact?: boolean }) {
   const [desktop, setDesktop] = useState(false);
   const [info, setInfo] = useState<UpdateInfo | null>(null);
   const [open, setOpen] = useState(false);
@@ -90,17 +90,19 @@ export function UpdateIndicator() {
       <div className="mt-2 shrink-0 border-t border-white/10 pt-2">
         <button
           onClick={() => setOpen(true)}
-          className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-[12px] text-label3 transition-colors hover:bg-fill1 hover:text-label1"
+          className={`flex w-full items-center gap-2 rounded-xl py-2 text-left text-[12px] text-label3 transition-colors hover:bg-fill1 hover:text-label1 ${
+            compact ? "justify-center px-0" : "px-3"
+          }`}
           aria-label="Cek pembaruan Musiku"
         >
           <span
-            className={`h-1.5 w-1.5 shrink-0 rounded-full ${info?.updateAvailable ? "bg-accent" : "bg-label3/40"}`}
+            className={`shrink-0 rounded-full ${compact ? "h-2 w-2" : "h-1.5 w-1.5"} ${
+              info?.updateAvailable ? "bg-accent" : "bg-label3/40"
+            }`}
             aria-hidden="true"
           />
-          <span className="min-w-0 flex-1 truncate">
-            Musiku {info?.current ?? "…"}
-          </span>
-          {info?.updateAvailable && (
+          {!compact && <span className="min-w-0 flex-1 truncate">Musiku {info?.current ?? "…"}</span>}
+          {!compact && info?.updateAvailable && (
             <span className="rounded-full bg-accent px-2 py-0.5 text-[11px] font-bold text-window">
               Baru
             </span>

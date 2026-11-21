@@ -18,6 +18,7 @@ import { EdgeSwipeBack } from "@/components/EdgeSwipeBack";
 import { GridCard, Shelf } from "@/components/GridCard";
 import { FeaturedCarousel, SongColumns } from "@/components/HomeFeatured";
 import { RecentShelf } from "@/components/RecentShelf";
+import { RadioStations } from "@/components/RadioStations";
 import { TrackRow } from "@/components/TrackRow";
 import { PlayAllButton, ShuffleButton } from "@/components/PlayAllButton";
 import { MediaArt, MediaHeader } from "@/components/MediaHeader";
@@ -45,8 +46,19 @@ function Centered({ title, sub }) {
   );
 }
 
-// ── Halaman beranda (port dari src/app/page.tsx) ─────────────────────────
-function HomePage() {
+function toTrack(it) {
+  return it.videoId
+    ? {
+        videoId: it.videoId,
+        title: it.title,
+        artist: it.artist,
+        artistId: it.artistId,
+        thumbs: it.thumbs,
+      }
+    : null;
+}
+
+function useHomeShelves() {
   const [shelves, setShelves] = useState(null); // null = memuat
   useEffect(() => {
     let live = true;
@@ -57,21 +69,30 @@ function HomePage() {
       live = false;
     };
   }, []);
+  return shelves;
+}
 
-  if (shelves === null) {
-    return (
-      <div>
-        <header className="mb-5">
-          <h1 className="t-large">Beranda</h1>
-        </header>
-        <div className="animate-pulse space-y-2">
-          {[...Array(6)].map((_, i) => (
-            <div key={i} className="h-16 rounded-xl bg-fill1" />
-          ))}
-        </div>
+function LoadingPage({ title, sub }) {
+  return (
+    <div>
+      <header className="mb-5">
+        <h1 className="t-large">{title}</h1>
+        {sub && <p className="mt-1 text-[15px] text-label2">{sub}</p>}
+      </header>
+      <div className="animate-pulse space-y-2">
+        {[...Array(6)].map((_, i) => (
+          <div key={i} className="h-16 rounded-xl bg-fill1" />
+        ))}
       </div>
-    );
-  }
+    </div>
+  );
+}
+
+// ── Halaman beranda (port dari src/app/page.tsx) ─────────────────────────
+function HomePage() {
+  const shelves = useHomeShelves();
+
+  if (shelves === null) return <LoadingPage title="Beranda" />;
 
   const lead = shelves[0];
   const songsIdx = shelves.findIndex(
@@ -310,6 +331,108 @@ function ArtistPage({ id }) {
   );
 }
 
+// ── Explore (port dari src/app/explore/page.tsx) ─────────────────────────
+function ExplorePage() {
+  const shelves = useHomeShelves();
+  if (shelves === null)
+    return <LoadingPage title="Explore" sub="Album dan lagu pilihan dari katalog Musiku." />;
+
+  const items = shelves.flatMap((s) => (s.items ? s.items : []));
+  const uniqueBy = (arr, key) => {
+    const seen = new Set();
+    return arr.filter((it) => {
+      const id = key(it);
+      if (!id || seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+  };
+  const albums = uniqueBy(items.filter((it) => it.kind === "album"), (it) => it.browseId);
+  const songs = uniqueBy(items.filter((it) => it.videoId), (it) => it.videoId).slice(0, 24);
+  const songTracks = songs.map(toTrack).filter(Boolean);
+  const lead = shelves[0];
+
+  return (
+    <div>
+      <header className="mb-5">
+        <h1 className="t-large">Explore</h1>
+        <p className="mt-1 text-[15px] text-label2">Album dan lagu pilihan dari katalog Musiku.</p>
+      </header>
+
+      {lead && lead.items.length > 0 && <FeaturedCarousel items={lead.items.slice(0, 6)} />}
+
+      {albums.length > 0 && (
+        <Shelf title="Album pilihan" layout="grid">
+          {albums.slice(0, 24).map((it, i) => (
+            <GridCard
+              key={`al-${i}-${it.browseId}`}
+              i={i}
+              title={it.title}
+              subtitle={it.artist}
+              href={`/album/${it.browseId}`}
+              img={it.thumbs}
+            />
+          ))}
+        </Shelf>
+      )}
+
+      {songTracks.length > 0 && (
+        <Shelf title="Lagu untuk mulai" layout="grid">
+          {songs.map((it, i) => {
+            const track = toTrack(it);
+            if (!track) return null;
+            return (
+              <GridCard
+                key={`song-${i}-${track.videoId}`}
+                i={i}
+                title={track.title}
+                subtitle={track.artist}
+                img={track.thumbs}
+                track={track}
+                queue={songTracks}
+              />
+            );
+          })}
+        </Shelf>
+      )}
+
+      {!items.length && <Centered title="Explore belum bisa dimuat" sub="Cek koneksi, lalu muat ulang." />}
+    </div>
+  );
+}
+
+// ── Radio (port dari src/app/radio/page.tsx) ─────────────────────────────
+function RadioPage() {
+  const shelves = useHomeShelves();
+  if (shelves === null)
+    return <LoadingPage title="Radio" sub="Stasiun mix dari katalog dan favorit lokalmu." />;
+
+  const seen = new Set();
+  const tracks = shelves
+    .flatMap((s) => (s.items ? s.items : []))
+    .map(toTrack)
+    .filter((t) => {
+      if (!t || seen.has(t.videoId)) return false;
+      seen.add(t.videoId);
+      return true;
+    });
+
+  return (
+    <div>
+      <header className="mb-5">
+        <h1 className="t-large">Radio</h1>
+        <p className="mt-1 text-[15px] text-label2">Stasiun mix dari katalog dan favorit lokalmu.</p>
+      </header>
+
+      <RadioStations tracks={tracks} />
+
+      <p className="mt-8 text-[13px] leading-relaxed text-label3">
+        Stasiun menyusun antrean lagu dari perangkat ini, bukan siaran internet.
+      </p>
+    </div>
+  );
+}
+
 // ── Router + shell ───────────────────────────────────────────────────────
 function useRoute() {
   const pathname = usePathname();
@@ -323,6 +446,8 @@ function useRoute() {
   if (pathname === "/" || pathname === "") return { page: <HomePage /> };
   if (pathname.startsWith("/search")) return { page: <SearchPage /> };
   if (pathname.startsWith("/liked")) return { page: <LikedPage /> };
+  if (pathname.startsWith("/explore")) return { page: <ExplorePage /> };
+  if (pathname.startsWith("/radio")) return { page: <RadioPage /> };
   if ((m = pathname.match(/^\/album\/(.+)$/))) return { page: <AlbumPage id={decodeURIComponent(m[1])} /> };
   if ((m = pathname.match(/^\/artist\/(.+)$/))) return { page: <ArtistPage id={decodeURIComponent(m[1])} /> };
   if ((m = pathname.match(/^\/playlist\/(.+)$/))) return { page: <PlaylistView id={decodeURIComponent(m[1])} /> };

@@ -164,6 +164,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const analyserRef = useRef<Map<HTMLAudioElement, AnalyserNode>>(new Map());
   const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const volRef = useRef(volume);
+  const mutedRef = useRef(false);
   const errCountRef = useRef(0);
 
   const toggleUi = useCallback((name: "lyrics" | "queue") => {
@@ -225,16 +226,16 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     if (audioRef.current) return audioRef.current;
     const a = new Audio();
     a.preload = "auto";
-    a.volume = volume;
+    a.volume = mutedRef.current ? 0 : volRef.current;
     audioRef.current = a;
     return a;
-  }, [volume]);
+  }, []);
 
   const ensureShadowElement = useCallback(() => {
     if (shadowRef.current) return shadowRef.current;
     const s = new Audio();
     s.preload = "auto";
-    s.volume = 0;
+    s.volume = mutedRef.current ? 0 : volRef.current;
     shadowRef.current = s;
     return s;
   }, []);
@@ -263,7 +264,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       let g = gainRef.current.get(el);
       if (!g) {
         g = ctx.createGain();
-        g.gain.value = 1;
+        g.gain.value = mutedRef.current ? 0 : volRef.current;
         const src = ctx.createMediaElementSource(el);
         src.connect(g);
         g.connect(ctx.destination);
@@ -281,6 +282,46 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   );
 
   /**
+   * Volume master jalan di GainNode, bukan di `element.volume`.
+   * WebKitGTK (desktop Linux) mengabaikan `element.volume` setelah elemen
+   * di-routing lewat createMediaElementSource — itu sebabnya slider dulu mati.
+   * Element tetap 1 saat graf aktif supaya tidak ada double-attenuation.
+   */
+  const applyMasterVolume = useCallback((v: number, muted: boolean) => {
+    volRef.current = v;
+    mutedRef.current = muted;
+    // Saat crossfade, gain sedang dipakai ramp; jangan ditimpa di tengah jalan.
+    if (fadingRef.current) return;
+    const level = muted ? 0 : v;
+    const ctx = ctxRef.current;
+    const live = audioRef.current;
+    const shadow = shadowRef.current;
+    if (live) {
+      const g = gainRef.current.get(live);
+      live.muted = false;
+      if (g && ctx) {
+        live.volume = 1;
+        g.gain.cancelScheduledValues(ctx.currentTime);
+        g.gain.value = level;
+      } else {
+        live.volume = level;
+      }
+    }
+    // Bayangan dipakai preload/crossfade: selama tidak fade, gain-nya 0.
+    if (shadow) {
+      const g = gainRef.current.get(shadow);
+      shadow.muted = false;
+      if (g && ctx) {
+        shadow.volume = 1;
+        g.gain.cancelScheduledValues(ctx.currentTime);
+        g.gain.value = 0;
+      } else {
+        shadow.volume = 0;
+      }
+    }
+  }, []);
+
+  /**
    * Pasang graf audio (element → gain → destination) SEBELUM playback —
    * rewiring di tengah lagu bikin hiccup. Dipanggil saat play pertama kali.
    */
@@ -289,6 +330,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     const s = ensureShadowElement();
     gainFor(a);
     gainFor(s);
+    // Bayangan belum boleh bersuara sampai beginFade membuka gain-nya.
+    // Tanpa ini, GainNode default 1 + preload bisa memunculkan potongan audio.
+    const shadowGain = gainRef.current.get(s);
+    if (shadowGain && ctxRef.current) shadowGain.gain.value = 0;
     getCtx();
   }, [ensureAudio, ensureShadowElement, gainFor, getCtx]);
 
@@ -373,10 +418,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       shadow.volume = 1;
       fadeTimerRef.current = setTimeout(() => {
         fadeTimerRef.current = null;
+        const level = mutedRef.current ? 0 : volRef.current;
         gl.gain.cancelScheduledValues(0);
-        gl.gain.value = 1;
+        gl.gain.value = level;
         gs.gain.cancelScheduledValues(0);
-        gs.gain.value = 1;
+        gs.gain.value = level;
         onDone();
       }, fadeMs + 50);
       return true;
@@ -398,11 +444,12 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     const live = audioRef.current;
     const shadow = shadowRef.current;
     if (ctx) {
+      const level = mutedRef.current ? 0 : volRef.current;
       for (const el of [live, shadow]) {
         const g = el ? gainRef.current.get(el) : null;
         if (g) {
           g.gain.cancelScheduledValues(ctx.currentTime);
-          g.gain.value = 1;
+          g.gain.value = level;
         }
       }
     }
@@ -410,9 +457,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       audioRef.current = shadow;
       shadowRef.current = live;
       live.pause();
-      const v = volRef.current;
-      live.volume = v;
-      shadow.volume = v;
+      if (!ctxRef.current) {
+        const v = mutedRef.current ? 0 : volRef.current;
+        live.volume = v;
+        shadow.volume = v;
+      }
     }
   }, []);
 
@@ -427,6 +476,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     const s = ensureShadowElement();
     if (s.dataset.preloadId === nt.videoId) return;
     s.dataset.preloadId = nt.videoId;
+    // Preload penuh memanaskan stream, bukan memutar ke speaker — elemen ini
+    // tidak dip Play. Yang bikin suara liar adalah gain bayangan yang tidak
+    // pernah di-set ke 0 saat graf pasang (dulu default 1).
     s.preload = "auto";
     s.src = STREAM(nt.videoId);
     s.load();
@@ -540,7 +592,14 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         shadow.load();
       }
       shadow.currentTime = 0;
-      shadow.volume = 0;
+      const shadowGain = gainRef.current.get(shadow);
+      if (shadowGain && ctxRef.current) {
+        // Graf aktif: element.volume sudah 1, yang membungkam preload adalah gain.
+        shadowGain.gain.cancelScheduledValues(ctxRef.current.currentTime);
+        shadowGain.gain.value = 0;
+      } else {
+        shadow.volume = 0;
+      }
       shadow.play().catch(() => {});
       // metadata shadow sudah termuat saat preload → loadedmetadata tak fire
       // lagi; ambil durasinya langsung. Kalau belum, onMeta yang mengisi.
@@ -560,10 +619,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         audioRef.current = shadow;
         shadowRef.current = live;
         live.pause();
-        const v = volRef.current;
-        live.volume = v;
-        shadow.volume = v;
         fadingRef.current = false;
+        applyMasterVolume(volRef.current, mutedRef.current);
         preloadNext(); // buffer lagu setelahnya di elemen yang barusan bebas
       };
       // Mulai fade hanya ketika lagu baru benar-benar siap bunyi (Apple:
@@ -633,7 +690,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       const waitTimer = setTimeout(onReady, 2000);
       shadow.addEventListener("canplay", onReady);
     },
-    [ensureShadowElement, measureLoudness, preloadNext],
+    [ensureShadowElement, measureLoudness, preloadNext, applyMasterVolume],
   );
 
   // ── Putar otomatis: antrian tidak pernah habis ──────────────────────────
@@ -814,19 +871,17 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const setVolume = useCallback((v: number) => {
+    const level = Math.max(0, Math.min(1, v));
     setMuted(false);
-    setVolumeState(v);
-    if (audioRef.current) audioRef.current.volume = v;
-    if (shadowRef.current) shadowRef.current.volume = v;
-  }, []);
+    setVolumeState(level);
+    applyMasterVolume(level, false);
+  }, [applyMasterVolume]);
 
   const toggleMute = useCallback(() => {
-    const a = audioRef.current;
-    if (!a) return;
-    a.muted = !a.muted;
-    if (shadowRef.current) shadowRef.current.muted = a.muted;
-    setMuted(a.muted);
-  }, []);
+    const next = !mutedRef.current;
+    setMuted(next);
+    applyMasterVolume(volRef.current, next);
+  }, [applyMasterVolume]);
 
   const cycleRepeat = useCallback(() => {
     setRepeat((r) => (r === "off" ? "all" : r === "all" ? "one" : "off"));
@@ -1021,14 +1076,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   // volume patch without recreating listeners — dua elemen sekaligus
   useEffect(() => {
-    volRef.current = volume;
-    for (const el of [audioRef.current, shadowRef.current]) {
-      if (el && !fadingRef.current) {
-        el.volume = volume;
-        el.muted = muted;
-      }
-    }
-  }, [volume, muted, current]);
+    applyMasterVolume(volume, muted);
+  }, [volume, muted, current, applyMasterVolume]);
 
   // ── Media Session: metadata + tombol di lockscreen / Control Center / headphone ──
   const positionRef = useRef(0);

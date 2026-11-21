@@ -20,7 +20,7 @@ const rgbToHsl = ([r, g, b]) => {
   const min = Math.min(rr, gg, bb);
   const d = max - min;
   const l = (max + min) / 2;
-  if (!d) return `hsl(0 0% ${Math.round(l * 100)}%)`;
+  if (!d) return `hsl(0 0% ${(l * 100).toFixed(1)}%)`;
   const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
   let h = 0;
   if (max === rr) h = ((gg - bb) / d) % 6;
@@ -28,36 +28,32 @@ const rgbToHsl = ([r, g, b]) => {
   else h = (rr - gg) / d + 4;
   h *= 60;
   if (h < 0) h += 360;
-  const sat = Math.round(Math.min(0.9, Math.max(0.5, s)) * 100);
-  const light = Math.round(Math.min(0.56, Math.max(0.32, l)) * 100);
-  return `hsl(${Math.round(h)} ${sat}% ${light}%)`;
+  return `hsl(${Math.round(h)} ${(s * 100).toFixed(1)}% ${(l * 100).toFixed(1)}%)`;
 };
 
 /** Warna dominan cover → tone gradient, plus raster kecil yang sudah di-blur. */
 function extract(source) {
   const c = document.createElement("canvas");
-  c.width = 48;
-  c.height = 48;
+  c.width = 64;
+  c.height = 64;
   const ctx = c.getContext("2d", { willReadFrequently: true });
-  ctx.drawImage(source, 0, 0, 48, 48);
-  const px = ctx.getImageData(0, 0, 48, 48).data;
+  if (!ctx) throw new Error("canvas 2D tidak tersedia");
+  ctx.drawImage(source, 0, 0, 64, 64);
+  const px = ctx.getImageData(0, 0, 64, 64).data;
 
   const buckets = new Map();
-  for (let i = 0; i < px.length; i += 16) {
+  for (let i = 0; i < px.length; i += 4) {
     const r = px[i];
     const g = px[i + 1];
     const b = px[i + 2];
-    if (px[i + 3] < 200) continue;
-    const mx = Math.max(r, g, b);
-    const mn = Math.min(r, g, b);
-    if (mx < 40 || mx - mn < 20) continue;
-    const key = `${r >> 5},${g >> 5},${b >> 5}`;
+    const alpha = px[i + 3] / 255;
+    if (alpha < 0.1) continue;
+    const key = `${r >> 4},${g >> 4},${b >> 4}`;
     const e = buckets.get(key) || { r: 0, g: 0, b: 0, n: 0 };
-    const w = mx - mn;
-    e.r += r * w;
-    e.g += g * w;
-    e.b += b * w;
-    e.n += w;
+    e.r += r * alpha;
+    e.g += g * alpha;
+    e.b += b * alpha;
+    e.n += alpha;
     buckets.set(key, e);
   }
   const sorted = [...buckets.values()].sort((a, b) => b.n - a.n);
@@ -65,15 +61,16 @@ function extract(source) {
   const avg = (e) => [e.r / e.n, e.g / e.n, e.b / e.n];
   const first = avg(sorted[0]);
   const far =
-    sorted.find((e) => {
+    sorted.slice(1).find((e) => {
       const c2 = avg(e);
-      return Math.abs(c2[0] - first[0]) + Math.abs(c2[1] - first[1]) + Math.abs(c2[2] - first[2]) > 90;
-    }) || sorted[Math.min(1, sorted.length - 1)];
+      return Math.hypot(c2[0] - first[0], c2[1] - first[1], c2[2] - first[2]) > 28;
+    }) || sorted[0];
 
   const blur = document.createElement("canvas");
   blur.width = 72;
   blur.height = 72;
   const bctx = blur.getContext("2d");
+  if (!bctx) throw new Error("canvas 2D tidak tersedia");
   bctx.filter = "blur(8px)";
   bctx.drawImage(c, 0, 0, 72, 72);
 
@@ -89,7 +86,7 @@ export function ImmersiveLyrics({ onExit }) {
   const t = p.current;
   const videoRef = useRef(null);
   const sampled = useRef(null);
-  const [art, setArt] = useState(EMPTY);
+  const [artState, setArtState] = useState({ trackKey: "", ...EMPTY });
   const [motionOk, setMotionOk] = useState(true);
   const [stillFailed, setStillFailed] = useState(false);
   const [scenes, setScenes] = useState([]);
@@ -97,19 +94,22 @@ export function ImmersiveLyrics({ onExit }) {
   const [addOpen, setAddOpen] = useState(false);
 
   const trackKey = t ? `${t.videoId}|${t.title || ""}|${t.artist || ""}` : "";
+  const activeTrackKey = useRef(trackKey);
+  activeTrackKey.current = trackKey;
+  const art = artState.trackKey === trackKey ? artState : EMPTY;
 
   const pushScene = useCallback(
-    (source) => {
-      if (sampled.current === trackKey) return;
+    (source, sampleKey, sourceTrackKey) => {
+      if (activeTrackKey.current !== sourceTrackKey || sampled.current === sampleKey) return;
       const palette = extract(source);
-      sampled.current = trackKey;
+      sampled.current = sampleKey;
       setScenes((prev) => {
-        const next = { id: trackKey, ...palette };
-        if (prev[prev.length - 1]?.id === trackKey) return [...prev.slice(0, -1), next];
+        const next = { id: sampleKey, ...palette };
+        if (prev[prev.length - 1]?.id === sampleKey) return [...prev.slice(0, -1), next];
         return [...prev.slice(-1), next];
       });
     },
-    [trackKey],
+    [],
   );
 
   const sampleUrl = useCallback(
@@ -118,25 +118,25 @@ export function ImmersiveLyrics({ onExit }) {
       img.crossOrigin = "anonymous";
       img.onload = () => {
         try {
-          pushScene(img);
+          pushScene(img, `${trackKey}|still|${url}`, trackKey);
         } catch {
           /* CDN tanpa CORS → warna pakai fallback */
         }
       };
       img.src = url;
     },
-    [pushScene],
+    [pushScene, trackKey],
   );
 
   // Resolver artwork Apple: Motion Art dulu, lalu cover statis Apple.
   useEffect(() => {
     if (!t) return;
     let live = true;
+    const currentTrackKey = trackKey;
     const ac = new AbortController();
     const q = new URLSearchParams();
     q.set("title", t.title || "");
     if (t.artist) q.set("artist", String(t.artist));
-    setArt(EMPTY);
     setMotionOk(true);
     setStillFailed(false);
     sampled.current = null;
@@ -144,7 +144,7 @@ export function ImmersiveLyrics({ onExit }) {
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => {
         if (!live || !j) return;
-        setArt({ motion: j.motion || null, still: j.still || null });
+        setArtState({ trackKey: currentTrackKey, motion: j.motion || null, still: j.still || null });
       })
       .catch(() => {});
     return () => {
@@ -163,7 +163,7 @@ export function ImmersiveLyrics({ onExit }) {
   // Hapus scene lama setelah crossfade selesai.
   useEffect(() => {
     if (scenes.length < 2) return;
-    const id = setTimeout(() => setScenes((prev) => prev.slice(-1)), 900);
+    const id = setTimeout(() => setScenes((prev) => prev.slice(-1)), reduced() ? 0 : 900);
     return () => clearTimeout(id);
   }, [scenes]);
 
@@ -175,7 +175,7 @@ export function ImmersiveLyrics({ onExit }) {
     const isReduced = reduced();
     const onFrame = () => {
       try {
-        pushScene(video);
+        pushScene(video, `${trackKey}|motion|${art.motion}`, trackKey);
       } catch {
         /* frame HLS tanpa CORS → warna dari cover statis */
       }
@@ -235,14 +235,14 @@ export function ImmersiveLyrics({ onExit }) {
             key={s.id}
             className={`im-scene ${i < scenes.length - 1 ? "im-scene-old" : "im-scene-new"}`}
           >
-            <div className="liquid-field">
-              <div className="liquid-layer liquid-a" style={{ backgroundImage: `url(${s.blur})` }} />
-              <div className="liquid-layer liquid-b" style={{ backgroundImage: `url(${s.blur})` }} />
-              <div className="liquid-layer liquid-c" style={{ backgroundImage: `url(${s.blur})` }} />
-            </div>
-            {/* duplikat frame/cover yang sudah di-blur: jadi "aura" di belakang video */}
-            <div className="im-video-glow" style={{ backgroundImage: `url(${s.blur})` }} />
-            <div className="im-tone-wash" style={{ "--tone": s.tone, "--tone2": s.tone2 }} />
+            <div
+              className="im-atmosphere"
+              style={{
+                "--tone": s.tone,
+                "--tone2": s.tone2,
+                backgroundImage: `radial-gradient(ellipse at 18% 16%, color-mix(in srgb, var(--tone) 68%, transparent), transparent 62%), radial-gradient(ellipse at 82% 78%, color-mix(in srgb, var(--tone2) 58%, transparent), transparent 58%), url(${s.blur})`,
+              }}
+            />
           </div>
         ))}
         <div className="im-scrim" />
@@ -255,6 +255,9 @@ export function ImmersiveLyrics({ onExit }) {
               <video
                 ref={videoRef}
                 className="im-art-media"
+                width="460"
+                height="460"
+                poster={stillSrc}
                 muted
                 loop
                 playsInline
@@ -267,7 +270,10 @@ export function ImmersiveLyrics({ onExit }) {
                 src={stillSrc}
                 alt={`Sampul ${t.title}`}
                 className="im-art-media"
+                width="460"
+                height="460"
                 crossOrigin="anonymous"
+                fetchPriority="high"
                 onError={() => setStillFailed(true)}
               />
             ) : (
@@ -275,7 +281,6 @@ export function ImmersiveLyrics({ onExit }) {
                 <IconMusic className="h-1/3 w-1/3 text-label3" />
               </div>
             )}
-            <div className="im-art-blend" style={{ "--tone": last?.tone || "#5b5b66" }} />
           </div>
         </div>
 

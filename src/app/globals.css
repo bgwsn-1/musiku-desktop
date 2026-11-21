@@ -136,6 +136,18 @@ body {
     --pad-t: 84px;
     --pad-b: 128px;
   }
+  /* sidebar collapsed to an icon rail: 12 + 76 + 24 gutter */
+  .shell:has(.sidebar-collapsed) {
+    --pad-l: 112px;
+  }
+  .page-scroll {
+    transition: padding-left 0.3s var(--ease-out);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .page-scroll {
+      transition: none;
+    }
+  }
 }
 @media (min-width: 1024px) {
   .shell:not(:has(.dock-in)) {
@@ -1101,16 +1113,15 @@ textarea:focus-visible {
 }
 
 /* ─── Immersive lyrics (klien desktop; tidak dipakai web/Android) ───────
-   Warna cover → tiga lapis liquid yang sama seperti AmbientWindow, tapi
-   di-tint `--tone` dan di-crossfade 800ms saat lagu berganti. */
-.im-root { --ambient-opacity: 1; }
+   Warna dan blur diambil dari artwork; scrim gelap menjaga lirik tetap terbaca. */
+.im-root { --ambient-opacity: 1; background: #09090b; }
 .im-ambient {
   position: absolute;
   inset: 0;
   z-index: 0;
   overflow: hidden;
   pointer-events: none;
-  background: radial-gradient(120% 100% at 22% 38%, #1b1b21 0%, #08080b 78%);
+  background: #09090b;
 }
 .im-scene { position: absolute; inset: 0; }
 .im-scene-new { animation: imSceneIn 0.8s ease both; }
@@ -1123,59 +1134,47 @@ textarea:focus-visible {
   from { opacity: 1; }
   to { opacity: 0; }
 }
-/* Aura dari frame/cover yang sama dengan video — di-blur besar supaya warna
-   di sekitar gambar mengikuti isi video dan tepinya tidak terlihat kotak. */
-.im-video-glow {
+.im-atmosphere {
   position: absolute;
-  inset: 0;
-  background-size: cover;
+  inset: -4%;
   background-position: center;
-  filter: blur(64px) saturate(1.3) brightness(0.5);
-  opacity: 0.62;
-  will-change: filter;
-  /* Aura mengikuti bentuk artwork, bukan kotak raksasa.
-     Tanpa mask ini blur tetap menyisakan batas persegi yang "membesar". */
-  -webkit-mask-image: radial-gradient(36% 56% at 22% 50%, #000 0%, rgba(0, 0, 0, 0.55) 48%, transparent 82%);
-  mask-image: radial-gradient(36% 56% at 22% 50%, #000 0%, rgba(0, 0, 0, 0.55) 48%, transparent 82%);
-}
-.im-tone-wash {
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(85% 65% at 22% 35%, color-mix(in srgb, var(--tone) 72%, transparent), transparent 70%),
-    linear-gradient(115deg, color-mix(in srgb, var(--tone) 55%, transparent), transparent 46%,
-      color-mix(in srgb, var(--tone2) 58%, transparent));
-  mix-blend-mode: soft-light;
-  opacity: 0.42;
+  background-repeat: no-repeat;
+  background-size: cover;
+  transform: scale(1.08);
 }
 .im-scrim {
   position: absolute;
   inset: 0;
-  /* Gelap bertahap dari arah panel lirik — tanpa garis batas yang terlihat. */
   background:
-    linear-gradient(90deg, transparent 0%, transparent 34%, rgba(0, 0, 0, 0.12) 52%,
-      rgba(0, 0, 0, 0.48) 72%, rgba(5, 5, 8, 0.88) 100%),
-    linear-gradient(0deg, rgba(0, 0, 0, 0.38) 0%, transparent 42%);
+    linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, 0.38) 34%,
+      rgba(0, 0, 0, 0.78) 62%, rgba(5, 5, 8, 0.92) 100%),
+    linear-gradient(0deg, rgba(0, 0, 0, 0.34) 0%, transparent 42%);
 }
 .im-body { z-index: 1; }
+.im-right::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(5, 5, 8, 0.48), rgba(5, 5, 8, 0.62));
+  pointer-events: none;
+}
+.im-lyrics { position: relative; z-index: 1; }
 .im-art {
   position: relative;
   overflow: hidden;
-  border-radius: 0;
-  background: transparent;
-  /* Tidak ada bayangan kotak — aura di belakang yang menentukan bentuknya. */
-  box-shadow: none;
+  border-radius: 14px;
+  background: #111114;
+  box-shadow: 0 24px 72px rgba(0, 0, 0, 0.32);
   isolation: isolate;
 }
 .im-art-media {
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: contain;
-  opacity: 0.94;
-  /* Fade radial: sudut dan tepi video larut ke aura, bukan garis lurus. */
-  -webkit-mask-image: radial-gradient(72% 72% at 50% 46%, #000 42%, rgba(0, 0, 0, 0.72) 68%, transparent 100%);
-  mask-image: radial-gradient(72% 72% at 50% 46%, #000 42%, rgba(0, 0, 0, 0.72) 68%, transparent 100%);
+  object-fit: cover;
+  opacity: 1;
+  filter: none;
+  mix-blend-mode: normal;
 }
 .im-art-fallback {
   display: flex;
@@ -1184,13 +1183,6 @@ textarea:focus-visible {
   align-items: center;
   justify-content: center;
   background: linear-gradient(to bottom, var(--fill-2), var(--fill-1));
-}
-.im-art-blend {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: radial-gradient(90% 80% at 32% 38%, color-mix(in srgb, var(--tone) 26%, transparent), transparent 72%);
-  mix-blend-mode: soft-light;
 }
 .im-root .im-right { min-width: 320px; }
 .im-lyrics { --label-1: #fff; min-width: 0; }
@@ -1247,10 +1239,16 @@ textarea:focus-visible {
   flex: none;
   align-items: center;
   justify-content: center;
-  width: 38px;
-  height: 38px;
+  width: 44px;
+  height: 44px;
   border-radius: 999px;
   color: #fff;
+  cursor: pointer;
+}
+.im-more:focus-visible,
+.im-exit:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 3px;
 }
 .im-exit {
   position: absolute;

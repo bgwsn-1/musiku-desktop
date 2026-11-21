@@ -98,7 +98,7 @@ export function DesktopNowPlaying({
         <Artwork key={t.videoId} src={t.thumbs} quiet />
       </div>
 
-      <div className="relative flex min-h-0 flex-1 flex-col p-8 xl:p-10">
+      <div className="relative flex min-h-0 flex-1 flex-col p-6 xl:p-8">
         <div className="flex shrink-0 items-center justify-end gap-2">
           {desktopClient && (
             <button
@@ -122,10 +122,10 @@ export function DesktopNowPlaying({
 
         <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,5fr)_minmax(0,7fr)] gap-10">
           {/* kolom kiri: artwork + kontrol */}
-          <div className="flex min-w-0 flex-col items-center justify-center gap-6">
+          <div className="flex min-h-0 min-w-0 flex-col items-center justify-center gap-4 xl:gap-5">
             <div
-              className="aspect-square w-full max-w-[min(46dvh,440px)] overflow-hidden rounded-[18px] bg-fill2 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.65)]"
-              style={{ width: "min(100%, calc(100dvh - 300px))" }}
+              className="aspect-square w-full max-w-[min(40dvh,400px)] overflow-hidden rounded-[18px] bg-fill2 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.65)]"
+              style={{ width: "min(100%, calc(100dvh - 360px))" }}
             >
               <Artwork src={t.thumbs} alt={`Sampul ${t.title}`} />
             </div>
