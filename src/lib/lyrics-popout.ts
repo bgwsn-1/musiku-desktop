@@ -34,7 +34,9 @@ function invoke(cmd: string, args?: Record<string, unknown>): Promise<unknown> |
 
 export function isDesktopClient(): boolean {
   if (typeof window === "undefined") return false;
-  return Boolean((window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__);
+  const internals = (window as unknown as { __TAURI_INTERNALS__?: { invoke?: unknown } })
+    .__TAURI_INTERNALS__;
+  return typeof internals?.invoke === "function";
 }
 
 function fire(cmd: string, failure: string): void {
@@ -47,6 +49,11 @@ function fire(cmd: string, failure: string): void {
 }
 
 export function openLyricsPopout(): void {
+  if (!isDesktopClient()) {
+    toast("Lirik mengambang hanya tersedia di aplikasi desktop");
+    return;
+  }
+  toast("Membuka lirik mengambang…");
   fire("open_lyrics_overlay", "Gagal membuka lirik mengambang");
 }
 

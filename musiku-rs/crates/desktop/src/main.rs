@@ -63,22 +63,34 @@ fn open_lyrics_overlay(app: AppHandle, base: State<'_, BaseUrl>) -> Result<(), S
         .inner_size(520.0, 520.0)
         .min_inner_size(360.0, 360.0)
         .resizable(true)
-        .decorations(false)
-        .always_on_top(true)
         .visible(true);
 
-    // Transparansi sering membuat jendela tak terlihat di Linux tanpa
-    // compositor yang mendukung. Di Linux pakai jendela solid saja.
-    #[cfg(not(target_os = "linux"))]
-    let builder = builder.transparent(true);
+    // Linux (terutama Wayland) sering gagal memetakan jendela tanpa dekorasi
+    // dan/atau always-on-top. Di sini pakai jendela biasa yang paling aman.
+    #[cfg(target_os = "linux")]
+    let builder = builder.decorations(true);
 
-    builder
+    #[cfg(not(target_os = "linux"))]
+    let builder = builder
+        .decorations(false)
+        .always_on_top(true)
+        .transparent(true);
+
+    let win = builder
         .shadow(true)
         .build()
         .map_err(|e| {
             eprintln!("[lyrics-overlay] gagal membuat jendela: {e}");
             e.to_string()
         })?;
+    win.show().map_err(|e| {
+        eprintln!("[lyrics-overlay] gagal show: {e}");
+        e.to_string()
+    })?;
+    win.set_focus().map_err(|e| {
+        eprintln!("[lyrics-overlay] gagal focus: {e}");
+        e.to_string()
+    })?;
     Ok(())
 }
 
