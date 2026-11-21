@@ -7,6 +7,7 @@ import {
   IconCrossfade,
   IconEllipsis,
   IconHeart,
+  IconKeyboard,
   IconLyrics,
   IconPause,
   IconPlay,
@@ -28,10 +29,11 @@ import { QueuePanel } from "@/components/QueuePanel";
 import { toast } from "@/components/Toast";
 import { TrackMenu, type MenuAnchor } from "@/components/TrackMenu";
 import { AddToPlaylistMenu } from "@/components/TrackRow";
+import { ShortcutHelpDialog } from "@/components/ShortcutHelpDialog";
 import fmtTime from "@/lib/timefmt";
 
 /**
- * Layar penuh "Sedang diputar" untuk desktop — pasangan dari NowPlaying (HP).
+ * Layar penuh "Sedang diputar" untuk desktop, pasangan dari NowPlaying (HP).
  * Artwork jadi poster di kiri; lirik / antrian di kanan. Selalu gelap, warna
  * dari artwork (force-dark). Esc atau tombol tutup untuk keluar.
  */
@@ -46,6 +48,7 @@ export function DesktopNowPlaying({
   const t = p.current;
   const [tab, setTab] = useState<"lyrics" | "queue">("lyrics");
   const [pop, setPop] = useState(false);
+  const [help, setHelp] = useState(false);
   const [ctx, setCtx] = useState<MenuAnchor | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [immersive, setImmersive] = useState(false);
@@ -67,6 +70,11 @@ export function DesktopNowPlaying({
     if (!open || immersive) return;
     closeBtn.current?.focus({ preventScroll: true });
     const onKey = (e: KeyboardEvent) => {
+      if (e.key === "?") {
+        e.preventDefault();
+        setHelp((v) => !v);
+        return;
+      }
       if (e.key === "Escape" && !document.querySelector("[role=dialog],[role=menu]")) {
         onClose();
       }
@@ -100,6 +108,14 @@ export function DesktopNowPlaying({
 
       <div className="relative flex min-h-0 flex-1 flex-col p-6 xl:p-8">
         <div className="flex shrink-0 items-center justify-end gap-2">
+          <button
+            onClick={() => setHelp(true)}
+            className={`${round} h-11 w-11 text-label2 hover:text-label1`}
+            aria-label="Pintasan keyboard"
+            title="Pintasan keyboard (?)"
+          >
+            <IconKeyboard className="h-5 w-5" />
+          </button>
           {desktopClient && (
             <button
               onClick={() => setImmersive(true)}
@@ -184,7 +200,7 @@ export function DesktopNowPlaying({
               <button
                 onClick={() => {
                   p.toggleCrossfade();
-                  toast(p.crossfade ? "Crossfade dimatikan" : `Crossfade aktif — ${p.cfSec} detik`);
+                  toast(p.crossfade ? "Crossfade dimatikan" : `Crossfade aktif: ${p.cfSec} detik`);
                 }}
                 className={tool(p.crossfade)}
                 aria-pressed={p.crossfade}
@@ -289,6 +305,7 @@ export function DesktopNowPlaying({
         <TrackMenu track={t} anchor={ctx} onClose={() => setCtx(null)} onAddToPlaylist={() => setAddOpen(true)} />
       )}
       {addOpen && <AddToPlaylistMenu track={t} onClose={() => setAddOpen(false)} />}
+      <ShortcutHelpDialog open={help} onClose={() => setHelp(false)} />
     </div>
   );
 }

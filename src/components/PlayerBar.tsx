@@ -3,44 +3,38 @@
 import { useEffect, useState } from "react";
 import { usePlayer } from "@/lib/player";
 import {
-  IconExpand,
-  IconHeart,
-  IconKeyboard,
+  IconEllipsis,
   IconLyrics,
   IconNext,
   IconPause,
   IconPlay,
   IconPrev,
   IconQueue,
-  IconRepeat,
-  IconRepeatOne,
-  IconShuffle,
   IconVolume,
   IconVolumeMute,
 } from "@/components/Icons";
-import fmtTime from "@/lib/timefmt";
 import { Scrubber } from "@/components/Scrubber";
 import { NowPlaying } from "@/components/NowPlaying";
 import { DesktopNowPlaying } from "@/components/DesktopNowPlaying";
 import { Artwork } from "@/components/Artwork";
-import { Dialog } from "@/components/Dialog";
 import { SearchForm } from "@/components/SearchForm";
+import { ShortcutHelpDialog } from "@/components/ShortcutHelpDialog";
+import { TrackMenu, type MenuAnchor } from "@/components/TrackMenu";
+import { AddToPlaylistMenu } from "@/components/TrackRow";
 
-const iconBtn =
-  "glass-btn flex h-10 w-10 items-center justify-center rounded-full text-label2 hover:text-label1";
-const iconBtnSm =
-  "glass-btn flex h-8 w-8 items-center justify-center rounded-full text-label2 hover:text-label1";
+const dockBtn =
+  "flex shrink-0 items-center justify-center rounded-full text-label2 transition-[background-color,color,transform] duration-200 hover:bg-white/10 hover:text-label1 active:scale-90 disabled:opacity-40";
 
 export function PlayerBar() {
   const p = usePlayer();
   const t = p.current;
-  const liked = t ? p.isLiked(t.videoId) : false;
-  const [pop, setPop] = useState(false);
   const [full, setFull] = useState(false);
   const [help, setHelp] = useState(false);
+  const [ctx, setCtx] = useState<MenuAnchor | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
 
   // Pintasan keyboard global. Dilewati kalau user sedang mengetik, menu
-  // terbuka, atau dialog terbuka — tombolnya bisa punya makna sendiri di sana.
+  // terbuka, atau dialog terbuka. Tombolnya bisa punya makna sendiri di sana.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -116,7 +110,7 @@ export function PlayerBar() {
           if (!inDialog) run(p.cycleRepeat);
           break;
         case "?":
-          if (!inDialog) {
+          if (!inDialog && !full) {
             e.preventDefault();
             setHelp((v) => !v);
           }
@@ -125,9 +119,9 @@ export function PlayerBar() {
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [p]);
+  }, [p, full]);
 
-  const playBtn = (size: string, icon: string) => (
+  const phonePlayBtn = (size: string, icon: string) => (
     <button
       onClick={p.toggle}
       disabled={!t}
@@ -145,6 +139,25 @@ export function PlayerBar() {
       ) : (
         <span key="paused" className="anim-pop inline-flex">
           <IconPlay className={`${icon} translate-x-px`} />
+        </span>
+      )}
+    </button>
+  );
+
+  const dockPlayBtn = () => (
+    <button
+      onClick={p.toggle}
+      disabled={!t}
+      className={`${dockBtn} h-12 w-12 text-label1`}
+      aria-label={p.playing ? "Jeda" : "Putar"}
+    >
+      {p.resolving ? (
+        <svg viewBox="0 0 24 24" className="spin h-6 w-6" fill="currentColor" aria-hidden="true">
+          <path d="M12 2a10 10 0 0110 10h-2a8 8 0 00-8-8V2z" />
+        </svg>
+      ) : (
+        <span key={p.playing ? "playing" : "paused"} className="anim-pop inline-flex">
+          {p.playing ? <IconPause className="h-6 w-6" /> : <IconPlay className="h-6 w-6 translate-x-px" />}
         </span>
       )}
     </button>
@@ -189,7 +202,7 @@ export function PlayerBar() {
                 </span>
               </span>
             </button>
-            {playBtn("h-11 w-11", "h-5 w-5")}
+            {phonePlayBtn("h-11 w-11", "h-5 w-5")}
             <button
               onClick={p.next}
               className="glass-btn flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-label1"
@@ -208,96 +221,64 @@ export function PlayerBar() {
         </div>
       )}
 
-      {/* ── Desktop: floating glass pill (only once something plays) ── */}
+      {/* ── Desktop: floating spatial bottom bar dari referensi Figma ── */}
       {t && (
         <div className="pointer-events-none absolute bottom-4 left-[var(--pad-l)] right-[var(--pad-r)] z-40 hidden lg:block">
           <section
-            className="dock-in player-dock pointer-events-auto glass relative mx-auto flex h-[78px] max-w-[1000px] items-center gap-3 rounded-full px-3.5"
+            className="dock-in player-dock pointer-events-auto glass relative mx-auto flex h-[76px] w-full max-w-[767px] items-center gap-[24px] rounded-[38px] px-[20px]"
             aria-label="Kontrol pemutar"
           >
-            {/* kiri: transport */}
-            <div className="flex shrink-0 items-center gap-0.5">
-              <button
-                onClick={p.toggleShuffle}
-                className={`${iconBtnSm} ${p.shuffle ? "!text-accent" : ""}`}
-                aria-pressed={p.shuffle}
-                aria-label="Acak"
-              >
-                <IconShuffle className="h-4 w-4" />
+            <div className="flex shrink-0 items-center gap-[16px]">
+              <button onClick={p.prev} className={`${dockBtn} h-12 w-12`} aria-label="Lagu sebelumnya">
+                <IconPrev className="h-6 w-6" />
               </button>
-              <button onClick={p.prev} disabled={!t} className={iconBtn} aria-label="Lagu sebelumnya">
-                <IconPrev className="h-5 w-5" />
-              </button>
-              {playBtn("mx-0.5 h-11 w-11", "h-5 w-5")}
-              <button onClick={p.next} disabled={!t} className={iconBtn} aria-label="Lagu berikutnya">
-                <IconNext className="h-5 w-5" />
-              </button>
-              <button
-                onClick={p.cycleRepeat}
-                className={`${iconBtnSm} ${p.repeat !== "off" ? "!text-accent" : ""}`}
-                aria-pressed={p.repeat !== "off"}
-                aria-label={`Ulangi: ${p.repeat === "off" ? "mati" : p.repeat === "all" ? "semua" : "satu lagu"}`}
-              >
-                {p.repeat === "one" ? (
-                  <IconRepeatOne className="h-4 w-4" />
-                ) : (
-                  <IconRepeat className="h-4 w-4" />
-                )}
+              {dockPlayBtn()}
+              <button onClick={p.next} className={`${dockBtn} h-12 w-12`} aria-label="Lagu berikutnya">
+                <IconNext className="h-6 w-6" />
               </button>
             </div>
 
-            {/* tengah: now playing + progress tipis */}
-            <div className="flex min-w-0 flex-1 items-center gap-3">
+            <div className="relative flex h-[58px] min-w-0 flex-1 items-center gap-3 rounded-[10px] bg-white/10 pl-1.5 pr-2.5">
               <button
                 onClick={() => setFull(true)}
-                className={`block h-[54px] w-[54px] shrink-0 overflow-hidden rounded-[17px] bg-fill2 shadow-[var(--shadow-art)] transition-transform duration-500 ease-[var(--ease-spring)] ${p.playing ? "scale-100" : "scale-[0.92]"}`}
+                className="block h-11 w-11 shrink-0 overflow-hidden rounded-[6px] bg-fill2 shadow-[var(--shadow-art)]"
                 aria-label="Buka pemutar layar penuh"
                 title="Pemutar layar penuh (F)"
               >
                 {art}
               </button>
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-[14px] font-semibold leading-tight text-label1">
-                  {t.title}
-                </div>
-                <div className="truncate text-[12px] leading-tight text-label2">
-                  {t.artist}
-                </div>
-                <div className="mt-1 flex items-center gap-2 text-[10px] text-label3 tnum">
-                  <span className="w-8 text-right">{fmtTime(p.position)}</span>
-                  <Scrubber
-                    position={p.position}
-                    duration={p.duration || 0}
-                    onSeek={p.seek}
-                    thin
-                    className="flex-1"
-                  />
-                  <span className="w-8">{fmtTime(p.duration)}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* kanan: panel + volume */}
-            <div className="flex shrink-0 items-center gap-0.5">
               <button
-                onClick={() => {
-                  if (!liked) {
-                    setPop(true);
-                    setTimeout(() => setPop(false), 600);
-                  }
-                  p.toggleLike(t);
-                }}
-                className={`${iconBtnSm} ${
-                  liked ? "!text-accent" : ""
-                } ${pop ? "heart-pop" : ""}`}
-                aria-label={liked ? "Hapus dari favorit" : "Tambahkan ke favorit"}
-                aria-pressed={liked}
+                onClick={() => setFull(true)}
+                className="min-w-0 flex-1 text-left"
+                aria-label={`${t.title}${t.artist ? `, ${t.artist}` : ""}. Buka pemutar`}
               >
-                <IconHeart filled={liked} className="h-[17px] w-[17px]" />
+                <span className="block truncate text-[16px] leading-tight text-label1">{t.title}</span>
+                <span className="block truncate text-[14px] leading-tight text-label2">{t.artist}</span>
               </button>
               <button
+                onClick={(e) => {
+                  const r = e.currentTarget.getBoundingClientRect();
+                  setCtx({ x: r.left, y: r.bottom + 4 });
+                }}
+                className={`${dockBtn} h-8 w-8`}
+                aria-label="Opsi lagu"
+                aria-haspopup="menu"
+              >
+                <IconEllipsis className="h-5 w-5" />
+              </button>
+              <Scrubber
+                hairline
+                position={p.position}
+                duration={p.duration || 0}
+                onSeek={p.seek}
+                className="absolute inset-x-3 bottom-0.5 !h-3"
+              />
+            </div>
+
+            <div className="flex shrink-0 items-center gap-2">
+              <button
                 onClick={() => p.toggleUi("lyrics")}
-                className={`${iconBtn} ${p.ui === "lyrics" ? "!bg-fill2 !text-label1" : ""}`}
+                className={`${dockBtn} h-10 w-10 ${p.ui === "lyrics" ? "!text-accent" : ""}`}
                 aria-pressed={p.ui === "lyrics"}
                 aria-label="Lirik"
               >
@@ -305,97 +286,32 @@ export function PlayerBar() {
               </button>
               <button
                 onClick={() => p.toggleUi("queue")}
-                className={`${iconBtn} ${p.ui === "queue" ? "!bg-fill2 !text-label1" : ""}`}
+                className={`${dockBtn} h-10 w-10 ${p.ui === "queue" ? "!text-accent" : ""}`}
                 aria-pressed={p.ui === "queue"}
                 aria-label="Antrian"
               >
                 <IconQueue className="h-5 w-5" />
               </button>
-              <button
-                onClick={() => setFull(true)}
-                disabled={!t}
-                className={`${iconBtnSm} disabled:opacity-40`}
-                aria-label="Buka pemutar layar penuh"
-                title="Expand (F)"
-              >
-                <IconExpand className="h-4 w-4" />
-              </button>
-              <button
-                onClick={() => setHelp(true)}
-                className={iconBtnSm}
-                aria-label="Pintasan keyboard"
-                title="Pintasan keyboard (?)"
-              >
-                <IconKeyboard className="h-4 w-4" />
-              </button>
-              <button onClick={p.toggleMute} className={iconBtn} aria-label={p.muted ? "Suarakan" : "Bisukan"}>
+              <button onClick={p.toggleMute} className={`${dockBtn} h-10 w-10`} aria-label={p.muted ? "Suarakan" : "Bisukan"}>
                 {p.muted || p.volume === 0 ? (
                   <IconVolumeMute className="h-5 w-5" />
                 ) : (
                   <IconVolume className="h-5 w-5" />
                 )}
               </button>
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.01}
-                value={p.muted ? 0 : p.volume}
-                onChange={(e) => p.setVolume(Number(e.target.value))}
-                className="appleslider ml-1 hidden w-14 xl:block"
-                style={{ ["--fill" as string]: `${(p.muted ? 0 : p.volume) * 100}%` } as React.CSSProperties}
-                aria-label="Volume"
-              />
             </div>
           </section>
+          {ctx && (
+            <TrackMenu
+              track={t}
+              anchor={ctx}
+              onClose={() => setCtx(null)}
+              onAddToPlaylist={() => setAddOpen(true)}
+            />
+          )}
+          {addOpen && <AddToPlaylistMenu track={t} onClose={() => setAddOpen(false)} />}
         </div>
       )}
     </>
   );
 }
-
-const kbd =
-  "inline-flex min-w-[22px] items-center justify-center rounded-md bg-fill1 px-1.5 py-0.5 text-center text-[12px] font-semibold text-label1 shadow-[0_1px_0_rgba(255,255,255,0.06)]";
-
-/** Daftar pintasan global — bisa dibuka lewat tombol ikon keyboard atau tombol `?`. */
-function ShortcutHelpDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const rows: { keys: string[]; label: string }[] = [
-    { keys: ["Spasi"], label: "Putar / jeda" },
-    { keys: ["⇧", "→"], label: "Lagu berikutnya" },
-    { keys: ["⇧", "←"], label: "Lagu sebelumnya" },
-    { keys: ["→"], label: "Maju 5 detik" },
-    { keys: ["←"], label: "Mundur 5 detik" },
-    { keys: ["F"], label: "Layar penuh" },
-    { keys: ["L"], label: "Favorit" },
-    { keys: ["M"], label: "Bisukan suara" },
-    { keys: ["Q"], label: "Antrian" },
-    { keys: ["Y"], label: "Lirik" },
-    { keys: ["S"], label: "Acak" },
-    { keys: ["R"], label: "Ulangi" },
-  ];
-  return (
-    <Dialog open={open} onClose={onClose} title="Pintasan keyboard">
-      <ul>
-        {rows.map((row) => (
-          <li
-            key={row.label}
-            className="flex items-center justify-between gap-4 border-b border-[var(--hairline)] py-2 text-[14px] text-label2 last:border-b-0"
-          >
-            <span>{row.label}</span>
-            <span className="flex shrink-0 gap-1">
-              {row.keys.map((key, i) => (
-                <kbd key={i} className={kbd}>
-                  {key}
-                </kbd>
-              ))}
-            </span>
-          </li>
-        ))}
-      </ul>
-      <p className="mt-3 text-[12px] text-label3">
-        Pintasan dilewati saat sedang mengetik atau saat dialog terbuka.
-      </p>
-    </Dialog>
-  );
-}
-

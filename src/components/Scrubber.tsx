@@ -16,6 +16,7 @@ export function Scrubber({
   onSeek,
   className = "",
   thin = false,
+  hairline = false,
   fat = false,
 }: {
   position: number;
@@ -23,6 +24,7 @@ export function Scrubber({
   onSeek: (t: number) => void;
   className?: string;
   thin?: boolean;
+  hairline?: boolean;
   fat?: boolean;
 }) {
   const track = useRef<HTMLDivElement | null>(null);
@@ -88,8 +90,8 @@ export function Scrubber({
     >
       <div
         className={`relative w-full overflow-hidden rounded-full ${fat ? "bg-white/40" : "bg-[var(--track)]"} transition-[height] duration-150 ${
-          thin ? "h-[3px]" : fat ? "h-3" : "h-1 group-hover:h-1.5 group-focus-visible:h-1.5"
-        } ${drag !== null && !thin ? (fat ? "!h-[15px]" : "!h-1.5") : ""}`}
+          hairline ? "h-[2px]" : thin ? "h-[3px]" : fat ? "h-3" : "h-1 group-hover:h-1.5 group-focus-visible:h-1.5"
+        } ${drag !== null && !thin && !hairline ? (fat ? "!h-[15px]" : "!h-1.5") : ""}`}
       >
         <div className={`h-full rounded-full bg-label1 ${fat ? "" : ""}`} style={{ width: `${pct}%` }} />
       </div>
