@@ -39,13 +39,21 @@ export function isDesktopClient(): boolean {
   return typeof internals?.invoke === "function";
 }
 
-function fire(cmd: string, failure: string): void {
+function fire(cmd: string, failure: string, success?: string): void {
   const result = invoke(cmd);
-  if (!result) return;
-  result.catch((error: unknown) => {
-    console.error(`[lyrics-popout] ${cmd} gagal`, error);
+  if (!result) {
     toast(failure);
-  });
+    return;
+  }
+  result
+    .then(() => {
+      if (success) toast(success);
+    })
+    .catch((error: unknown) => {
+      const detail = error instanceof Error ? error.message : String(error);
+      console.error(`[lyrics-popout] ${cmd} gagal`, error);
+      toast(`${failure}: ${detail}`);
+    });
 }
 
 export function openLyricsPopout(): void {
@@ -54,7 +62,7 @@ export function openLyricsPopout(): void {
     return;
   }
   toast("Membuka lirik mengambang…");
-  fire("open_lyrics_overlay", "Gagal membuka lirik mengambang");
+  fire("open_lyrics_overlay", "Gagal membuka lirik mengambang", "Jendela lirik dibuka");
 }
 
 export function closeLyricsPopout(): void {

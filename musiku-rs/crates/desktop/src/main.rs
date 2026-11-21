@@ -50,39 +50,36 @@ fn quit_app(app: AppHandle) {
 /// pemilik audio; overlay hanya memuat UI lirik lewat query `?overlay=lyrics`.
 #[tauri::command]
 fn open_lyrics_overlay(app: AppHandle, base: State<'_, BaseUrl>) -> Result<(), String> {
+    eprintln!("[lyrics-overlay] command dipanggil");
     if let Some(win) = app.get_webview_window(LYRICS_OVERLAY_LABEL) {
+        eprintln!("[lyrics-overlay] jendela sudah ada, menampilkan ulang");
         win.show().map_err(|e| e.to_string())?;
         win.set_focus().map_err(|e| e.to_string())?;
         return Ok(());
     }
 
     let mut target = tauri::Url::parse(&base.0).map_err(|e| e.to_string())?;
+    target.set_path("/");
     target.set_query(Some("overlay=lyrics"));
-    let builder = WebviewWindowBuilder::new(&app, LYRICS_OVERLAY_LABEL, WebviewUrl::External(target))
+    eprintln!("[lyrics-overlay] membuka {}", target);
+
+    // Jendela biasa yang berdecorasi dipakai di SEMUA platform. Frameless +
+    // transparent + always-on-top sering bikin jendela tak terlihat (Wayland,
+    // WebView2), jadi untuk sekarang prioritaskan jendela yang benar-benar
+    // muncul dan bisa dipindahkan seperti jendela lain.
+    let win = WebviewWindowBuilder::new(&app, LYRICS_OVERLAY_LABEL, WebviewUrl::External(target))
         .title("Lirik — Musiku")
         .inner_size(520.0, 520.0)
         .min_inner_size(360.0, 360.0)
         .resizable(true)
-        .visible(true);
-
-    // Linux (terutama Wayland) sering gagal memetakan jendela tanpa dekorasi
-    // dan/atau always-on-top. Di sini pakai jendela biasa yang paling aman.
-    #[cfg(target_os = "linux")]
-    let builder = builder.decorations(true);
-
-    #[cfg(not(target_os = "linux"))]
-    let builder = builder
-        .decorations(false)
-        .always_on_top(true)
-        .transparent(true);
-
-    let win = builder
-        .shadow(true)
+        .decorations(true)
+        .visible(true)
         .build()
         .map_err(|e| {
             eprintln!("[lyrics-overlay] gagal membuat jendela: {e}");
             e.to_string()
         })?;
+    eprintln!("[lyrics-overlay] jendela berhasil dibuat");
     win.show().map_err(|e| {
         eprintln!("[lyrics-overlay] gagal show: {e}");
         e.to_string()

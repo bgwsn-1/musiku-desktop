@@ -28,7 +28,7 @@ export function Toaster() {
     <div
       role="status"
       aria-live="polite"
-      className="pointer-events-none absolute inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+154px)] z-[60] flex justify-center px-4 lg:bottom-[112px] lg:pl-[var(--pad-l)]"
+      className="pointer-events-none absolute inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+154px)] z-[80] flex justify-center px-4 lg:bottom-[112px] lg:pl-[var(--pad-l)]"
     >
       {msg && (
         <div
