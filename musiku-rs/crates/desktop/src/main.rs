@@ -13,7 +13,9 @@
 // jendela hitam kosong. Flag ini membuat PE ditandai GUI (`subsystem=2`).
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use tauri::{AppHandle, WebviewUrl, WebviewWindowBuilder};
+mod discord;
+
+use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 
 /// Buka halaman release di browser sistem. URL di-whitelist supaya command
 /// ini nggak bisa dipakai untuk menjalankan program sembarangan.
@@ -43,10 +45,17 @@ fn main() {
     // Server di thread sendiri; kembaliannya nomor port begitu siap.
     let port = musiku_server::spawn_background().expect("gagal menjalankan server");
     let url = format!("http://127.0.0.1:{port}");
+    let discord = discord::SharedPresence::default();
 
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![open_external, quit_app])
+        .invoke_handler(tauri::generate_handler![
+            open_external,
+            quit_app,
+            discord::discord_set_activity,
+            discord::discord_clear_activity
+        ])
         .setup(move |app| {
+            app.manage(discord.clone());
             let target: tauri::Url = url.parse().expect("url server tidak valid");
             WebviewWindowBuilder::new(app, "main", WebviewUrl::External(target))
                 .title("Musiku")

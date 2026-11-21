@@ -11,3 +11,5 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = [] }
 musiku-server = { path = "../server" }
+serde = { workspace = true }
+discord-rich-presence = "1.1"
