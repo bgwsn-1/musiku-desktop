@@ -6,6 +6,7 @@ import {
   IconClose,
   IconCrossfade,
   IconEllipsis,
+  IconExpand,
   IconHeart,
   IconKeyboard,
   IconLyrics,
@@ -30,6 +31,7 @@ import { toast } from "@/components/Toast";
 import { TrackMenu, type MenuAnchor } from "@/components/TrackMenu";
 import { AddToPlaylistMenu } from "@/components/TrackRow";
 import { ShortcutHelpDialog } from "@/components/ShortcutHelpDialog";
+import { openLyricsPopout } from "@/lib/lyrics-popout";
 import fmtTime from "@/lib/timefmt";
 
 /**
@@ -124,6 +126,16 @@ export function DesktopNowPlaying({
               title="Mode lirik imersif"
             >
               <IconLyrics className="h-5 w-5" />
+            </button>
+          )}
+          {desktopClient && (
+            <button
+              onClick={() => openLyricsPopout()}
+              className={`${round} h-11 w-11 text-label2 hover:text-label1`}
+              aria-label="Buka lirik mengambang"
+              title="Buka lirik mengambang"
+            >
+              <IconExpand className="h-5 w-5" />
             </button>
           )}
           <button

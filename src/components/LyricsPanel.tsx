@@ -1,8 +1,9 @@
 "use client";
 
 import { usePlayer } from "@/lib/player";
-import { IconClose } from "@/components/Icons";
+import { IconClose, IconExpand } from "@/components/Icons";
 import { Artwork } from "@/components/Artwork";
+import { isDesktopClient, openLyricsPopout } from "@/lib/lyrics-popout";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Lyrics as LyricsData } from "@/lib/types";
 
@@ -28,7 +29,10 @@ export function LyricsPanel() {
   const id = t?.videoId ?? null;
   const [data, setData] = useState<LyricsData | null>(null);
   const [loading, setLoading] = useState(false);
+  const [desktop, setDesktop] = useState(false);
   const lastIdx = useRef(-2);
+
+  useEffect(() => setDesktop(isDesktopClient()), []);
 
   useEffect(() => {
     setData(null);
@@ -135,6 +139,16 @@ export function LyricsPanel() {
             {status}
           </p>
         </div>
+        {desktop && (
+          <button
+            onClick={() => openLyricsPopout()}
+            className="glass-btn flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-fill1 text-label1"
+            aria-label="Buka lirik mengambang"
+            title="Buka lirik mengambang"
+          >
+            <IconExpand className="h-[18px] w-[18px]" />
+          </button>
+        )}
         <button
           onClick={() => p.toggleUi("lyrics")}
           className="glass-btn flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-fill1 text-label1"

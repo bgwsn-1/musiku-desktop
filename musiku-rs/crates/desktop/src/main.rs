@@ -15,7 +15,12 @@
 
 mod discord;
 
-use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindowBuilder};
+
+/// Alamat server lokal dipakai ulang saat membuat jendela lirik mengambang.
+struct BaseUrl(String);
+
+const LYRICS_OVERLAY_LABEL: &str = "lyrics-overlay";
 
 /// Buka halaman release di browser sistem. URL di-whitelist supaya command
 /// ini nggak bisa dipakai untuk menjalankan program sembarangan.
@@ -41,6 +46,41 @@ fn quit_app(app: AppHandle) {
     app.exit(0);
 }
 
+/// Buka (atau fokuskan) jendela lirik mengambang. Jendela utama tetap menjadi
+/// pemilik audio; overlay hanya memuat UI lirik lewat query `?overlay=lyrics`.
+#[tauri::command]
+fn open_lyrics_overlay(app: AppHandle, base: State<'_, BaseUrl>) -> Result<(), String> {
+    if let Some(win) = app.get_webview_window(LYRICS_OVERLAY_LABEL) {
+        win.show().map_err(|e| e.to_string())?;
+        win.set_focus().map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+
+    let mut target = tauri::Url::parse(&base.0).map_err(|e| e.to_string())?;
+    target.set_query(Some("overlay=lyrics"));
+    WebviewWindowBuilder::new(&app, LYRICS_OVERLAY_LABEL, WebviewUrl::External(target))
+        .title("Lirik — Musiku")
+        .inner_size(520.0, 520.0)
+        .min_inner_size(360.0, 360.0)
+        .resizable(true)
+        .decorations(false)
+        .transparent(true)
+        .shadow(true)
+        .always_on_top(true)
+        .visible(true)
+        .build()
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn close_lyrics_overlay(app: AppHandle) -> Result<(), String> {
+    if let Some(win) = app.get_webview_window(LYRICS_OVERLAY_LABEL) {
+        win.close().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 fn main() {
     // Server di thread sendiri; kembaliannya nomor port begitu siap.
     let port = musiku_server::spawn_background().expect("gagal menjalankan server");
@@ -51,11 +91,14 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             open_external,
             quit_app,
+            open_lyrics_overlay,
+            close_lyrics_overlay,
             discord::discord_set_activity,
             discord::discord_clear_activity
         ])
         .setup(move |app| {
             app.manage(discord.clone());
+            app.manage(BaseUrl(url.clone()));
             let target: tauri::Url = url.parse().expect("url server tidak valid");
             WebviewWindowBuilder::new(app, "main", WebviewUrl::External(target))
                 .title("Musiku")

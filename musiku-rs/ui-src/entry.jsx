@@ -31,6 +31,8 @@ import LikedPage from "@/app/liked/page";
 import { PustakaSection } from "@/components/PustakaSection";
 import { PlaylistView } from "@/components/PlaylistView";
 import DiscordPresence from "./desktop/DiscordPresence.jsx";
+import LyricsBridge from "./desktop/LyricsBridge.jsx";
+import LyricsOverlay from "./desktop/LyricsOverlay.jsx";
 
 // ── helper kecil ─────────────────────────────────────────────────────────
 async function jget(url) {
@@ -528,14 +530,15 @@ function App() {
   return (
     <PlayerProvider>
       <DiscordPresence />
+      <LyricsBridge />
       <Shell />
     </PlayerProvider>
   );
 }
 
 const el = document.getElementById("root");
+const isLyricsOverlay =
+  new URLSearchParams(window.location.search).get("overlay") === "lyrics";
 createRoot(el).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
+  <StrictMode>{isLyricsOverlay ? <LyricsOverlay /> : <App />}</StrictMode>,
 );
