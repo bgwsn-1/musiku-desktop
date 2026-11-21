@@ -6,6 +6,11 @@
     "main",
     "lyrics-overlay"
   ],
+  "remote": {
+    "urls": [
+      "http://127.0.0.1:*"
+    ]
+  },
   "permissions": [
     "core:default",
     "allow-app-commands"
