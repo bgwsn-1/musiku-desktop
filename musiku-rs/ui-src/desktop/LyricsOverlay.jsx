@@ -81,8 +81,8 @@ export default function LyricsOverlay() {
   };
 
   // Active line sits at 52% of the mask, like the Figma component.
-  // Baris biasa 9.4cqw, baris aktif 12.9cqw → setengahnya 6.45cqw.
-  const offsetCqw = activeIdx >= 0 ? activeIdx * 9.4 + 6.45 : 6.45;
+  // Baris biasa 8cqw, baris aktif 11cqw → setengahnya 5.5cqw.
+  const offsetCqw = activeIdx >= 0 ? activeIdx * 8 + 5.5 : 5.5;
   const reduced =
     typeof window !== "undefined" &&
     window.matchMedia("(prefers-reduced-motion: reduce)").matches;

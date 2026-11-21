@@ -1425,17 +1425,17 @@ textarea:focus-visible {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 700;
-  font-size: 6.6cqw;
-  line-height: 9.4cqw;
-  letter-spacing: -0.45cqw;
+  font-size: 5.6cqw;
+  line-height: 8cqw;
+  letter-spacing: -0.38cqw;
   opacity: 0.2;
   cursor: pointer;
   transition: opacity 300ms ease, font-size 350ms ease, line-height 350ms ease;
 }
 .lo-line.is-active {
-  font-size: 9.8cqw;
-  line-height: 12.9cqw;
-  letter-spacing: -0.72cqw;
+  font-size: 8.4cqw;
+  line-height: 11cqw;
+  letter-spacing: -0.62cqw;
   opacity: 1;
 }
 .lo-plain,
@@ -1448,9 +1448,9 @@ textarea:focus-visible {
   padding: 0 6%;
   white-space: pre-line;
   text-align: center;
-  font-size: 5.2cqw;
+  font-size: 4.6cqw;
   font-weight: 700;
-  line-height: 7.6cqw;
+  line-height: 6.8cqw;
   opacity: 0.8;
 }
 .lo-controls {
