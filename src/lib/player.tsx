@@ -166,6 +166,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const volRef = useRef(volume);
   const mutedRef = useRef(false);
   const errCountRef = useRef(0);
+  const resolvingRef = useRef(false);
+  useEffect(() => {
+    resolvingRef.current = resolving;
+  }, [resolving]);
 
   const toggleUi = useCallback((name: "lyrics" | "queue") => {
     setUi((u) => (u === name ? null : name));
@@ -1006,6 +1010,13 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       setPosition(el.currentTime);
       positionRef.current = el.currentTime;
       pushPositionState(el);
+      // Bukti paling yakin kalau audio benar-benar jalan: waktu bergerak.
+      // Event playing/canplay bisa terlewat saat metadata (durasi) datang
+      // belakangan — kalau resolving masih nyangkut, matikan di sini.
+      if (resolvingRef.current && !el.paused && el.currentTime > 0) {
+        resolvingRef.current = false;
+        setResolving(false);
+      }
       // ── auto-crossfade: sisa waktu tersisa ≤ 4 detik & ada lagu berikutnya ──
       if (
         crossfadeRef.current &&
@@ -1047,6 +1058,12 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       if (isFinite(d) && d > 0) {
         setDuration(d);
         pushPositionState(el);
+      }
+      // Durasi baru sering datang bareng buffer ulang. Kalau lagunya tetap
+      // berjalan, jangan biarkan spinner nyala lagi gara-gara event waiting.
+      if (resolvingRef.current && !el.paused && el.readyState >= 2) {
+        resolvingRef.current = false;
+        setResolving(false);
       }
     };
     // Elemen bayangan ikut memuat (preloadNext). Event waiting/canplay-nya
