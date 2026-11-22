@@ -31,8 +31,6 @@ import LikedPage from "@/app/liked/page";
 import { PustakaSection } from "@/components/PustakaSection";
 import { PlaylistView } from "@/components/PlaylistView";
 import DiscordPresence from "./desktop/DiscordPresence.jsx";
-import LyricsBridge from "./desktop/LyricsBridge.jsx";
-import LyricsOverlay from "./desktop/LyricsOverlay.jsx";
 import { initElasticScroll } from "./elastic-scroll.js";
 
 // ── helper kecil ─────────────────────────────────────────────────────────
@@ -546,15 +544,16 @@ function App() {
   return (
     <PlayerProvider>
       <DiscordPresence />
-      <LyricsBridge />
       <Shell />
     </PlayerProvider>
   );
 }
 
 const el = document.getElementById("root");
-const isLyricsOverlay =
-  new URLSearchParams(window.location.search).get("overlay") === "lyrics";
+// Lirik mengambang (jendela `?overlay=lyrics` + LyricsBridge) dinonaktifkan:
+// masih ada bug, dan jendelanya tidak lagi dibuat sama sekali.
 createRoot(el).render(
-  <StrictMode>{isLyricsOverlay ? <LyricsOverlay /> : <App />}</StrictMode>,
+  <StrictMode>
+    <App />
+  </StrictMode>,
 );
