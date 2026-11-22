@@ -35,18 +35,10 @@ pub struct PresencePayload {
 
 pub type SharedPresence = Arc<Mutex<Presence>>;
 
+#[derive(Default)]
 pub struct Presence {
     client: Option<DiscordIpcClient>,
     last_try: Option<Instant>,
-}
-
-impl Default for Presence {
-    fn default() -> Self {
-        Self {
-            client: None,
-            last_try: None,
-        }
-    }
 }
 
 fn clip(value: Option<String>) -> Option<String> {

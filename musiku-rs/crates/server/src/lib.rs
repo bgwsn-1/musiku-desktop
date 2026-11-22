@@ -197,7 +197,7 @@ async fn stream_handler(
     // milik upstream bila ada, kalau tidak baru pakai default. Memasang keduanya
     // membuat dua header Content-Type (response malformed).
     let default_ctype = if is_video { "video/mp4" } else { "audio/mp4" };
-    let ctype = single_content_type(&up.headers(), default_ctype);
+    let ctype = single_content_type(up.headers(), default_ctype);
 
     let mut out = Response::builder()
         .status(status)
@@ -277,12 +277,12 @@ async fn artwork_proxy(Query(p): Query<ArtworkParams>) -> Result<Response, ApiEr
         .await
         .map_err(|e| err(StatusCode::BAD_GATEWAY, format!("fetch gagal: {e}")))?;
 
-    Ok(Response::builder()
+    Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, ctype)
         .header(header::CACHE_CONTROL, "public, max-age=86400")
         .body(Body::from(bytes))
-        .map_err(|e| err(StatusCode::BAD_GATEWAY, e.to_string()))?)
+        .map_err(|e| err(StatusCode::BAD_GATEWAY, e.to_string()))
 }
 
 // ── /api/artist-logo ─────────────────────────────────────────────────────
@@ -349,12 +349,12 @@ async fn artist_logo_file(Query(p): Query<NameParams>) -> Result<Response, ApiEr
 
         match got {
             Ok((ctype, bytes)) => {
-                return Ok(Response::builder()
+                return Response::builder()
                     .status(StatusCode::OK)
                     .header(header::CONTENT_TYPE, ctype)
                     .header(header::CACHE_CONTROL, "public, max-age=604800")
                     .body(Body::from(bytes))
-                    .map_err(|e| err(StatusCode::BAD_GATEWAY, e.to_string()))?);
+                    .map_err(|e| err(StatusCode::BAD_GATEWAY, e.to_string()));
             }
             Err(e) => last_err = e.to_string(),
         }
@@ -444,11 +444,11 @@ async fn update_check() -> std::result::Result<Json<Value>, ApiError> {
     update::check()
         .await
         .map(|v| Json(json!(v)))
-        .map_err(|e| upstream(e))
+        .map_err(upstream)
 }
 
 async fn update_install() -> std::result::Result<Json<Value>, ApiError> {
-    update::install().await.map(Json).map_err(|e| upstream(e))
+    update::install().await.map(Json).map_err(upstream)
 }
 
 /// Router lengkap: API + UI.

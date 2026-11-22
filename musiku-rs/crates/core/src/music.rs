@@ -443,7 +443,7 @@ impl Musiku {
                 }
 
                 if let Some(t) = &title {
-                    if let Some(found) = self.from_lrclib(t, artist.as_deref(), duration).await {
+                    if let Some(found) = self.lrclib_lookup(t, artist.as_deref(), duration).await {
                         return Ok(serde_json::to_value(found)?);
                     }
                 }
@@ -458,7 +458,7 @@ impl Musiku {
     }
 
     /// Pencarian lirik di lrclib.net (port `fromLrclib()`).
-    async fn from_lrclib(
+    async fn lrclib_lookup(
         &self,
         title: &str,
         artist: Option<&str>,
