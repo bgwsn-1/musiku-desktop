@@ -11,6 +11,7 @@ use std::sync::OnceLock;
 use regex::Regex;
 use rustypipe::client::RustyPipe;
 use rustypipe::model::{AlbumItem, AlbumType, ArtistItem, Thumbnail, TrackItem};
+use rustypipe::param::Country;
 
 use crate::cache::{JsonCache, METADATA_TTL};
 use crate::types::{AlbumDetail, AlbumSummary, ArtistDetail, ArtistName, Count, Duration, HomeItem, HomeItemKind, HomeShelf, Lyrics, Track};
@@ -296,6 +297,115 @@ impl Musiku {
                 }
 
                 Ok(serde_json::to_value(shelves)?)
+            })
+            .await
+    }
+
+    /// Artis populer **global**: gabungan charts YouTube Music dari beberapa
+    /// negara besar, bukan region perangkat. Peringkat lintas-region dihitung
+    /// dari posisi tiap artis di tiap charts (semakin atas semakin tinggi),
+    /// lalu diabuikan `{browseId, title, thumbs, subscribers}`.
+    pub async fn global_artists(&self) -> anyhow::Result<serde_json::Value> {
+        self.cache
+            .get_or_try("global_artists", async {
+                let yt = self.pipe.query();
+                const REGIONS: [Country; 6] = [
+                    Country::Us,
+                    Country::Gb,
+                    Country::De,
+                    Country::Jp,
+                    Country::Br,
+                    Country::Kr,
+                ];
+                const PER_REGION: usize = 12;
+                struct Entry {
+                    score: u32,
+                    hits: u32,
+                    value: serde_json::Value,
+                }
+                let mut map: std::collections::HashMap<String, Entry> =
+                    std::collections::HashMap::new();
+                for region in REGIONS {
+                    let charts = match yt.music_charts(Some(region)).await {
+                        Ok(c) => c,
+                        Err(_) => continue,
+                    };
+                    for (idx, a) in charts.artists.iter().take(PER_REGION).enumerate() {
+                        let score = (PER_REGION - idx) as u32;
+                        let v = serde_json::json!({
+                            "browseId": a.id,
+                            "title": a.name,
+                            "thumbs": thumb(&a.avatar),
+                            "subscribers": a.subscriber_count.unwrap_or(0),
+                        });
+                        map.entry(a.id.clone())
+                            .and_modify(|e| {
+                                e.score += score;
+                                e.hits += 1;
+                            })
+                            .or_insert(Entry {
+                                score,
+                                hits: 1,
+                                value: v,
+                            });
+                    }
+                }
+                let mut items: Vec<(u32, u32, serde_json::Value)> = map
+                    .into_values()
+                    .map(|e| (e.score, e.hits, e.value))
+                    .collect();
+                items.sort_by(|a, b| b.0.cmp(&a.0).then(b.1.cmp(&a.1)));
+                let out: Vec<serde_json::Value> =
+                    items.into_iter().map(|(_, _, v)| v).collect();
+                Ok(serde_json::Value::Array(out))
+            })
+            .await
+    }
+
+    /// Daftar mood YouTube Music (bahan filter beranda).
+    pub async fn moods(&self) -> anyhow::Result<serde_json::Value> {
+        self.cache
+            .get_or_try("moods", async {
+                let yt = self.pipe.query();
+                let list = yt.music_genres().await?;
+                let out: Vec<serde_json::Value> = list
+                    .into_iter()
+                    .filter(|g| g.is_mood)
+                    .map(|g| {
+                        serde_json::json!({
+                            "id": g.id,
+                            "title": g.name,
+                            "color": format!("#{:06x}", g.color & 0x00FF_FFFF),
+                        })
+                    })
+                    .collect();
+                Ok(serde_json::Value::Array(out))
+            })
+            .await
+    }
+
+    /// Playlist milik satu mood.
+    pub async fn mood_playlists(&self, id: &str) -> anyhow::Result<serde_json::Value> {
+        let key = format!("mood:{id}");
+        self.cache
+            .get_or_try(&key, async {
+                let genre = self.pipe.query().music_genre(id).await?;
+                let mut items: Vec<serde_json::Value> = Vec::new();
+                for sec in genre.sections {
+                    for pl in sec.playlists {
+                        if pl.is_podcast {
+                            continue;
+                        }
+                        items.push(serde_json::json!({
+                            "browseId": pl.id,
+                            "title": pl.name,
+                            "thumbs": thumb(&pl.thumbnail),
+                            "subtitle": sec.name,
+                            "tracks": pl.track_count.unwrap_or(0),
+                        }));
+                    }
+                }
+                Ok(serde_json::Value::Array(items))
             })
             .await
     }

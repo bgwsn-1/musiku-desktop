@@ -112,6 +112,22 @@ async fn artist_handler(Path(id): Path<String>) -> Result<Json<Value>, ApiError>
     Ok(Json(v))
 }
 
+// ── /api/artists/charts ─────────────────────────────────────────────────────
+
+async fn artists_charts_handler() -> Result<Json<Value>, ApiError> {
+    global().global_artists().await.map(Json).map_err(upstream)
+}
+
+// ── /api/moods & /api/mood/:id ─────────────────────────────────────────────
+
+async fn moods_handler() -> Result<Json<Value>, ApiError> {
+    global().moods().await.map(Json).map_err(upstream)
+}
+
+async fn mood_handler(Path(id): Path<String>) -> Result<Json<Value>, ApiError> {
+    global().mood_playlists(&id).await.map(Json).map_err(upstream)
+}
+
 // ── /api/song/:id ────────────────────────────────────────────────────────
 
 async fn song_handler(Path(id): Path<String>) -> Result<Json<Value>, ApiError> {
@@ -463,6 +479,9 @@ pub fn app() -> Router {
         .route("/api/home", get(home_handler))
         .route("/api/album/{id}", get(album_handler))
         .route("/api/artist/{id}", get(artist_handler))
+        .route("/api/artists/charts", get(artists_charts_handler))
+        .route("/api/moods", get(moods_handler))
+        .route("/api/mood/{id}", get(mood_handler))
         .route("/api/song/{id}", get(song_handler))
         .route("/api/lyrics/{id}", get(lyrics_handler))
         .route("/api/apple-artwork", get(apple_artwork_handler))

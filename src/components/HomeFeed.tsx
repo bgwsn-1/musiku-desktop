@@ -1,51 +1,76 @@
 "use client";
 
 /**
- * Halaman Beranda: rak-rak dari /api/home, filter chip (Semua/Lagu/Album/Artis),
- * dan kartu artis #1 paling banyak diputar (diurutkan dari monthlyListeners
- * `/api/artist/:id`, bukan tebakan).
+ * Halaman Beranda: hero artis #1 global, filter mood (Bersantai/Sedih/Senang/
+ * Tidur/dst dari YouTube Music), dan rak-rak /api/home dengan transisi.
  */
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { GridCard, Shelf } from "@/components/GridCard";
 import { FeaturedCarousel, SongColumns } from "@/components/HomeFeatured";
 import { RecentShelf } from "@/components/RecentShelf";
-import { IconPlay } from "@/components/Icons";
+import { IconChevronRight, IconPlay } from "@/components/Icons";
 import { Artwork } from "@/components/Artwork";
-import type { ArtistDetail, HomeItem, HomeShelf } from "@/lib/types";
+import type { HomeItem, HomeShelf } from "@/lib/types";
 
-type Tab = "all" | "song" | "album" | "artist";
+type TopArtist = {
+  browseId: string;
+  title: string;
+  thumbs?: string | null;
+  subscribers: number;
+  monthly?: string | null;
+};
 
-const TABS: [Tab, string][] = [
-  ["all", "Semua"],
-  ["song", "Lagu"],
-  ["album", "Album"],
-  ["artist", "Artis"],
-];
+type Mood = { id: string; title: string; color?: string | null };
 
-function matches(item: HomeItem, tab: Tab): boolean {
-  if (tab === "all") return true;
-  if (tab === "artist") return item.kind === "artist";
-  if (tab === "album") return item.kind === "album";
-  return item.kind === "song" || !!item.videoId;
+type MoodPlaylist = {
+  browseId: string;
+  title: string;
+  thumbs?: string | null;
+  subtitle?: string | null;
+  tracks?: number | null;
+};
+
+/** Mood YouTube Music umumnya Inggris; petakan ke bahasa sehari-hari. */
+const MOOD_LABELS: Record<string, string> = {
+  chill: "Bersantai",
+  relax: "Bersantai",
+  "feel good": "Senang",
+  happy: "Senang",
+  party: "Pesta",
+  energize: "Mengisi energi",
+  energy: "Mengisi energi",
+  sleep: "Tidur",
+  sad: "Sedih",
+  romantic: "Romantis",
+  romance: "Romantis",
+  love: "Cinta",
+  focus: "Fokus",
+  workout: "Olahraga",
+  commute: "Perjalanan",
+};
+
+function moodLabel(name: string): string {
+  return MOOD_LABELS[name.trim().toLowerCase()] ?? name;
 }
 
-/** "63.6M monthly audience" -> 63_600_000; angka mentah dipakai apa adanya. */
-function parseCount(v: string | number | null | undefined): number {
-  if (v == null) return -1;
-  if (typeof v === "number") return v;
-  const m = String(v).match(/([\d.,]+)\s*([kKmMbB])?/);
-  if (!m) return -1;
-  const n = parseFloat(m[1].replace(",", "."));
-  if (!Number.isFinite(n)) return -1;
-  const mult = m[2] ? { k: 1e3, m: 1e6, b: 1e9 }[m[2].toLowerCase()] : 1;
-  return n * (mult ?? 1);
+/** 44_800_000 -> "44,8 jt" */
+function fmtCount(n: number): string {
+  if (!n) return "";
+  const trim = (s: string) => s.replace(/\.0$/, "");
+  if (n >= 1e9) return `${trim((n / 1e9).toFixed(1))} M`;
+  if (n >= 1e6) return `${trim((n / 1e6).toFixed(1))} jt`;
+  if (n >= 1e3) return `${Math.round(n / 1e3)} rb`;
+  return String(n);
 }
 
 export function HomeFeed({ shelves }: { shelves: HomeShelf[] }) {
-  const [tab, setTab] = useState<Tab>("all");
-  const [top, setTop] = useState<ArtistDetail | null>(null);
+  const [sel, setSel] = useState("");
+  const [moods, setMoods] = useState<Mood[]>([]);
+  const [playlists, setPlaylists] = useState<MoodPlaylist[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [top, setTop] = useState<TopArtist | null>(null);
 
   const lead = shelves[0];
   const songsIdx = shelves.findIndex(
@@ -54,49 +79,71 @@ export function HomeFeed({ shelves }: { shelves: HomeShelf[] }) {
   const songs = songsIdx > 0 ? shelves[songsIdx] : undefined;
   const rest = shelves.filter((_, i) => i !== 0 && i !== songsIdx);
 
-  // Kandidat artis diambil dari semua rak; ambil beberapa yang pertama.
-  const candidates = useMemo(() => {
-    const seen = new Set<string>();
-    const out: HomeItem[] = [];
-    for (const sh of shelves) {
-      for (const it of sh.items) {
-        if (it.kind === "artist" && it.browseId && !seen.has(it.browseId)) {
-          seen.add(it.browseId);
-          out.push(it);
-        }
-      }
-    }
-    return out.slice(0, 6);
-  }, [shelves]);
-
+  // Daftar mood dari server (YouTube Music).
   useEffect(() => {
     let live = true;
-    setTop(null);
-    Promise.all(
-      candidates.map((c) =>
-        fetch(`/api/artist/${c.browseId}`)
-          .then((r) => (r.ok ? r.json() : null))
-          .catch(() => null),
-      ),
-    ).then((list) => {
-      if (!live) return;
-      const ok = list.filter(Boolean) as ArtistDetail[];
-      ok.sort(
-        (a, b) => parseCount(b.monthlyListeners) - parseCount(a.monthlyListeners),
-      );
-      setTop(ok[0] ?? null);
-    });
+    fetch("/api/moods")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((list) => {
+        if (live && Array.isArray(list)) setMoods(list as Mood[]);
+      })
+      .catch(() => {});
     return () => {
       live = false;
     };
-  }, [candidates]);
+  }, []);
 
-  const shownRest =
-    tab === "all"
-      ? rest
-      : rest
-          .map((sh) => ({ ...sh, items: sh.items.filter((it) => matches(it, tab)) }))
-          .filter((sh) => sh.items.length > 0);
+  // Isi playlist untuk mood terpilih.
+  useEffect(() => {
+    if (!sel) {
+      setPlaylists(null);
+      return;
+    }
+    let live = true;
+    setLoading(true);
+    setPlaylists(null);
+    fetch(`/api/mood/${encodeURIComponent(sel)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((list) => {
+        if (!live) return;
+        setPlaylists(Array.isArray(list) ? (list as MoodPlaylist[]) : []);
+      })
+      .catch(() => live && setPlaylists([]))
+      .finally(() => live && setLoading(false));
+    return () => {
+      live = false;
+    };
+  }, [sel]);
+
+  // Hero artis #1 global (peringkat charts lintas-region).
+  useEffect(() => {
+    let live = true;
+    setTop(null);
+    fetch("/api/artists/charts")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((list) => {
+        if (!live || !Array.isArray(list) || list.length === 0) return;
+        const first = list[0] as TopArtist;
+        setTop(first);
+        fetch(`/api/artist/${first.browseId}`)
+          .then((r) => (r.ok ? r.json() : null))
+          .catch(() => null)
+          .then((d) => {
+            if (!live || !d) return;
+            setTop((cur) =>
+              cur && cur.browseId === first.browseId
+                ? { ...cur, monthly: d.monthlyListeners ?? null }
+                : cur,
+            );
+          });
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  const selMood = moods.find((m) => m.id === sel);
 
   return (
     <div>
@@ -104,138 +151,176 @@ export function HomeFeed({ shelves }: { shelves: HomeShelf[] }) {
         <h1 className="t-large">Beranda</h1>
       </header>
 
+      {top && (
+        <section aria-label="Artis paling banyak diputar" className="mb-5">
+          <Link
+            href={`/artist/${top.browseId}`}
+            className="card-anim group flex items-center gap-3.5 rounded-[16px] border border-[var(--hairline)] bg-fill1/70 p-3 text-left transition-colors hover:bg-fill2"
+            aria-label={`${top.title}, ${
+              top.monthly ?? `${fmtCount(top.subscribers)} pelanggan`
+            }`}
+          >
+            <span className="relative h-[84px] w-[84px] shrink-0 overflow-hidden rounded-[12px] bg-fill1 shadow-[var(--shadow-art)]">
+              <Artwork src={top.thumbs ?? null} />
+              <span className="absolute right-1.5 bottom-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-black/55 text-white backdrop-blur-md">
+                <IconPlay className="ml-0.5 h-3 w-3" />
+              </span>
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="t-eyebrow !text-label3">Artis · #1 Global</span>
+              <span className="mt-0.5 block truncate text-[18px] font-semibold leading-tight text-label1">
+                {top.title}
+              </span>
+              <span className="block truncate text-[13.5px] leading-tight text-label2">
+                {top.monthly
+                  ? top.monthly
+                  : fmtCount(top.subscribers)
+                    ? `${fmtCount(top.subscribers)} pelanggan`
+                    : "Paling banyak diputar"}
+              </span>
+            </span>
+            <IconChevronRight className="h-4 w-4 shrink-0 text-label3" />
+          </Link>
+        </section>
+      )}
+
       <div
         className="no-scrollbar -mx-1 mb-6 flex max-w-full overflow-x-auto px-1"
         role="group"
-        aria-label="Saring beranda"
+        aria-label="Saring beranda berdasarkan mood"
       >
-        <div className="inline-flex gap-1 rounded-full bg-fill1 p-1">
-          {TABS.map(([k, label]) => (
+        <div className="inline-flex max-w-full gap-1 overflow-x-auto rounded-full bg-fill1 p-1">
+          {[{ id: "", title: "Semua" }, ...moods].map((m) => (
             <button
-              key={k}
-              onClick={() => setTab(k)}
-              aria-pressed={tab === k}
-              className={`h-9 shrink-0 rounded-full px-4 text-[14px] font-semibold transition-colors ${
-                tab === k
+              key={m.id || "all"}
+              onClick={() => setSel(m.id)}
+              aria-pressed={sel === m.id}
+              className={`h-9 shrink-0 rounded-full px-4 text-[14px] font-semibold whitespace-nowrap transition-colors ${
+                sel === m.id
                   ? "bg-[var(--seg-thumb)] text-label1 shadow-[0_1px_3px_rgba(0,0,0,0.18)]"
                   : "text-label2 hover:text-label1"
               }`}
             >
-              {label}
+              {m.title === "Semua" ? "Semua" : moodLabel(m.title)}
             </button>
           ))}
         </div>
       </div>
 
-      {lead && lead.items.length > 0 && (
-        <FeaturedCarousel items={lead.items.slice(0, 6)} />
-      )}
+      <div key={sel} className="home-swap">
+        {!sel ? (
+          <>
+            {lead && lead.items.length > 0 && (
+              <FeaturedCarousel items={lead.items.slice(0, 6)} />
+            )}
 
-      {top && (
-        <section aria-label="Artis paling banyak diputar" className="mb-9">
-          <div className="mb-3 flex items-baseline justify-between gap-3">
-            <h2 className="t-title text-label1">Paling banyak diputar</h2>
-            <span className="text-[13px] text-label3">Bulan ini · #1</span>
-          </div>
-          <Link
-            href={`/artist/${top.browseId}`}
-            className="card-anim group block w-full max-w-[560px] text-left"
-            aria-label={`${top.name}${top.monthlyListeners ? `, ${top.monthlyListeners}` : ""}`}
-          >
-            <p className="t-eyebrow !text-label3">Artis</p>
-            <h3 className="mt-1.5 truncate text-[20px] font-semibold leading-tight tracking-[-0.015em] text-label1">
-              {top.name}
-            </h3>
-            <p className="truncate text-[20px] font-light leading-tight tracking-[-0.01em] text-label2">
-              {top.monthlyListeners
-                ? `${top.monthlyListeners}`
-                : top.subscribers
-                  ? `${top.subscribers} pelanggan`
-                  : ""}
-            </p>
-            <div className="relative mt-3 aspect-[1.4] w-full overflow-hidden rounded-[12px] bg-fill1 shadow-[var(--shadow-art)] transition-transform duration-500 ease-[var(--ease-spring)] group-active:scale-[0.98]">
-              <Artwork src={top.thumbs ?? top.avatar ?? null} />
-              <div className="absolute inset-x-0 bottom-0 flex items-center gap-3 bg-black/35 px-3.5 py-2.5 text-white backdrop-blur-xl">
-                <span className="min-w-0 flex-1 truncate text-[13px] font-medium leading-snug">
-                  Lihat lagunya sekarang
-                </span>
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/25">
-                  <IconPlay className="ml-0.5 h-3.5 w-3.5" />
-                </span>
-              </div>
-            </div>
-          </Link>
-        </section>
-      )}
-
-      {(tab === "all" || tab === "song") && songs && (
-        <SongColumns title={songs.title || "Lagu Terbaru"} items={songs.items.slice(0, 12)} />
-      )}
-
-      <RecentShelf />
-
-      {shownRest.map((sh, si) => (
-        <Shelf key={sh.title ?? si} title={sh.title ?? ""}>
-          {sh.items.map((it, i) => {
-            if (it.kind === "artist" && it.browseId) {
-              return (
-                <GridCard
-                  key={`ar${i}-${it.browseId}`}
-                  i={i}
-                  title={it.title}
-                  subtitle={it.artist}
-                  href={`/artist/${it.browseId}`}
-                  img={it.thumbs}
-                  round
-                />
-              );
-            }
-            if (it.kind === "album" && it.browseId) {
-              return (
-                <GridCard
-                  key={`al${i}-${it.browseId}`}
-                  i={i}
-                  title={it.title}
-                  subtitle={it.artist}
-                  href={`/album/${it.browseId}`}
-                  img={it.thumbs}
-                />
-              );
-            }
-            return (
-              <GridCard
-                key={`s${i}-${it.videoId ?? i}`}
-                i={i}
-                title={it.title}
-                subtitle={it.artist}
-                href={
-                  it.kind === "album" && it.browseId
-                    ? `/album/${it.browseId}`
-                    : undefined
-                }
-                img={it.thumbs}
-                track={
-                  it.videoId
-                    ? {
-                        videoId: it.videoId,
-                        title: it.title,
-                        artist: it.artist,
-                        artistId: it.artistId,
-                        thumbs: it.thumbs,
-                      }
-                    : undefined
-                }
+            {songs && (
+              <SongColumns
+                title={songs.title || "Lagu Terbaru"}
+                items={songs.items.slice(0, 12)}
               />
-            );
-          })}
-        </Shelf>
-      ))}
+            )}
 
-      {tab !== "all" && shownRest.length === 0 && (
-        <p className="py-10 text-center text-[15px] text-label2">
-          Tidak ada {TABS.find(([k]) => k === tab)?.[1].toLowerCase()} di beranda saat ini.
-        </p>
-      )}
+            <RecentShelf />
+
+            {rest.map((sh, si) => (
+              <Shelf key={sh.title ?? si} title={sh.title ?? ""}>
+                {sh.items.map((it, i) => {
+                  if (it.kind === "artist" && it.browseId) {
+                    return (
+                      <GridCard
+                        key={`ar${i}-${it.browseId}`}
+                        i={i}
+                        title={it.title}
+                        subtitle={it.artist}
+                        href={`/artist/${it.browseId}`}
+                        img={it.thumbs}
+                        round
+                      />
+                    );
+                  }
+                  if (it.kind === "album" && it.browseId) {
+                    return (
+                      <GridCard
+                        key={`al${i}-${it.browseId}`}
+                        i={i}
+                        title={it.title}
+                        subtitle={it.artist}
+                        href={`/album/${it.browseId}`}
+                        img={it.thumbs}
+                      />
+                    );
+                  }
+                  return (
+                    <GridCard
+                      key={`s${i}-${it.videoId ?? i}`}
+                      i={i}
+                      title={it.title}
+                      subtitle={it.artist}
+                      href={
+                        it.kind === "album" && it.browseId
+                          ? `/album/${it.browseId}`
+                          : undefined
+                      }
+                      img={it.thumbs}
+                      track={
+                        it.videoId
+                          ? {
+                              videoId: it.videoId,
+                              title: it.title,
+                              artist: it.artist,
+                              artistId: it.artistId,
+                              thumbs: it.thumbs,
+                            }
+                          : undefined
+                      }
+                    />
+                  );
+                })}
+              </Shelf>
+            ))}
+          </>
+        ) : (
+          <section aria-label={selMood ? moodLabel(selMood.title) : "Mood"}>
+            <h2 className="t-title mb-3 text-label1">
+              {selMood ? moodLabel(selMood.title) : "Mood"}
+            </h2>
+            {loading && (
+              <div className="grid grid-cols-2 gap-x-4 gap-y-6 min-[40rem]:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                {[...Array(10)].map((_, i) => (
+                  <div key={i} className="animate-pulse">
+                    <div className="aspect-square rounded-[14px] bg-fill1" />
+                    <div className="mt-3 h-3.5 w-3/4 rounded bg-fill1" />
+                    <div className="mt-2 h-3 w-1/2 rounded bg-fill1" />
+                  </div>
+                ))}
+              </div>
+            )}
+            {!loading && playlists && playlists.length === 0 && (
+              <p className="py-10 text-center text-[15px] text-label2">
+                Playlist mood ini belum tersedia.
+              </p>
+            )}
+            {!loading && playlists && playlists.length > 0 && (
+              <div className="grid grid-cols-2 gap-x-4 gap-y-6 min-[40rem]:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                {playlists.slice(0, 24).map((pl, i) => (
+                  <GridCard
+                    key={pl.browseId}
+                    i={i}
+                    title={pl.title}
+                    subtitle={
+                      pl.tracks
+                        ? `${pl.subtitle ?? "Playlist"} · ${pl.tracks} lagu`
+                        : (pl.subtitle ?? "Playlist")
+                    }
+                    img={pl.thumbs}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+      </div>
 
       {!shelves.length && (
         <div className="py-24 text-center">

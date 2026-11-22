@@ -1520,3 +1520,13 @@ textarea:focus-visible {
   .lo-line,
   .lo-lyrics-inner { transition: none; }
 }
+
+/* Transisi saat filter beranda diganti */
+@keyframes homeSwap {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+.home-swap { animation: homeSwap 0.3s var(--ease-out) both; }
+@media (prefers-reduced-motion: reduce) {
+  .home-swap { animation: none; }
+}
