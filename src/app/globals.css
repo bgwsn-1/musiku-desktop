@@ -1132,54 +1132,6 @@ textarea:focus-visible {
 .sl-line[data-status="0"] .sl-word-btn { opacity: 1; }
 .sl-line[data-status="1"] .sl-word-btn { opacity: 0.55; }
 .sl-live { will-change: transform, opacity; }
-.sl-bg {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-}
-.sl-bg img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  filter: blur(42px) saturate(1.3);
-  opacity: 0.38;
-  transform: scale(1.12);
-}
-.sl-bg::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    180deg,
-    rgb(0 0 0 / 0.55),
-    rgb(0 0 0 / 0.72)
-  );
-}
-.sl-bg-zoom {
-  animation: slBgZoom 26s ease-in-out infinite alternate;
-}
-@keyframes slBgZoom {
-  from { transform: scale(1.08); }
-  to { transform: scale(1.18); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .sl-bg-zoom { animation: none; }
-}
-/* Karaoke fill: tepi aksen menyapu tiap kata saat baris aktif. */
-.sl-line[data-status="0"] .sl-word {
-  color: transparent;
-  background-image: linear-gradient(
-    90deg,
-    rgb(255 255 255 / 0.92) 0%,
-    rgb(255 255 255 / 0.92) calc(var(--sl-fill, 0) * 100%),
-    rgb(255 45 85 / 0.95) calc(var(--sl-fill, 0) * 100%),
-    rgb(255 255 255 / 0.92) calc(min(1, var(--sl-fill, 0) + 0.02) * 100%),
-    rgb(255 255 255 / 0.92) 100%
-  );
-  -webkit-background-clip: text;
-  background-clip: text;
-}
 .sl-word {
   display: inline-block;
   transform: translate3d(0, var(--sl-y, 0em), 0) scale(var(--sl-scale, 1));

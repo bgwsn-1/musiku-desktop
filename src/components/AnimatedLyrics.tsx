@@ -46,7 +46,7 @@ function desiredScroll(
   pos: number,
   timed: { time: number; end: number }[],
   sc: HTMLDivElement,
-  nodes: HTMLElement[],
+  lineEls: Map<number, HTMLDivElement>,
 ): number {
   let active = -1;
   for (let i = 0; i < timed.length; i++) {
@@ -54,18 +54,15 @@ function desiredScroll(
     else break;
   }
   if (active < 0) return 0;
-  const el = nodes[active];
+  const el = lineEls.get(active);
   if (!el) return 0;
   const line = timed[active];
   const pct = clamp((pos - line.time) / Math.max(0.05, line.end - line.time));
-  const next = nodes[active + 1];
+  const next = lineEls.get(active + 1);
   const base =
     el.offsetTop + (next ? (next.offsetTop - el.offsetTop) * EASE_OUT(pct) * 0.9 : 0);
   return Math.max(0, base - sc.clientHeight * 0.32);
 }
-
-const nodesOf = (root: HTMLElement | null): HTMLElement[] =>
-  root ? (Array.from(root.children) as HTMLElement[]) : [];
 
 type Status = -1 | 0 | 1; // −1 belum nyanyi, 0 aktif, 1 selesai
 
@@ -76,10 +73,9 @@ interface LineAnim {
 
 interface Props {
   lines: { time: number; text: string }[];
-  artwork?: string | null;
 }
 
-export function AnimatedLyrics({ lines, artwork }: Props) {
+export function AnimatedLyrics({ lines }: Props) {
   const p = usePlayer();
   const timed = useMemo(() => buildTimedLines(lines), [lines]);
   const pRef = useRef(p);
@@ -87,8 +83,10 @@ export function AnimatedLyrics({ lines, artwork }: Props) {
     pRef.current = p;
   }, [p]);
 
-  const scRef = useRef<HTMLDivElement | null>(null);
-  const innerRef = useRef<HTMLDivElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const lineEls = useRef(new Map<number, HTMLDivElement>());
+  const btnEls = useRef(new Map<number, HTMLButtonElement>());
+  const wordEls = useRef(new Map<string, HTMLSpanElement>());
   const anims = useRef<LineAnim[]>([]);
   const styleCache = useRef(new WeakMap<Element, Map<string, string>>());
   const pending = useRef(new Map<HTMLElement, Record<string, string>>());
@@ -110,10 +108,9 @@ export function AnimatedLyrics({ lines, artwork }: Props) {
 
   // Bangun ulang state animasi setiap kali lirik berganti.
   useEffect(() => {
-    nodesOf(innerRef.current).forEach((el) => {
-      el.setAttribute("data-status", "-1");
-      el.classList.remove("sl-live");
-    });
+    lineEls.current.clear();
+    btnEls.current.clear();
+    wordEls.current.clear();
     anims.current = timed.map((line) => ({
       status: -1 as Status,
       springs: line.words.map(() => ({
@@ -169,7 +166,6 @@ export function AnimatedLyrics({ lines, artwork }: Props) {
       }
       const pos = clamp(st.smooth, 0, Math.max(player.duration || 0, st.target));
 
-      const nodes = nodesOf(innerRef.current);
       const total = timed.length;
       let active = -1;
       for (let i = 0; i < total; i++) {
@@ -189,9 +185,9 @@ export function AnimatedLyrics({ lines, artwork }: Props) {
       }
       prevActive.current = active;
 
-      for (let i = 0; i < total; i++) {
+      for (let i = Math.max(0, active - 6); i < Math.min(total, active + 9); i++) {
         const a = anims.current[i];
-        const el = nodes[i];
+        const el = lineEls.current.get(i);
         if (!a || !el) continue;
         const status: Status = i < active ? 1 : i === active ? 0 : -1;
         if (status !== a.status) {
@@ -209,11 +205,9 @@ export function AnimatedLyrics({ lines, artwork }: Props) {
       }
 
       const act = active >= 0 ? anims.current[active] : undefined;
-      const actEl = active >= 0 ? nodes[active] : null;
-      if (act && actEl) {
+      if (act) {
         const line = timed[active];
-        const wordEls = actEl.querySelectorAll(".sl-word");
-        for (let w = 0; w < line.words.length && w < wordEls.length; w++) {
+        for (let w = 0; w < line.words.length; w++) {
           const word = line.words[w];
           const sp = act.springs[w];
           const pct = clamp((pos - word.start) / Math.max(0.05, word.end - word.start));
@@ -223,18 +217,19 @@ export function AnimatedLyrics({ lines, artwork }: Props) {
           sp.scale.Step(dt);
           sp.y.Step(dt);
           sp.glow.Step(dt);
-          const el = wordEls[w] as HTMLElement;
-          queueStyle(el, "--sl-scale", sp.scale.value.toFixed(4));
-          queueStyle(el, "--sl-y", `${sp.y.value.toFixed(5)}em`);
-          queueStyle(el, "--sl-glow", sp.glow.value.toFixed(3));
-          queueStyle(el, "--sl-fill", pct.toFixed(4));
+          const el = wordEls.current.get(`${active}:${w}`);
+          if (el) {
+            queueStyle(el, "--sl-scale", sp.scale.value.toFixed(4));
+            queueStyle(el, "--sl-y", `${sp.y.value.toFixed(5)}em`);
+            queueStyle(el, "--sl-glow", sp.glow.value.toFixed(3));
+          }
         }
       }
       flush();
 
-      const sc = scRef.current;
+      const sc = containerRef.current;
       if (sc) {
-        const target = desiredScroll(pos, timed, sc, nodes);
+        const target = desiredScroll(pos, timed, sc, lineEls.current);
         const g = glide.current;
         if (g) {
           const k = clamp((now - g.start) / g.dur, 0, 1);
@@ -268,87 +263,101 @@ export function AnimatedLyrics({ lines, artwork }: Props) {
   // Mode reduced motion: tanpa spring; status & scroll diperbarui diskrit.
   useEffect(() => {
     if (!reduced) return;
-    const nodes = nodesOf(innerRef.current);
+    const pos = p.position;
     let active = -1;
     for (let i = 0; i < timed.length; i++) {
-      if (timed[i].time <= p.position) active = i;
+      if (timed[i].time <= pos) active = i;
       else break;
     }
     anims.current.forEach((a, i) => {
-      const el = nodes[i];
+      const el = lineEls.current.get(i);
       if (!el) return;
       const status: Status = i < active ? 1 : i === active ? 0 : -1;
       a.status = status;
       el.setAttribute("data-status", String(status));
     });
-    const sc = scRef.current;
-    if (sc && performance.now() - userScrollAt.current > USER_SCROLL_COOLDOWN_MS) {
-      sc.scrollTop = desiredScroll(p.position, timed, sc, nodes);
+    const sc = containerRef.current;
+    const el = active >= 0 ? lineEls.current.get(active) : null;
+    if (sc && el && performance.now() - userScrollAt.current > USER_SCROLL_COOLDOWN_MS) {
+      sc.scrollTop = desiredScroll(pos, timed, sc, lineEls.current);
     }
   }, [p.position, timed, reduced]);
 
   const jumpToActive = () => {
-    const sc = scRef.current;
+    const sc = containerRef.current;
     if (!sc) return;
     const target = desiredScroll(
       posState.current.smooth,
       timed,
       sc,
-      nodesOf(innerRef.current),
+      lineEls.current,
     );
     glide.current = {
-      from: sc.scrollTop,
-      to: target,
-      start: performance.now(),
-      dur: 520,
-    };
-    userScrollAt.current = performance.now();
-  };
+          from: sc.scrollTop,
+          to: target,
+          start: performance.now(),
+          dur: 520,
+        };
+        userScrollAt.current = performance.now();
+      };
 
-  const onUserScroll = () => {
-    userScrollAt.current = performance.now();
-  };
+      const onUserScroll = () => {
+        userScrollAt.current = performance.now();
+      };
 
   return (
     <div className="relative flex h-full min-h-0 flex-1 flex-col">
-      {artwork && (
-        <div className="sl-bg" aria-hidden="true">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={artwork} alt="" className={reduced ? "" : "sl-bg-zoom"} />
-        </div>
-      )}
       <div
-        ref={scRef}
+        ref={containerRef}
         onWheel={onUserScroll}
         onTouchMove={onUserScroll}
         className="sl-scroll [mask-image:linear-gradient(to_bottom,transparent,#000_6%,#000_90%,transparent)]"
       >
-        <div ref={innerRef} className="sl-inner">
-          {timed.map((line, i) => (
-            <div key={`${line.time}-${i}`} data-status="-1" className="sl-line">
-              <button
-                onClick={() => p.seek(line.time)}
-                aria-label={line.text ? undefined : "Jeda instrumental"}
-                className="sl-word-btn"
-              >
-                {line.instrumental ? (
-                  <span className="lyric-dots" aria-hidden="true">
-                    {[0, 1, 2].map((d) => (
-                      <i key={d} />
-                    ))}
+      <div className="sl-inner">
+        {timed.map((line, i) => (
+          <div
+            key={`${line.time}-${i}`}
+            ref={(el) => {
+              if (el) lineEls.current.set(i, el);
+              else lineEls.current.delete(i);
+            }}
+            data-status={"-1"}
+            className="sl-line"
+          >
+            <button
+              ref={(el) => {
+                if (el) btnEls.current.set(i, el);
+                else btnEls.current.delete(i);
+              }}
+              onClick={() => p.seek(line.time)}
+              aria-label={line.text ? undefined : "Jeda instrumental"}
+              className="sl-word-btn"
+            >
+              {line.instrumental ? (
+                <span className="lyric-dots" aria-hidden="true">
+                  {[0, 1, 2].map((d) => (
+                    <i key={d} />
+                  ))}
+                </span>
+              ) : (
+                line.words.map((w, k) => (
+                  <span
+                    key={k}
+                    ref={(el) => {
+                      if (el) wordEls.current.set(`${i}:${k}`, el);
+                      else wordEls.current.delete(`${i}:${k}`);
+                    }}
+                    className="sl-word"
+                  >
+                    {w.text}
+                    {k < line.words.length - 1 ? " " : ""}
                   </span>
-                ) : (
-                  line.words.map((w, k) => (
-                    <span key={k} className="sl-word">
-                      {w.text}
-                      {k < line.words.length - 1 ? " " : ""}
-                    </span>
-                  ))
-                )}
-              </button>
-            </div>
-          ))}
-        </div>
+                ))
+              )}
+            </button>
+          </div>
+        ))}
+      </div>
       </div>
       {jumpVisible && (
         <button
