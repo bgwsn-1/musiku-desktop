@@ -178,7 +178,7 @@ export function LyricsPanel() {
 
       {lyricsStyle === "spicy" && data?.synced && lines.length > 0 ? (
         <div className="flex min-h-0 flex-1 flex-col">
-          <AnimatedLyrics key={id ?? "spicy"} lines={lines} />
+          <AnimatedLyrics key={id ?? "spicy"} lines={lines} artwork={t?.thumbs ?? null} />
         </div>
       ) : (
         <div
