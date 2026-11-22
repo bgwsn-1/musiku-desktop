@@ -128,6 +128,16 @@ async fn mood_handler(Path(id): Path<String>) -> Result<Json<Value>, ApiError> {
     global().mood_playlists(&id).await.map(Json).map_err(upstream)
 }
 
+// ── /api/playlist/:id ─────────────────────────────────────────────────────
+
+async fn ytm_playlist_handler(Path(id): Path<String>) -> Result<Json<Value>, ApiError> {
+    global()
+        .ytm_playlist(&id)
+        .await
+        .map(Json)
+        .map_err(upstream)
+}
+
 // ── /api/song/:id ────────────────────────────────────────────────────────
 
 async fn song_handler(Path(id): Path<String>) -> Result<Json<Value>, ApiError> {
@@ -482,6 +492,7 @@ pub fn app() -> Router {
         .route("/api/artists/charts", get(artists_charts_handler))
         .route("/api/moods", get(moods_handler))
         .route("/api/mood/{id}", get(mood_handler))
+        .route("/api/playlist/{id}", get(ytm_playlist_handler))
         .route("/api/song/{id}", get(song_handler))
         .route("/api/lyrics/{id}", get(lyrics_handler))
         .route("/api/apple-artwork", get(apple_artwork_handler))

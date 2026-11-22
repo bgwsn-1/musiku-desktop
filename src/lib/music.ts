@@ -412,6 +412,35 @@ async function fromLrclib(
   }
 }
 
+export type RemotePlaylist = {
+  browseId: string;
+  title: string;
+  thumbs: string | null;
+  owner: string | null;
+  trackCount: number | null;
+  tracks: Track[];
+};
+
+/** Playlist YouTube Music (mis. dari halaman mood) dengan lagu-lagunya. */
+async function ytmPlaylist(playlistId: string): Promise<RemotePlaylist> {
+  return cached(`ytmPlaylist:${playlistId}`, async () => {
+    const yt = await client();
+    const [pl, videos] = await Promise.all([
+      yt.getPlaylist(playlistId),
+      yt.getPlaylistVideos(playlistId).catch(() => []),
+    ]);
+    const tracks = ((videos ?? []) as unknown as SongLike[]).map(toTrack);
+    return {
+      browseId: pl.playlistId || playlistId,
+      title: pl.name ?? "Playlist",
+      thumbs: thumb(pl.thumbnails ?? []),
+      owner: pl.artist?.name ?? null,
+      trackCount: pl.videoCount ?? tracks.length,
+      tracks,
+    };
+  });
+}
+
 async function lyrics(videoId: string): Promise<Lyrics> {
   return cached(`lyrics:${videoId}`, async () => {
     const yt = await client();
@@ -445,4 +474,5 @@ export const MUSIC = {
   artist,
   song,
   lyrics,
+  ytmPlaylist,
 };

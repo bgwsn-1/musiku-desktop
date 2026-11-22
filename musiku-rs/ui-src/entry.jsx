@@ -31,6 +31,7 @@ import SearchPage from "@/app/search/page";
 import LikedPage from "@/app/liked/page";
 import { PustakaSection } from "@/components/PustakaSection";
 import { PlaylistView } from "@/components/PlaylistView";
+import { YtmPlaylistView } from "@/components/YtmPlaylistView";
 import DiscordPresence from "./desktop/DiscordPresence.jsx";
 import { initElasticScroll } from "./elastic-scroll.js";
 
@@ -393,6 +394,7 @@ function pageTitle(pathname) {
   if (pathname.startsWith("/album/")) return "Album — Musiku";
   if (pathname.startsWith("/artist/")) return "Artis — Musiku";
   if (pathname.startsWith("/playlist/")) return "Playlist — Musiku";
+  if (pathname.startsWith("/ytm-playlist/")) return "Playlist — Musiku";
   return "Musiku";
 }
 
@@ -417,6 +419,7 @@ function useRoute() {
   if ((m = pathname.match(/^\/album\/(.+)$/))) return { page: <AlbumPage id={decodeURIComponent(m[1])} /> };
   if ((m = pathname.match(/^\/artist\/(.+)$/))) return { page: <ArtistPage id={decodeURIComponent(m[1])} /> };
   if ((m = pathname.match(/^\/playlist\/(.+)$/))) return { page: <PlaylistView id={decodeURIComponent(m[1])} /> };
+  if ((m = pathname.match(/^\/ytm-playlist\/(.+)$/))) return { page: <YtmPlaylistView id={decodeURIComponent(m[1])} /> };
   void searchParams;
   return { page: <Centered title="Halaman tidak ditemukan" sub="Tautan mungkin salah." /> };
 }

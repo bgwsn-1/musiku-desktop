@@ -410,6 +410,30 @@ impl Musiku {
             .await
     }
 
+    /// Playlist YouTube Music (mis. dari halaman mood) dengan lagu-lagunya.
+    pub async fn ytm_playlist(&self, id: &str) -> anyhow::Result<serde_json::Value> {
+        let key = format!("ytm_playlist:{id}");
+        self.cache
+            .get_or_try(&key, async {
+                let pl = self.pipe.query().music_playlist(id).await?;
+                let tracks: Vec<Track> = pl
+                    .tracks
+                    .items
+                    .iter()
+                    .map(|t| to_track(t, Some("song")))
+                    .collect();
+                Ok(serde_json::json!({
+                    "browseId": pl.id,
+                    "title": pl.name,
+                    "thumbs": thumb(&pl.thumbnail),
+                    "owner": pl.channel.as_ref().map(|c| c.name.clone()),
+                    "trackCount": pl.track_count.unwrap_or(tracks.len() as u64),
+                    "tracks": serde_json::to_value(tracks)?,
+                }))
+            })
+            .await
+    }
+
     /// Detail album.
     pub async fn album(&self, browse_id: &str) -> anyhow::Result<serde_json::Value> {
         // Id artis (`UC...`) bukan id album. Dulu kartu "Artis Populer" dikirim

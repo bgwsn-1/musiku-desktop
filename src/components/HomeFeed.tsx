@@ -189,7 +189,7 @@ export function HomeFeed({ shelves }: { shelves: HomeShelf[] }) {
         role="group"
         aria-label="Saring beranda berdasarkan mood"
       >
-        <div className="inline-flex max-w-full gap-1 overflow-x-auto rounded-full bg-fill1 p-1">
+        <div className="no-scrollbar inline-flex max-w-full gap-1 overflow-x-auto rounded-full bg-fill1 p-1">
           {[{ id: "", title: "Semua" }, ...moods].map((m) => (
             <button
               key={m.id || "all"}
@@ -314,6 +314,7 @@ export function HomeFeed({ shelves }: { shelves: HomeShelf[] }) {
                         : (pl.subtitle ?? "Playlist")
                     }
                     img={pl.thumbs}
+                    href={`/ytm-playlist/${encodeURIComponent(pl.browseId)}`}
                   />
                 ))}
               </div>
