@@ -468,12 +468,25 @@ function RadioPage() {
 }
 
 // ── Router + shell ───────────────────────────────────────────────────────
+// Judul dokumen mengikuti halaman, seperti metadata Next.
+function pageTitle(pathname) {
+  if (pathname === "/" || pathname === "") return "Musiku";
+  if (pathname.startsWith("/search")) return "Pencarian — Musiku";
+  if (pathname.startsWith("/explore")) return "Explore — Musiku";
+  if (pathname.startsWith("/radio")) return "Radio — Musiku";
+  if (pathname.startsWith("/liked")) return "Disukai — Musiku";
+  if (pathname.startsWith("/pustaka")) return "Pustaka — Musiku";
+  if (pathname.startsWith("/album/")) return "Album — Musiku";
+  if (pathname.startsWith("/artist/")) return "Artis — Musiku";
+  if (pathname.startsWith("/playlist/")) return "Playlist — Musiku";
+  return "Musiku";
+}
+
 function useRoute() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   useEffect(() => {
-    // Judul dokumen mengikuti halaman, seperti metadata Next.
-    document.title = "Musiku";
+    document.title = pageTitle(pathname);
   }, [pathname]);
 
   let m;
