@@ -1,8 +1,9 @@
 "use client";
 
 import { usePlayer } from "@/lib/player";
-import { IconClose } from "@/components/Icons";
+import { IconClose, IconLyrics, IconMusic } from "@/components/Icons";
 import { Artwork } from "@/components/Artwork";
+import { AnimatedLyrics } from "./AnimatedLyrics";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Lyrics as LyricsData } from "@/lib/types";
 
@@ -52,6 +53,21 @@ export function LyricsPanel() {
   const lastUserScroll = useRef(0);
   const [browsing, setBrowsing] = useState(false);
   const browseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [lyricsStyle, setLyricsStyle] = useState<"classic" | "spicy">(() =>
+    typeof window !== "undefined" &&
+    localStorage.getItem("musiku-lyrics-style") === "spicy"
+      ? "spicy"
+      : "classic",
+  );
+  const flipLyricsStyle = () => {
+    const next = lyricsStyle === "spicy" ? "classic" : "spicy";
+    setLyricsStyle(next);
+    try {
+      localStorage.setItem("musiku-lyrics-style", next);
+    } catch {
+      /* abaikan */
+    }
+  };
 
   const userMoved = () => {
     lastUserScroll.current = Date.now();
@@ -136,6 +152,22 @@ export function LyricsPanel() {
           </p>
         </div>
         <button
+          onClick={flipLyricsStyle}
+          className={`glass-btn flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-fill1 ${lyricsStyle === "spicy" ? "text-accent" : "text-label1"}`}
+          aria-label={
+            lyricsStyle === "spicy"
+              ? "Kembali ke lirik klasik"
+              : "Coba gaya lirik Spicy"
+          }
+          title={lyricsStyle === "spicy" ? "Lirik: Spicy" : "Lirik: Klasik"}
+        >
+          {lyricsStyle === "spicy" ? (
+            <IconLyrics className="h-[18px] w-[18px]" />
+          ) : (
+            <IconMusic className="h-[18px] w-[18px]" />
+          )}
+        </button>
+        <button
           onClick={() => p.toggleUi("lyrics")}
           className="glass-btn flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-fill1 text-label1"
           aria-label="Tutup lirik"
@@ -144,93 +176,99 @@ export function LyricsPanel() {
         </button>
       </div>
 
-      <div
-        ref={scrollRef}
-        onWheel={userMoved}
-        onTouchMove={userMoved}
-        className="relative min-h-0 flex-1 overflow-y-auto px-5 [mask-image:linear-gradient(to_bottom,transparent,#000_6%,#000_90%,transparent)]"
-      >
-        {loading && (
-          <div className="animate-pulse space-y-4 py-8" aria-hidden="true">
-            <div className="h-8 w-4/5 rounded-lg bg-fill1" />
-            <div className="h-8 w-3/5 rounded-lg bg-fill1" />
-            <div className="h-8 w-2/3 rounded-lg bg-fill1" />
-          </div>
-        )}
-        {!loading && !data?.text && (
-          <p className="mt-16 text-center text-[15px] text-label2">Lirik tidak tersedia untuk lagu ini.</p>
-        )}
-        {!loading && lines.length > 0 && (
-          <div key={id ?? "x"} className="pt-[10dvh] pb-[40dvh]">
-            {lines.map((l, i) => {
-              const active = i === activeIdx;
-              const dist = activeIdx < 0 ? 3 : Math.min(3, Math.abs(i - activeIdx));
-              const dur = Math.max(0.6, (lines[i + 1]?.time ?? l.time + 5) - l.time);
-              const prog = active ? Math.min(1, Math.max(0, (p.position - l.time) / dur) / 0.85) : 0;
-              const words = l.text ? l.text.split(/\s+/) : [];
-              const total = words.reduce((n, w) => n + w.length + 1, 0) || 1;
-              let acc = 0;
-              return (
-                <div
-                  key={i}
-                  ref={(el) => {
-                    wraps.current[i] = el;
-                  }}
-                  className="lyric-in will-change-transform"
-                  style={{ animationDelay: `${Math.min(i, 10) * 45}ms` }}
-                >
-                  <button
-                    onClick={() => p.seek(l.time)}
-                    aria-current={active ? "true" : undefined}
-                    aria-label={l.text ? undefined : "Jeda instrumental"}
-                    className="block w-full origin-left rounded-xl px-2 py-2 text-left text-[28px] font-bold leading-[1.18] tracking-[-0.02em] text-label1 [@media(hover:hover)]:hover:!opacity-90 [@media(hover:hover)]:hover:![filter:none]"
-                    style={{
-                      opacity: active ? 1 : browsing ? 0.78 : [0.52, 0.4, 0.3][dist - 1],
-                      filter: active || browsing ? "none" : `blur(${[0.5, 1.2, 2][dist - 1]}px)`,
-                      transform: `scale(${active ? 1 : 0.92})`,
-                      transition:
-                        "opacity 0.6s ease, filter 0.6s ease, transform 0.7s cubic-bezier(0.22, 1, 0.36, 1)",
+      {lyricsStyle === "spicy" && data?.synced && lines.length > 0 ? (
+        <div className="flex min-h-0 flex-1 flex-col">
+          <AnimatedLyrics key={id ?? "spicy"} lines={lines} />
+        </div>
+      ) : (
+        <div
+          ref={scrollRef}
+          onWheel={userMoved}
+          onTouchMove={userMoved}
+          className="relative min-h-0 flex-1 overflow-y-auto px-5 [mask-image:linear-gradient(to_bottom,transparent,#000_6%,#000_90%,transparent)]"
+        >
+          {loading && (
+            <div className="animate-pulse space-y-4 py-8" aria-hidden="true">
+              <div className="h-8 w-4/5 rounded-lg bg-fill1" />
+              <div className="h-8 w-3/5 rounded-lg bg-fill1" />
+              <div className="h-8 w-2/3 rounded-lg bg-fill1" />
+            </div>
+          )}
+          {!loading && !data?.text && (
+            <p className="mt-16 text-center text-[15px] text-label2">Lirik tidak tersedia untuk lagu ini.</p>
+          )}
+          {!loading && lines.length > 0 && (
+            <div key={id ?? "x"} className="pt-[10dvh] pb-[40dvh]">
+              {lines.map((l, i) => {
+                const active = i === activeIdx;
+                const dist = activeIdx < 0 ? 3 : Math.min(3, Math.abs(i - activeIdx));
+                const dur = Math.max(0.6, (lines[i + 1]?.time ?? l.time + 5) - l.time);
+                const prog = active ? Math.min(1, Math.max(0, (p.position - l.time) / dur) / 0.85) : 0;
+                const words = l.text ? l.text.split(/\s+/) : [];
+                const total = words.reduce((n, w) => n + w.length + 1, 0) || 1;
+                let acc = 0;
+                return (
+                  <div
+                    key={i}
+                    ref={(el) => {
+                      wraps.current[i] = el;
                     }}
+                    className="lyric-in will-change-transform"
+                    style={{ animationDelay: `${Math.min(i, 10) * 45}ms` }}
                   >
-                    {l.text ? (
-                      active ? (
-                        words.map((w, k) => {
-                          const start = acc / total;
-                          acc += w.length + 1;
-                          const lit = prog >= start;
-                          return (
-                            <span
-                              key={k}
-                              className="transition-opacity duration-500 ease-out"
-                              style={{ opacity: lit ? 1 : 0.42 }}
-                            >
-                              {w}
-                              {k < words.length - 1 ? " " : ""}
-                            </span>
-                          );
-                        })
+                    <button
+                      onClick={() => p.seek(l.time)}
+                      aria-current={active ? "true" : undefined}
+                      aria-label={l.text ? undefined : "Jeda instrumental"}
+                      className="block w-full origin-left rounded-xl px-2 py-2 text-left text-[28px] font-bold leading-[1.18] tracking-[-0.02em] text-label1 [@media(hover:hover)]:hover:!opacity-90 [@media(hover:hover)]:hover:![filter:none]"
+                      style={{
+                        opacity: active ? 1 : browsing ? 0.78 : [0.52, 0.4, 0.3][dist - 1],
+                        filter: active || browsing ? "none" : `blur(${[0.5, 1.2, 2][dist - 1]}px)`,
+                        transform: `scale(${active ? 1 : 0.92})`,
+                        transition:
+                          "opacity 0.6s ease, filter 0.6s ease, transform 0.7s cubic-bezier(0.22, 1, 0.36, 1)",
+                      }}
+                    >
+                      {l.text ? (
+                        active ? (
+                          words.map((w, k) => {
+                            const start = acc / total;
+                            acc += w.length + 1;
+                            const lit = prog >= start;
+                            return (
+                              <span
+                                key={k}
+                                className="transition-opacity duration-500 ease-out"
+                                style={{ opacity: lit ? 1 : 0.42 }}
+                              >
+                                {w}
+                                {k < words.length - 1 ? " " : ""}
+                              </span>
+                            );
+                          })
+                        ) : (
+                          l.text
+                        )
                       ) : (
-                        l.text
-                      )
-                    ) : (
-                      <span className={`lyric-dots ${active ? "on" : ""}`} aria-hidden="true">
-                        {[0, 1, 2].map((d) => (
-                          <i key={d} style={{ opacity: active ? (prog * 3 > d ? 1 : 0.35) : 0.6 }} />
-                        ))}
-                      </span>
-                    )}
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        )}
-        {!loading && plain && (
-          <div className="whitespace-pre-wrap py-8 pb-28 text-[18px] font-medium leading-8 text-label1">
-            {plain.join("\n")}
-          </div>
-        )}
-      </div>
+                        <span className={`lyric-dots ${active ? "on" : ""}`} aria-hidden="true">
+                          {[0, 1, 2].map((d) => (
+                            <i key={d} style={{ opacity: active ? (prog * 3 > d ? 1 : 0.35) : 0.6 }} />
+                          ))}
+                        </span>
+                      )}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {!loading && plain && (
+            <div className="whitespace-pre-wrap py-8 pb-28 text-[18px] font-medium leading-8 text-label1">
+              {plain.join("\n")}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -1097,6 +1097,49 @@ textarea:focus-visible {
 }
 
 /* Lyrics: entrance, instrumental dots */
+/* Lirik gaya "Spicy" (AnimatedLyrics) */
+.sl-scroll {
+  position: relative;
+  height: 100%;
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  padding-inline: 20px;
+}
+.sl-inner {
+  padding-top: 30dvh;
+  padding-bottom: 45dvh;
+}
+.sl-line {
+  position: relative;
+}
+.sl-word-btn {
+  display: block;
+  width: 100%;
+  padding: 8px 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.18;
+  letter-spacing: -0.02em;
+  color: var(--label-1);
+  cursor: pointer;
+  filter: blur(var(--sl-blur, 0px));
+}
+.sl-line[data-status="-1"] .sl-word-btn { opacity: 0.45; }
+.sl-line[data-status="0"] .sl-word-btn { opacity: 1; }
+.sl-line[data-status="1"] .sl-word-btn { opacity: 0.55; }
+.sl-live { will-change: transform, opacity; }
+.sl-word {
+  display: inline-block;
+  transform: translate3d(0, var(--sl-y, 0em), 0) scale(var(--sl-scale, 1));
+  will-change: transform;
+  text-shadow: 0 0 calc(8px + var(--sl-glow, 0) * 14px)
+    rgb(255 255 255 / calc(var(--sl-glow, 0) * 0.65));
+}
+
 @keyframes lyricIn {
   from { opacity: 0; transform: translateY(26px); }
   to { opacity: 1; transform: none; }
