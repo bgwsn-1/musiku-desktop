@@ -247,8 +247,12 @@ impl Musiku {
             .get_or_try("home", async {
                 let yt = self.pipe.query();
 
-                let new_albums = yt.music_new_albums().await.unwrap_or_default();
-                let new_videos = yt.music_new_videos().await.unwrap_or_default();
+                // Dua sumber utama wajib berhasil: kegagalan dikembalikan sebagai error
+                // (sama seperti `getHomeSections()` di versi TS), bukan beranda
+                // kosong yang tampak sukses. Charts tetap opsional karena
+                // susunannya kerap berubah.
+                let new_albums = yt.music_new_albums().await?;
+                let new_videos = yt.music_new_videos().await?;
                 let charts = yt.music_charts(None).await.ok();
 
                 let mut shelves: Vec<HomeShelf> = Vec::new();
