@@ -18,6 +18,12 @@ use moka::future::Cache;
 /// 10 menit, sama dengan `TTL` di `src/lib/music.ts`.
 pub const METADATA_TTL: Duration = Duration::from_secs(10 * 60);
 
+/// Batas entri per cache. Tanpa batas, cache byte (artwork/logo) bisa
+/// membengkak selama aplikasi desktop berjalan berhari-hari.
+const MAX_JSON_ENTRIES: u64 = 2_048;
+const MAX_STR_ENTRIES: u64 = 1_024;
+const MAX_BYTES_ENTRIES: u64 = 512;
+
 /// Cache generik bertipe nilai JSON.
 #[derive(Clone)]
 pub struct JsonCache {
@@ -27,7 +33,10 @@ pub struct JsonCache {
 impl JsonCache {
     pub fn new(ttl: Duration) -> Self {
         Self {
-            inner: Cache::builder().time_to_live(ttl).build(),
+            inner: Cache::builder()
+                .time_to_live(ttl)
+                .max_capacity(MAX_JSON_ENTRIES)
+                .build(),
         }
     }
 
@@ -53,7 +62,10 @@ pub struct StrCache {
 impl StrCache {
     pub fn new(ttl: Duration) -> Self {
         Self {
-            inner: Cache::builder().time_to_live(ttl).build(),
+            inner: Cache::builder()
+                .time_to_live(ttl)
+                .max_capacity(MAX_STR_ENTRIES)
+                .build(),
         }
     }
 
@@ -85,7 +97,10 @@ pub struct BytesCache {
 impl BytesCache {
     pub fn new(ttl: Duration) -> Self {
         Self {
-            inner: Cache::builder().time_to_live(ttl).build(),
+            inner: Cache::builder()
+                .time_to_live(ttl)
+                .max_capacity(MAX_BYTES_ENTRIES)
+                .build(),
         }
     }
 
