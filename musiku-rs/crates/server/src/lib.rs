@@ -193,21 +193,19 @@ async fn stream_handler(
     let status = StatusCode::from_u16(up.status().as_u16())
         .unwrap_or(StatusCode::BAD_GATEWAY);
 
-    // Header yang diteruskan ke client.
+    // Header yang diteruskan ke client. Content-Type harus tepat SATU: pakai
+    // milik upstream bila ada, kalau tidak baru pakai default. Memasang keduanya
+    // membuat dua header Content-Type (response malformed).
+    let default_ctype = if is_video { "video/mp4" } else { "audio/mp4" };
+    let ctype = single_content_type(&up.headers(), default_ctype);
+
     let mut out = Response::builder()
         .status(status)
         .header(header::ACCEPT_RANGES, "bytes")
         .header(header::CACHE_CONTROL, "no-store")
-        .header(
-            header::CONTENT_TYPE,
-            if is_video { "video/mp4" } else { "audio/mp4" },
-        );
+        .header(header::CONTENT_TYPE, ctype);
 
-    for h in [
-        header::CONTENT_RANGE,
-        header::CONTENT_LENGTH,
-        header::CONTENT_TYPE,
-    ] {
+    for h in [header::CONTENT_RANGE, header::CONTENT_LENGTH] {
         if let Some(v) = up.headers().get(&h) {
             out = out.header(h, v);
         }
@@ -233,6 +231,15 @@ fn host_allowed(host: &str) -> bool {
     ["googleusercontent.com", "ggpht.com", "ytimg.com"]
         .iter()
         .any(|suffix| host == *suffix || host.ends_with(&format!(".{suffix}")))
+}
+
+/// Content-Type dari upstream, atau `default` bila tidak ada/tak terbaca.
+/// Dipisah supaya response tidak pernah memuat dua header Content-Type.
+fn single_content_type<'a>(headers: &'a HeaderMap, default: &'a str) -> &'a str {
+    headers
+        .get(header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or(default)
 }
 
 async fn artwork_proxy(Query(p): Query<ArtworkParams>) -> Result<Response, ApiError> {
@@ -511,6 +518,15 @@ mod tests {
         assert!(css.contains("fonts/"), "path font belum ditulis ulang");
         let js = std::str::from_utf8(APP_JS).unwrap();
         assert!(js.contains("shell"), "bundle tidak memuat shell");
+    }
+
+    /// Content-Type upstream dipakai; default hanya bila upstream tak mengirim.
+    #[test]
+    fn content_type_hanya_satu() {
+        let mut h = HeaderMap::new();
+        assert_eq!(single_content_type(&h, "audio/mp4"), "audio/mp4");
+        h.insert(header::CONTENT_TYPE, "audio/mp4".parse().unwrap());
+        assert_eq!(single_content_type(&h, "video/mp4"), "audio/mp4");
     }
 
     /// Semua font yang direferensikan CSS tersedia (kalau tidak, UI kehilangan
