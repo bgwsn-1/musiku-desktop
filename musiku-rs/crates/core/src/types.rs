@@ -58,19 +58,15 @@ impl Duration {
     }
 }
 
-/// Format detik → `m:ss` atau `h:mm:ss`, menyamai `src/lib/timefmt.ts`.
+/// Format detik → `m:ss`, menyamai `src/lib/timefmt.ts` (`fmtTime`).
+/// Nilai tak hingga atau negatif → `--:--`. Versi TS tidak punya bentuk jam,
+/// jadi 3661 detik menjadi `61:01`.
 pub fn format_secs(total: f64) -> String {
-    let t = if total.is_finite() && total > 0.0 {
-        total.floor() as u64
-    } else {
-        0
-    };
-    let (h, m, s) = (t / 3600, (t % 3600) / 60, t % 60);
-    if h > 0 {
-        format!("{h}:{m:02}:{s:02}")
-    } else {
-        format!("{m}:{s:02}")
+    if !total.is_finite() || total < 0.0 {
+        return "--:--".to_string();
     }
+    let t = total.floor() as u64;
+    format!("{}:{:02}", t / 60, t % 60)
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
@@ -236,7 +232,11 @@ mod tests {
         assert_eq!(format_secs(0.0), "0:00");
         assert_eq!(format_secs(59.9), "0:59");
         assert_eq!(format_secs(210.0), "3:30");
-        assert_eq!(format_secs(3661.0), "1:01:01");
+        // TS tidak punya bentuk jam: 3661 detik → "61:01".
+        assert_eq!(format_secs(3661.0), "61:01");
+        assert_eq!(format_secs(f64::NAN), "--:--");
+        assert_eq!(format_secs(f64::INFINITY), "--:--");
+        assert_eq!(format_secs(-5.0), "--:--");
     }
 
     #[test]
