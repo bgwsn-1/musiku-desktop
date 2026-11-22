@@ -50,7 +50,8 @@ export default function DiscordPresence() {
 
     return () => {
       if (timer) clearInterval(timer);
-      void invoke("discord_clear_activity");
+      // Jangan biarkan rejection IPC mengambang saat jendela ditutup.
+      void Promise.resolve(invoke("discord_clear_activity")).catch(() => {});
     };
   }, [
     player.current?.videoId,
