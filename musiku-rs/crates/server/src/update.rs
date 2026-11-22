@@ -244,6 +244,16 @@ fn download_dir() -> PathBuf {
     }
 }
 
+/// Tulis berkas installer, sekaligus membuat direktori induknya bila belum ada
+/// (mis. `$HOME/Downloads` sering tidak ada di instalasi minimal).
+async fn write_installer(path: &Path, bytes: &[u8]) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        tokio::fs::create_dir_all(parent).await?;
+    }
+    tokio::fs::write(path, bytes).await?;
+    Ok(())
+}
+
 /// Unduh aset, verifikasi SHA-256 dari GitHub, lalu jalankan.
 /// Windows: installer NSIS `/S` (silent, per-user). macOS: `.dmg` dibuka lewat
 /// `open`. Linux: `.deb`/`.AppImage` dibuka lewat xdg-open agar package manager
@@ -283,7 +293,7 @@ pub async fn install() -> Result<serde_json::Value> {
     } else {
         bail!("GitHub tidak mengirim digest SHA-256 untuk aset ini");
     }
-    tokio::fs::write(&path, &bytes).await?;
+    write_installer(&path, &bytes).await?;
 
     let mut cmd = if cfg!(target_os = "windows") {
         let mut c = Command::new(&path);
@@ -356,5 +366,14 @@ mod tests {
         assert!(!version_newer("v0.1.6", "0.1.7"));
         assert!(version_newer("0.1.8", "0.1.7"));
         assert!(!version_newer("bukan-versi", "0.1.7"));
+    }
+
+    #[tokio::test]
+    async fn unduhan_membuat_direktori_induk() {
+        let base = std::env::temp_dir().join(format!("musiku-upd-test-{}", std::process::id()));
+        let path = base.join("Downloads").join("Musiku.deb");
+        write_installer(&path, b"installer").await.unwrap();
+        assert!(path.exists());
+        let _ = tokio::fs::remove_dir_all(&base).await;
     }
 }
