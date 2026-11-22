@@ -76,15 +76,15 @@ pub fn format_secs(total: f64) -> String {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct AlbumSummary {
-    #[serde(skip_serializing_if = "Option::is_none", default)]
+    #[serde(default)]
     pub browse_id: Option<String>,
     pub title: String,
     /// Di TS: `string[] | string | null`.
-    #[serde(skip_serializing_if = "Option::is_none", default)]
+    #[serde(default)]
     pub artist: Option<ArtistName>,
-    #[serde(skip_serializing_if = "Option::is_none", default)]
+    #[serde(default)]
     pub year: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none", default)]
+    #[serde(default)]
     pub thumbs: Option<String>,
 }
 
@@ -101,11 +101,11 @@ pub enum ArtistName {
 pub struct AlbumDetail {
     #[serde(flatten)]
     pub summary: AlbumSummary,
-    #[serde(skip_serializing_if = "Option::is_none", default)]
+    #[serde(default)]
     pub artist_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none", default)]
+    #[serde(default)]
     pub total: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none", default)]
+    #[serde(default)]
     pub duration: Option<String>,
     pub tracks: Vec<Track>,
 }
@@ -115,20 +115,20 @@ pub struct AlbumDetail {
 pub struct ArtistDetail {
     pub browse_id: String,
     pub name: String,
-    #[serde(skip_serializing_if = "Option::is_none", default)]
+    #[serde(default)]
     pub desc: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none", default)]
+    #[serde(default)]
     pub thumbs: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none", default)]
+    #[serde(default)]
     pub avatar: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none", default)]
+    #[serde(default)]
     pub banner: Option<String>,
     /// Video musik resmi untuk header animasi.
-    #[serde(skip_serializing_if = "Option::is_none", default)]
+    #[serde(default)]
     pub top_video_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none", default)]
+    #[serde(default)]
     pub subscribers: Option<Count>,
-    #[serde(skip_serializing_if = "Option::is_none", default)]
+    #[serde(default)]
     pub monthly_listeners: Option<Count>,
     pub top_songs: Vec<Track>,
     pub albums: Vec<AlbumSummary>,
@@ -147,15 +147,15 @@ pub enum Count {
 #[serde(rename_all = "camelCase")]
 pub struct HomeItem {
     pub title: String,
-    #[serde(skip_serializing_if = "Option::is_none", default)]
+    #[serde(default)]
     pub video_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none", default)]
+    #[serde(default)]
     pub browse_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none", default)]
+    #[serde(default)]
     pub artist: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none", default)]
+    #[serde(default)]
     pub artist_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none", default)]
+    #[serde(default)]
     pub thumbs: Option<String>,
     /// Di TS: `"album" | "song" | "artist"`.
     pub kind: HomeItemKind,
@@ -253,5 +253,39 @@ mod tests {
         let s = serde_json::to_string(&d).unwrap();
         assert!(s.contains("\"browseId\":\"MPRE\""), "{s}");
         assert!(s.contains("\"title\":\"Album\""), "{s}");
+    }
+
+    /// HomeItem mengikuti `JSON.stringify` versi TS: field yang selalu ditulis
+    /// di sana harus muncul sebagai null, bukan dibuang.
+    #[test]
+    fn home_item_hasilkan_kunci_null() {
+        let s = serde_json::to_string(&HomeItem::default()).unwrap();
+        for k in ["videoId", "browseId", "artist", "artistId", "thumbs"] {
+            assert!(s.contains(&format!("\"{k}\":null")), "{k} hilang dari {s}");
+        }
+    }
+
+    #[test]
+    fn artist_detail_hasilkan_kunci_null() {
+        let s = serde_json::to_string(&ArtistDetail::default()).unwrap();
+        for k in [
+            "desc",
+            "thumbs",
+            "avatar",
+            "banner",
+            "topVideoId",
+            "subscribers",
+            "monthlyListeners",
+        ] {
+            assert!(s.contains(&format!("\"{k}\":null")), "{k} hilang dari {s}");
+        }
+    }
+
+    #[test]
+    fn album_summary_hasilkan_kunci_null() {
+        let s = serde_json::to_string(&AlbumSummary::default()).unwrap();
+        for k in ["browseId", "artist", "year", "thumbs"] {
+            assert!(s.contains(&format!("\"{k}\":null")), "{k} hilang dari {s}");
+        }
     }
 }
