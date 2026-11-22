@@ -33,6 +33,7 @@ import { PlaylistView } from "@/components/PlaylistView";
 import DiscordPresence from "./desktop/DiscordPresence.jsx";
 import LyricsBridge from "./desktop/LyricsBridge.jsx";
 import LyricsOverlay from "./desktop/LyricsOverlay.jsx";
+import { initElasticScroll } from "./elastic-scroll.js";
 
 // ── helper kecil ─────────────────────────────────────────────────────────
 async function jget(url) {
@@ -540,6 +541,8 @@ function Shell() {
 }
 
 function App() {
+  // Overscroll "rubber band" ala Apple untuk semua container scroll.
+  useEffect(() => initElasticScroll(), []);
   return (
     <PlayerProvider>
       <DiscordPresence />

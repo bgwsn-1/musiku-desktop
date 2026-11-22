@@ -19,6 +19,14 @@
     --font-geist-mono: "Geist Mono", "Geist Mono Fallback";
   }
 </style>
+<style>
+  /* Cegah scroll chaining; bounce elastis ditangani ui-src/elastic-scroll.js. */
+  .page-scroll,
+  [data-elastic],
+  .overflow-y-auto {
+    overscroll-behavior: contain;
+  }
+</style>
 </head>
 <body class="h-full overflow-hidden bg-window font-sans text-label1">
 <div id="root"></div>
