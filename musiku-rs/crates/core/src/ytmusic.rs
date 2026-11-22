@@ -81,7 +81,10 @@ impl Cfg {
                 .unwrap_or(fallback.client_version),
             visitor: s("VISITOR_DATA"),
             gl: s("GL").unwrap_or(fallback.gl),
-            hl: s("HL").unwrap_or(fallback.hl),
+            // HL sengaja TIDAK diambil dari ytcfg: ytcfg bisa membalas "id"
+            // (tergantung geolokasi), sedangkan versi web selalu menerima "en".
+            // Lihat catatan di `builtin()` soal compactCount().
+            hl: "en".to_string(),
         }
     }
 }
@@ -360,5 +363,15 @@ mod tests {
     fn parse_kosong_tidak_panik() {
         let s = parse_artist(&json!({}));
         assert_eq!(s, ArtistStats::default());
+    }
+
+    /// ytcfg bisa membalas HL=id; klien harus tetap memakai "en" supaya teks
+    /// berformat Inggris ("3.08M") yang dipahami compactCount() di UI.
+    #[test]
+    fn cfg_memaksa_hl_inggris() {
+        let c = Cfg::from_json(&json!({ "HL": "id", "GL": "ID" }));
+        assert_eq!(c.hl, "en");
+        assert_eq!(c.gl, "ID");
+        assert_eq!(Cfg::builtin().hl, "en");
     }
 }
