@@ -10,7 +10,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePlayer } from "@/lib/player";
-import { AnimSpline, clamp } from "@/lib/lyrics-anim/easing";
+import { AnimSpline, clamp, cubicBezier } from "@/lib/lyrics-anim/easing";
 import { Spring } from "@/lib/lyrics-anim/spring";
 import { buildTimedLines } from "@/lib/lyrics-anim/timing";
 
@@ -32,6 +32,37 @@ const Y_CURVE = new AnimSpline([
 ]);
 
 const USER_SCROLL_COOLDOWN_MS = 1200;
+const EASE_OUT = cubicBezier(0.22, 1, 0.36, 1);
+
+interface Glide {
+  from: number;
+  to: number;
+  start: number;
+  dur: number;
+}
+
+/** Target scroll berbasis posisi: bergerak mulus melewati baris, bukan melompat. */
+function desiredScroll(
+  pos: number,
+  timed: { time: number; end: number }[],
+  sc: HTMLDivElement,
+  lineEls: Map<number, HTMLDivElement>,
+): number {
+  let active = -1;
+  for (let i = 0; i < timed.length; i++) {
+    if (timed[i].time <= pos) active = i;
+    else break;
+  }
+  if (active < 0) return 0;
+  const el = lineEls.get(active);
+  if (!el) return 0;
+  const line = timed[active];
+  const pct = clamp((pos - line.time) / Math.max(0.05, line.end - line.time));
+  const next = lineEls.get(active + 1);
+  const base =
+    el.offsetTop + (next ? (next.offsetTop - el.offsetTop) * EASE_OUT(pct) * 0.9 : 0);
+  return Math.max(0, base - sc.clientHeight * 0.32);
+}
 
 type Status = -1 | 0 | 1; // −1 belum nyanyi, 0 aktif, 1 selesai
 
@@ -62,6 +93,8 @@ export function AnimatedLyrics({ lines }: Props) {
   const userScrollAt = useRef(0);
   const posState = useRef({ target: 0, smooth: 0 });
   const prevActive = useRef(-1);
+  const glide = useRef<Glide | null>(null);
+  const [jumpVisible, setJumpVisible] = useState(false);
   const [reduced, setReduced] = useState(false);
 
   useEffect(() => {
@@ -120,7 +153,8 @@ export function AnimatedLyrics({ lines }: Props) {
       pending.current.clear();
     };
 
-    const tick = (now: number) => {
+    const step = () => {
+      const now = performance.now();
       const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
       last = now;
       const st = posState.current;
@@ -194,15 +228,32 @@ export function AnimatedLyrics({ lines }: Props) {
       flush();
 
       const sc = containerRef.current;
-      const el = active >= 0 ? lineEls.current.get(active) : null;
-      if (sc && el && now - userScrollAt.current > USER_SCROLL_COOLDOWN_MS) {
-        const target = Math.max(0, el.offsetTop - sc.clientHeight * 0.32);
-        const delta = target - sc.scrollTop;
-        if (Math.abs(delta) > 0.6) {
-          sc.scrollTop += delta * Math.min(1, dt * 5);
+      if (sc) {
+        const target = desiredScroll(pos, timed, sc, lineEls.current);
+        const g = glide.current;
+        if (g) {
+          const k = clamp((now - g.start) / g.dur, 0, 1);
+          sc.scrollTop = g.from + (g.to - g.from) * EASE_OUT(k);
+          if (k >= 1) glide.current = null;
+        } else if (now - userScrollAt.current > USER_SCROLL_COOLDOWN_MS) {
+          const delta = target - sc.scrollTop;
+          if (Math.abs(delta) > 0.6) {
+            sc.scrollTop += delta * Math.min(1, dt * 5);
+          }
         }
+        const visible =
+          Math.abs(target - sc.scrollTop) > sc.clientHeight * 0.45;
+        setJumpVisible((v) => (v === visible ? v : visible));
       }
+    };
 
+    const tick = () => {
+      try {
+        step();
+      } catch (err) {
+        // Jangan biarkan satu frame error membunuh loop selamanya.
+        console.warn("[AnimatedLyrics] frame error:", err);
+      }
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
@@ -227,22 +278,41 @@ export function AnimatedLyrics({ lines }: Props) {
     });
     const sc = containerRef.current;
     const el = active >= 0 ? lineEls.current.get(active) : null;
-    if (sc && el && Date.now() - userScrollAt.current > USER_SCROLL_COOLDOWN_MS) {
-      sc.scrollTop = Math.max(0, el.offsetTop - sc.clientHeight * 0.32);
+    if (sc && el && performance.now() - userScrollAt.current > USER_SCROLL_COOLDOWN_MS) {
+      sc.scrollTop = desiredScroll(pos, timed, sc, lineEls.current);
     }
   }, [p.position, timed, reduced]);
 
-  const onUserScroll = () => {
-    userScrollAt.current = Date.now();
-  };
+  const jumpToActive = () => {
+    const sc = containerRef.current;
+    if (!sc) return;
+    const target = desiredScroll(
+      posState.current.smooth,
+      timed,
+      sc,
+      lineEls.current,
+    );
+    glide.current = {
+          from: sc.scrollTop,
+          to: target,
+          start: performance.now(),
+          dur: 520,
+        };
+        userScrollAt.current = performance.now();
+      };
+
+      const onUserScroll = () => {
+        userScrollAt.current = performance.now();
+      };
 
   return (
-    <div
-      ref={containerRef}
-      onWheel={onUserScroll}
-      onTouchMove={onUserScroll}
-      className="sl-scroll [mask-image:linear-gradient(to_bottom,transparent,#000_6%,#000_90%,transparent)]"
-    >
+    <div className="relative flex h-full min-h-0 flex-1 flex-col">
+      <div
+        ref={containerRef}
+        onWheel={onUserScroll}
+        onTouchMove={onUserScroll}
+        className="sl-scroll [mask-image:linear-gradient(to_bottom,transparent,#000_6%,#000_90%,transparent)]"
+      >
       <div className="sl-inner">
         {timed.map((line, i) => (
           <div
@@ -288,6 +358,16 @@ export function AnimatedLyrics({ lines }: Props) {
           </div>
         ))}
       </div>
+      </div>
+      {jumpVisible && (
+        <button
+          onClick={jumpToActive}
+          className="glass-btn absolute bottom-4 right-4 z-10 rounded-full bg-fill1 px-4 py-2 text-[13px] font-medium text-label1 shadow-lg"
+          aria-label="Kembali ke baris aktif"
+        >
+          Ke baris aktif
+        </button>
+      )}
     </div>
   );
 }
