@@ -49,6 +49,19 @@ fn visitor_cache() -> &'static StrCache {
     VISITOR.get_or_init(|| StrCache::new(VISITOR_TTL))
 }
 
+/// Cadangan: telusuri nilai string yang diawali "Cg" dan cukup panjang,
+/// termasuk yang bersarang di dalam objek.
+fn find_visitor_string(v: &Value) -> Option<String> {
+    match v {
+        Value::String(s) if s.starts_with("Cg") && s.len() > 40 && !s.contains('/') => {
+            Some(s.clone())
+        }
+        Value::Array(a) => a.iter().find_map(find_visitor_string),
+        Value::Object(o) => o.values().find_map(find_visitor_string),
+        _ => None,
+    }
+}
+
 /// Ambil `visitorData` dari `youtube.com/sw.js_data`.
 ///
 /// Tanpa visitor data, client mana pun menjawab
@@ -85,18 +98,7 @@ async fn fetch_visitor_data() -> Result<String> {
     }
 
     // Cadangan: telusuri nilai string yang diawali "Cg" dan cukup panjang.
-    fn scan(v: &Value) -> Option<String> {
-        match v {
-            Value::String(s)
-                if s.starts_with("Cg") && s.len() > 40 && !s.contains('/') =>
-            {
-                Some(s.clone())
-            }
-            Value::Array(a) => a.iter().find_map(scan),
-            _ => None,
-        }
-    }
-    scan(&parsed).ok_or_else(|| anyhow!("visitorData tidak ditemukan di sw.js_data"))
+    find_visitor_string(&parsed).ok_or_else(|| anyhow!("visitorData tidak ditemukan di sw.js_data"))
 }
 
 async fn visitor_data() -> Result<String> {
@@ -321,6 +323,18 @@ mod tests {
     #[test]
     fn itag_audio_m4a_pertama() {
         assert_eq!(audio_itag(&sample()), 140);
+    }
+
+    #[test]
+    fn visitor_dari_objek_bercabang() {
+        let long = format!("Cg{}", "x".repeat(50));
+        let v = json!({ "a": [{ "b": { "c": long.clone() } }] });
+        assert_eq!(find_visitor_string(&v).as_deref(), Some(long.as_str()));
+        // Terlalu pendek atau mengandung '/' → diabaikan.
+        assert!(find_visitor_string(&json!({ "x": "Cgpendek" })).is_none());
+        let mut slash = long.clone();
+        slash.push('/');
+        assert!(find_visitor_string(&json!({ "x": slash })).is_none());
     }
 }
 
