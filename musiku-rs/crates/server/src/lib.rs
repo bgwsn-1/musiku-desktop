@@ -369,6 +369,20 @@ async fn index() -> Html<&'static str> {
     Html(INDEX_HTML)
 }
 
+/// `/api` atau di bawahnya — dipakai membedakan fallback UI dan fallback API.
+fn is_api_path(uri: &axum::http::Uri) -> bool {
+    uri.path() == "/api" || uri.path().starts_with("/api/")
+}
+
+/// SPA fallback: rute non-API mengembalikan UI; `/api/*` yang tak dikenal
+/// dijawab 404 JSON supaya client tidak mengira HTML sebagai data.
+async fn spa_fallback(uri: axum::http::Uri) -> Response {
+    if is_api_path(&uri) {
+        return err(StatusCode::NOT_FOUND, "not found").into_response();
+    }
+    Html(INDEX_HTML).into_response()
+}
+
 // Aset UI (CSS/JS/font) di-embed ke binary supaya `.exe` benar-benar mandiri.
 const APP_CSS: &[u8] = include_bytes!("../ui/assets/app.css");
 const APP_JS: &[u8] = include_bytes!("../ui/assets/app.js");
@@ -458,8 +472,8 @@ pub fn app() -> Router {
         .route("/api/artist-logo/file", get(artist_logo_file))
         .route("/api/update/check", get(update_check))
         .route("/api/update/install", post(update_install))
-        // SPA fallback: rute tak dikenal balikin UI.
-        .fallback(index)
+        // SPA fallback: rute tak dikenal balikin UI, /api/* → 404 JSON.
+        .fallback(spa_fallback)
 }
 
 /// Jalan-larang di listener yang sudah ada (dipakai `main.rs`).
@@ -518,6 +532,15 @@ mod tests {
         assert!(css.contains("fonts/"), "path font belum ditulis ulang");
         let js = std::str::from_utf8(APP_JS).unwrap();
         assert!(js.contains("shell"), "bundle tidak memuat shell");
+    }
+
+    #[test]
+    fn path_api_dikenali() {
+        use axum::http::Uri;
+        assert!(is_api_path(&Uri::from_static("/api/nope")));
+        assert!(is_api_path(&Uri::from_static("/api")));
+        assert!(!is_api_path(&Uri::from_static("/album/MPRE_x")));
+        assert!(!is_api_path(&Uri::from_static("/")));
     }
 
     /// Content-Type upstream dipakai; default hanya bila upstream tak mengirim.
