@@ -28,6 +28,13 @@ const DEFAULT_CLIENT_VERSION: &str = "1.20261110.04.00";
 /// `INNERTUBE_CONTEXT_CLIENT_NAME` untuk WEB_REMIX.
 const CLIENT_NAME_ID: &str = "67";
 
+/// UA browser khusus untuk memuat halaman `music.youtube.com`. YouTube
+/// membalas UA `Musiku/1.0 ...` dengan halaman stub "browser sudah tidak
+/// digunakan lagi" (2 KB, tanpa `ytcfg`), sehingga jalur fallback tak pernah
+/// berhasil. Header Innertube lain boleh memakai `UA` biasa.
+const BROWSER_UA: &str =
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+
 /// ytcfg berlaku lama; simpan 6 jam.
 const CFG_TTL: Duration = Duration::from_secs(6 * 60 * 60);
 
@@ -84,7 +91,10 @@ async fn fetch_cfg() -> Result<String> {
     let html = global()
         .http()
         .get("https://music.youtube.com/")
-        .header("user-agent", UA)
+        // UA browser wajib: dengan UA `Musiku/1.0 ...` YouTube membalas halaman
+        // stub "browser sudah tidak digunakan lagi" yang tidak memuat ytcfg.
+        .header("user-agent", BROWSER_UA)
+        .header("accept-language", "en-US,en;q=0.9")
         .send()
         .await?
         .error_for_status()?
