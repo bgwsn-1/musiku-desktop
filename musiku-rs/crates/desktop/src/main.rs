@@ -103,7 +103,7 @@ fn main() {
     // Server di thread sendiri; kembaliannya nomor port begitu siap.
     let port = musiku_server::spawn_background().expect("gagal menjalankan server");
     let url = format!("http://127.0.0.1:{port}");
-    let discord = discord::SharedPresence::default();
+    let discord = discord::SharedPresence::new();
 
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![

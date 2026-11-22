@@ -4,8 +4,14 @@
 //! jalan. Koneksi dibuat malas (lazy) saat lagu mulai diputar, dan ditutup
 //! sendiri oleh Discord ketika aplikasi keluar. Kalau Discord belum jalan,
 //! gagalnya cuma di-log — playback tidak terpengaruh.
+//!
+//! PENTING: semua socket IPC dikerjakan di thread worker khusus lewat channel.
+//! Connect/write ke pipe Discord bisa tertahan (terutama di macOS), dan kalau
+//! dilakukan di main thread maka event loop Tauri membeku — app tercatat "Not
+//! Responding" persis saat ganti lagu (saat presence diperbarui). Handle
+//! `SharedPresence` di sini hanya mengantrikan pesan, jadi tidak blocking.
 
-use std::sync::{Arc, Mutex};
+use std::sync::mpsc::{self, Receiver, Sender};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use discord_rich_presence::{
@@ -33,10 +39,51 @@ pub struct PresencePayload {
     pub duration: f64,
 }
 
-pub type SharedPresence = Arc<Mutex<Presence>>;
+enum PresenceMsg {
+    Set(PresencePayload),
+    Clear,
+}
+
+/// Handle yang dikelola Tauri. Menyalurkannya non-blocking; socket Discord
+/// hanya disentuh di thread worker.
+#[derive(Clone)]
+pub struct SharedPresence {
+    tx: Sender<PresenceMsg>,
+}
+
+impl SharedPresence {
+    pub fn new() -> Self {
+        let (tx, rx) = mpsc::channel();
+        std::thread::Builder::new()
+            .name("discord-presence".into())
+            .spawn(move || worker(rx))
+            .expect("memulai thread Discord presence");
+        Self { tx }
+    }
+
+    /// Antrikan pembaruan presence. Aman dipanggil dari command Tauri.
+    pub fn set(&self, payload: PresencePayload) {
+        let _ = self.tx.send(PresenceMsg::Set(payload));
+    }
+
+    pub fn clear(&self) {
+        let _ = self.tx.send(PresenceMsg::Clear);
+    }
+}
+
+/// Satu-satunya pemilik koneksi Discord; berjalan di luar main thread.
+fn worker(rx: Receiver<PresenceMsg>) {
+    let mut presence = Presence::default();
+    while let Ok(msg) = rx.recv() {
+        match msg {
+            PresenceMsg::Set(p) => presence.set(p),
+            PresenceMsg::Clear => presence.clear(),
+        }
+    }
+}
 
 #[derive(Default)]
-pub struct Presence {
+struct Presence {
     client: Option<DiscordIpcClient>,
     last_try: Option<Instant>,
 }
@@ -117,7 +164,7 @@ impl Presence {
         }
     }
 
-    pub fn set(&mut self, payload: PresencePayload) {
+    fn set(&mut self, payload: PresencePayload) {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
@@ -163,7 +210,7 @@ impl Presence {
         self.send(activity);
     }
 
-    pub fn clear(&mut self) {
+    fn clear(&mut self) {
         // Putuskan koneksinya juga. Cukup mengirim activity=null kadang hanya
         // mengosongkan detail, tapi Discord masih menampilkan "Playing Musiku"
         // selama socket RPC-nya terbuka.
@@ -185,8 +232,7 @@ pub fn discord_set_activity(
     payload: PresencePayload,
     state: State<'_, SharedPresence>,
 ) -> std::result::Result<(), String> {
-    let mut guard = state.lock().map_err(|_| "state terkunci".to_string())?;
-    guard.set(payload);
+    state.set(payload);
     Ok(())
 }
 
@@ -194,7 +240,35 @@ pub fn discord_set_activity(
 pub fn discord_clear_activity(
     state: State<'_, SharedPresence>,
 ) -> std::result::Result<(), String> {
-    let mut guard = state.lock().map_err(|_| "state terkunci".to_string())?;
-    guard.clear();
+    state.clear();
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Handle presence harus murni mengantrikan pesan. Kalau ia menyentuh
+    /// socket Discord, 50 pembaruan bisa memblokir main thread berbahaya.
+    #[test]
+    fn presence_command_tidak_memblokir() {
+        let sp = SharedPresence::new();
+        let started = Instant::now();
+        for i in 0..50 {
+            sp.set(PresencePayload {
+                title: format!("Lagu {i}"),
+                artist: None,
+                album: None,
+                artwork: None,
+                position: 0.0,
+                duration: 180.0,
+            });
+        }
+        sp.clear();
+        assert!(
+            started.elapsed() < Duration::from_millis(250),
+            "mengirim presence memblokir {}ms",
+            started.elapsed().as_millis()
+        );
+    }
 }
