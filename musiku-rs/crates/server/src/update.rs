@@ -194,20 +194,37 @@ pub async fn check() -> Result<UpdateInfo> {
     })
 }
 
-/// Aset yang cocok untuk OS ini. Windows memakai installer NSIS (silent),
-/// Linux memakai `.deb` — AppImage jadi cadangan.
+/// Pilih aset berdasarkan sufiks nama berkas (huruf besar/kecil diabaikan).
+fn pick_asset<'a>(assets: &'a [UpdateAsset], suffixes: &[&str]) -> Option<&'a UpdateAsset> {
+    assets.iter().find(|a| {
+        let n = a.name.to_ascii_lowercase();
+        suffixes.iter().any(|s| n.ends_with(s))
+    })
+}
+
+/// Keluarga Debian/Ubuntu menandakan dirinya dengan `/etc/debian_version`;
+/// distro lain (Arch, Fedora, …) lebih cocok dengan AppImage.
+fn linux_prefers_deb() -> bool {
+    Path::new("/etc/debian_version").exists()
+}
+
+/// Aset yang cocok untuk OS ini:
+/// - Windows: installer NSIS (`-setup.exe`, dijalankan silent)
+/// - macOS: `.dmg` (dibuka lewat `open`)
+/// - Linux Debian/Ubuntu: `.deb`; distro lain: `.AppImage`
 fn platform_asset(info: &UpdateInfo) -> Option<&UpdateAsset> {
-    let is_exe = cfg!(target_os = "windows");
-    let pick = |suffixes: &[&str]| {
-        info.assets.iter().find(|a| {
-            let n = a.name.to_ascii_lowercase();
-            suffixes.iter().any(|s| n.ends_with(s))
-        })
-    };
-    if is_exe {
-        pick(&["-setup.exe"]).or_else(|| pick(&[".exe"]))
+    if cfg!(target_os = "windows") {
+        pick_asset(&info.assets, &["-setup.exe"])
+            .or_else(|| pick_asset(&info.assets, &[".exe"]))
+    } else if cfg!(target_os = "macos") {
+        pick_asset(&info.assets, &[".dmg"])
+            .or_else(|| pick_asset(&info.assets, &[".app"]))
+    } else if linux_prefers_deb() {
+        pick_asset(&info.assets, &[".deb"])
+            .or_else(|| pick_asset(&info.assets, &[".appimage"]))
     } else {
-        pick(&[".deb"]).or_else(|| pick(&[".appimage"]))
+        pick_asset(&info.assets, &[".appimage"])
+            .or_else(|| pick_asset(&info.assets, &[".deb"]))
     }
 }
 
@@ -228,8 +245,9 @@ fn download_dir() -> PathBuf {
 }
 
 /// Unduh aset, verifikasi SHA-256 dari GitHub, lalu jalankan.
-/// Windows: installer NSIS `/S` (silent, per-user). Linux: buka `.deb` dengan
-/// xdg-open agar package manager yang meminta konfirmasi ke user.
+/// Windows: installer NSIS `/S` (silent, per-user). macOS: `.dmg` dibuka lewat
+/// `open`. Linux: `.deb`/`.AppImage` dibuka lewat xdg-open agar package manager
+/// yang meminta konfirmasi ke user.
 pub async fn install() -> Result<serde_json::Value> {
     let info = check().await?;
     let asset = platform_asset(&info)
@@ -271,6 +289,10 @@ pub async fn install() -> Result<serde_json::Value> {
         let mut c = Command::new(&path);
         c.arg("/S");
         c
+    } else if cfg!(target_os = "macos") {
+        let mut c = Command::new("open");
+        c.arg(&path);
+        c
     } else {
         let mut c = Command::new("xdg-open");
         c.arg(&path);
@@ -284,4 +306,55 @@ pub async fn install() -> Result<serde_json::Value> {
         "file": path.to_string_lossy(),
         "version": info.latest,
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn asset(name: &str) -> UpdateAsset {
+        UpdateAsset {
+            name: name.into(),
+            size: 1,
+            url: "https://github.com/x".into(),
+            digest: None,
+        }
+    }
+
+    #[test]
+    fn pilih_aset_sesuai_sufiks() {
+        let a = vec![
+            asset("Musiku-0.1.6-setup.exe"),
+            asset("Musiku_0.1.6_amd64.deb"),
+            asset("Musiku_0.1.6_amd64.AppImage"),
+            asset("Musiku_0.1.6_x64.dmg"),
+        ];
+        assert_eq!(
+            pick_asset(&a, &["-setup.exe"]).unwrap().name,
+            "Musiku-0.1.6-setup.exe"
+        );
+        assert_eq!(
+            pick_asset(&a, &[".deb"]).unwrap().name,
+            "Musiku_0.1.6_amd64.deb"
+        );
+        // AppImage dipilih dengan benar walau huruf besar di depan.
+        assert_eq!(
+            pick_asset(&a, &[".appimage"]).unwrap().name,
+            "Musiku_0.1.6_amd64.AppImage"
+        );
+        assert_eq!(
+            pick_asset(&a, &[".dmg"]).unwrap().name,
+            "Musiku_0.1.6_x64.dmg"
+        );
+        assert!(pick_asset(&a, &[".msi"]).is_none());
+    }
+
+    #[test]
+    fn versi_dibandingkan_per_numerik() {
+        assert!(version_newer("v1.2.10", "1.2.9"));
+        assert!(!version_newer("v1.2.9", "1.2.10"));
+        assert!(!version_newer("v0.1.6", "0.1.7"));
+        assert!(version_newer("0.1.8", "0.1.7"));
+        assert!(!version_newer("bukan-versi", "0.1.7"));
+    }
 }
