@@ -7,13 +7,20 @@ import fs from "node:fs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const OUT = path.resolve(__dirname, "../crates/server/ui/assets/app.css");
-const bin = path.join(__dirname, "node_modules/.bin/tailwindcss");
+// Pakai entry JS langsung lewat node: shim .bin (shell script) gagal di
+// Windows saat dipanggil spawnSync tanpa shell.
+const cli = path.join(__dirname, "node_modules/@tailwindcss/cli/dist/index.mjs");
 
 const watch = process.argv.includes("--watch");
 const args = ["-i", path.join(__dirname, "tailwind.css"), "-o", OUT];
 if (!watch) args.push("--minify");
 
-const r = spawnSync(bin, args, { stdio: "inherit", cwd: __dirname });
+if (!fs.existsSync(cli)) {
+  console.error(`[css] CLI Tailwind tidak ditemukan: ${cli}`);
+  process.exit(1);
+}
+
+const r = spawnSync(process.execPath, [cli, ...args], { stdio: "inherit", cwd: __dirname });
 if (r.status !== 0) process.exit(r.status ?? 1);
 
 if (!watch) {
