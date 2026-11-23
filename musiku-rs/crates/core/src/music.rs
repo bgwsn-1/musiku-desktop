@@ -142,42 +142,6 @@ fn to_artist_card(item: &ArtistItem) -> ArtistDetail {
     }
 }
 
-fn track_to_home(t: &TrackItem) -> HomeItem {
-    HomeItem {
-        title: t.name.clone(),
-        video_id: Some(t.id.clone()),
-        browse_id: None,
-        artist: t.artists.first().map(|a| a.name.clone()),
-        artist_id: t.artist_id.clone().or_else(|| t.artists.first().and_then(|a| a.id.clone())),
-        thumbs: thumb(&t.cover),
-        kind: HomeItemKind::Song,
-    }
-}
-
-fn album_to_home(a: &AlbumItem) -> HomeItem {
-    HomeItem {
-        title: a.name.clone(),
-        video_id: None,
-        browse_id: Some(a.id.clone()),
-        artist: a.artists.first().map(|x| x.name.clone()),
-        artist_id: a.artist_id.clone(),
-        thumbs: thumb(&a.cover),
-        kind: HomeItemKind::Album,
-    }
-}
-
-fn artist_to_home(a: &ArtistItem) -> HomeItem {
-    HomeItem {
-        title: a.name.clone(),
-        video_id: None,
-        browse_id: Some(a.id.clone()),
-        artist: None,
-        artist_id: Some(a.id.clone()),
-        thumbs: thumb(&a.avatar),
-        kind: HomeItemKind::Artist,
-    }
-}
-
 // ── Endpoint ─────────────────────────────────────────────────────────────
 
 pub const FILTERS: [&str; 4] = ["songs", "videos", "artists", "albums"];
@@ -237,24 +201,23 @@ impl Musiku {
     ///
     /// CATATAN: `rustypipe` tidak menyediakan "startpage" seperti
     /// `getHomeSections()` milik `ytmusic-api`. Jadi beranda disintesis dari
-    /// rilis baru + daftar artis populer.
-    ///
-    /// `music_charts().top_tracks` sengaja **tidak** dipakai: per 2026 YouTube
-    /// mengubah susunan respons charts sehingga mapper rustypipe menghasilkan
-    /// daftar lagu kosong (artis masih terisi). Bagian yang stabil dipakai.
+    /// rilis baru + lagu baru (region US = cakupan global) dan artis populer
+    /// global (charts lintas-region, lihat `global_artist_list`).
     /// Bentuk `HomeShelf[]` tetap sama, jadi sisi UI tidak perlu diubah.
     pub async fn home(&self) -> anyhow::Result<serde_json::Value> {
         self.cache
             .get_or_try("home", async {
-                let yt = self.pipe.query();
-
-                // Dua sumber utama wajib berhasil: kegagalan dikembalikan sebagai error
-                // (sama seperti `getHomeSections()` di versi TS), bukan beranda
-                // kosong yang tampak sukses. Charts tetap opsional karena
-                // susunannya kerap berubah.
-                let new_albums = yt.music_new_albums().await?;
-                let new_videos = yt.music_new_videos().await?;
-                let charts = yt.music_charts(None).await.ok();
+                let gnew = self.global_new().await.unwrap_or_else(|_| {
+                    serde_json::json!({ "albums": [], "songs": [] })
+                });
+                let new_albums: Vec<HomeItem> =
+                    serde_json::from_value(gnew["albums"].clone()).unwrap_or_default();
+                let new_songs: Vec<HomeItem> =
+                    serde_json::from_value(gnew["songs"].clone()).unwrap_or_default();
+                let global_artists = self
+                    .global_artist_list()
+                    .await
+                    .unwrap_or_else(|_| serde_json::Value::Array(Vec::new()));
 
                 let mut shelves: Vec<HomeShelf> = Vec::new();
                 let push = |shelves: &mut Vec<HomeShelf>, title: &str, items: Vec<HomeItem>| {
@@ -266,35 +229,14 @@ impl Musiku {
                     }
                 };
 
-                push(
-                    &mut shelves,
-                    "Rilis Baru",
-                    new_albums.iter().take(12).map(album_to_home).collect(),
-                );
-                push(
-                    &mut shelves,
-                    "Video Musik Baru",
-                    new_videos.iter().take(12).map(track_to_home).collect(),
-                );
+                push(&mut shelves, "Rilis Baru", new_albums);
+                push(&mut shelves, "Lagu Baru", new_songs);
 
-                if let Some(c) = charts {
-                    // Artis populer → sajian grid di UI, tapi tetap bertipe
-                    // `artist`: browseId-nya `UC...`, bukan `MPREb_...`.
-                    let artists: Vec<HomeItem> = c
-                        .artists
-                        .iter()
-                        .take(12)
-                        .map(artist_to_home)
-                        .collect();
-                    push(&mut shelves, "Artis Populer", artists);
-
-                    // Kalau suatu saat YouTube memulihkan charts lagu, ikut dipakai.
-                    push(
-                        &mut shelves,
-                        "Tangga Lagu",
-                        c.top_tracks.iter().take(12).map(track_to_home).collect(),
-                    );
-                }
+                // Artis populer global (charts lintas-region), bukan sekadar
+                // artis populer region perangkat.
+                let artists: Vec<HomeItem> =
+                    serde_json::from_value(global_artists).unwrap_or_default();
+                push(&mut shelves, "Artis Populer", artists.into_iter().take(12).collect());
 
                 Ok(serde_json::to_value(shelves)?)
             })
@@ -305,7 +247,7 @@ impl Musiku {
     /// negara besar, bukan region perangkat. Peringkat lintas-region dihitung
     /// dari posisi tiap artis di tiap charts (semakin atas semakin tinggi),
     /// lalu diabuikan `{browseId, title, thumbs, subscribers}`.
-    pub async fn global_artists(&self) -> anyhow::Result<serde_json::Value> {
+    async fn global_artist_list(&self) -> anyhow::Result<serde_json::Value> {
         self.cache
             .get_or_try("global_artists", async {
                 let yt = self.pipe.query();
@@ -337,6 +279,7 @@ impl Musiku {
                             "title": a.name,
                             "thumbs": thumb(&a.avatar),
                             "subscribers": a.subscriber_count.unwrap_or(0),
+                            "kind": "artist",
                         });
                         map.entry(a.id.clone())
                             .and_modify(|e| {
@@ -406,6 +349,98 @@ impl Musiku {
                     }
                 }
                 Ok(serde_json::Value::Array(items))
+            })
+            .await
+    }
+
+    /// Artis populer global (charts lintas-region) untuk hero beranda.
+    pub async fn global_artists(&self) -> anyhow::Result<serde_json::Value> {
+        self.global_artist_list().await
+    }
+
+    /// "Rilis Baru" & "Lagu Baru" versi global.
+    ///
+    /// Feed new-releases YouTube Music terkunci region perangkat (IP), jadi
+    /// sumber global diambil dari album terbaru + lagu atas artis chart
+    /// lintas-region. Mengembalikan `{albums: HomeItem[], songs: HomeItem[]}`.
+    pub async fn global_new(&self) -> anyhow::Result<serde_json::Value> {
+        self.cache
+            .get_or_try("global_new", async {
+                let list = self
+                    .global_artist_list()
+                    .await
+                    .unwrap_or_else(|_| serde_json::Value::Array(Vec::new()));
+                let ids: Vec<String> = list
+                    .as_array()
+                    .map(|arr| {
+                        arr.iter()
+                            .take(6)
+                            .filter_map(|v| v["browseId"].as_str().map(String::from))
+                            .collect()
+                    })
+                    .unwrap_or_default();
+
+                let mut albums: Vec<(i64, HomeItem)> = Vec::new();
+                let mut songs: Vec<HomeItem> = Vec::new();
+                for id in ids {
+                    let raw = match self.artist(&id).await {
+                        Ok(v) => v,
+                        Err(_) => continue,
+                    };
+                    let detail: ArtistDetail = match serde_json::from_value(raw) {
+                        Ok(d) => d,
+                        Err(_) => continue,
+                    };
+                    for al in detail.albums {
+                        let year = al
+                            .year
+                            .as_deref()
+                            .and_then(|y| y.parse::<i64>().ok())
+                            .unwrap_or(0);
+                        let artist_name = match &al.artist {
+                            Some(crate::types::ArtistName::One(s)) => Some(s.clone()),
+                            Some(crate::types::ArtistName::Many(v)) => {
+                                if v.is_empty() {
+                                    None
+                                } else {
+                                    Some(v.join(", "))
+                                }
+                            }
+                            None => None,
+                        };
+                        albums.push((
+                            year,
+                            HomeItem {
+                                title: al.title.clone(),
+                                video_id: None,
+                                browse_id: al.browse_id.clone(),
+                                artist: artist_name,
+                                artist_id: None,
+                                thumbs: al.thumbs.clone(),
+                                kind: HomeItemKind::Album,
+                            },
+                        ));
+                    }
+                    for t in detail.top_songs.iter().take(3) {
+                        songs.push(HomeItem {
+                            title: t.title.clone(),
+                            video_id: Some(t.video_id.clone()),
+                            browse_id: None,
+                            artist: t
+                                .artists
+                                .first()
+                                .cloned()
+                                .or_else(|| t.artist.clone()),
+                            artist_id: t.artist_id.clone(),
+                            thumbs: t.thumbs.clone(),
+                            kind: HomeItemKind::Song,
+                        });
+                    }
+                }
+                albums.sort_by_key(|(year, _)| std::cmp::Reverse(*year));
+                let out_albums: Vec<HomeItem> =
+                    albums.into_iter().take(12).map(|(_, v)| v).collect();
+                Ok(serde_json::json!({ "albums": out_albums, "songs": songs }))
             })
             .await
     }

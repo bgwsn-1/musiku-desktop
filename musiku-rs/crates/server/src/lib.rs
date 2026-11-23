@@ -521,6 +521,9 @@ pub fn spawn_background() -> std::io::Result<u16> {
     std::thread::spawn(move || {
         let rt = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
+            // Parser YouTube Music (rustypipe) rekursif cukup dalam; stack
+            // default 2 MB sempat overflow saat memproses JSON artis/beranda.
+            .thread_stack_size(32 * 1024 * 1024)
             .build()
             .expect("tokio runtime");
         rt.block_on(async move {
