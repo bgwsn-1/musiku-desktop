@@ -1338,7 +1338,10 @@ textarea:focus-visible {
         (min(1, var(--dist, 0)) * 0.5px + min(1, var(--d1)) * 1px)
     )
   );
-  transform: scale(calc(1.05 - min(1, var(--dist, 0)) * 0.05));
+  /* Skala baris aktif (--im-scale-on dari LYRIC_MOTION); baris lain 1.0. */
+  transform: scale(
+    calc(var(--im-scale-on, 1.025) - min(1, var(--dist, 0)) * var(--im-scale-delta, 0.025))
+  );
   /* Hanya transform + opacity yang dianimasikan; blur statis per jarak. */
   transition:
     opacity 0.4s ease,

@@ -33,10 +33,30 @@ export function parseLrc(raw: string): LrcLine[] {
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
+// ── Parameter gerak lirik imersif — semua knob ada di sini ────────────────
+const LYRIC_MOTION = {
+  /** Spring pengikut track. ζ ≈ 0.97 → overshoot < 0.1px, settle ~450–500ms. */
+  stiffness: 240,
+  damping: 30,
+  /** Ombak baris: 16ms per jarak dari baris aktif, mentok di 4 baris. */
+  staggerMs: 16,
+  staggerMaxLines: 4,
+  /** Baris yang ikut animasi ombak sejauh radius ini dari baris aktif. */
+  waveRadiusLines: 6,
+  /** Skala baris aktif; baris lain 1.0 (selisih 0.025). */
+  activeScale: 1.025,
+  /** Lompat jauh (seek / klik baris jauh): tween pendek, tanpa ombak. */
+  jumpMs: 250,
+  jumpViewports: 0.75,
+  jumpLines: 6,
+  /** Ambang snap: hentikan spring tanpa sisa gerakan sub-piksel. */
+  snapPx: 0.6,
+  snapVel: 24,
+};
+
 type Spring = { cur: number; target: number; vel: number; delay?: number };
 
-// Spring kecil dengan sedikit overshoot (stiffness 210, damping 24).
-function stepSpring(s: Spring, dt: number, k = 210, c = 24) {
+function stepSpring(s: Spring, dt: number, k: number, c: number) {
   const a = -k * (s.cur - s.target) - c * s.vel;
   s.vel += a * dt;
   s.cur += s.vel * dt;
@@ -80,7 +100,9 @@ const LyricRow = memo(function LyricRow({
         immersive
           ? ({
               "--dist": dist,
-              willChange: dist <= 3 ? "transform, opacity, filter" : undefined,
+              "--im-scale-on": LYRIC_MOTION.activeScale,
+              "--im-scale-delta": LYRIC_MOTION.activeScale - 1,
+              willChange: dist <= 3 ? "transform, opacity" : undefined,
             } as CSSProperties)
           : { animationDelay: `${Math.min(index, 10) * 45}ms` }
       }
@@ -190,10 +212,17 @@ export function LyricsPanel({ immersive = false }: { immersive?: boolean }) {
   // Imersif: posisi dihitung per frame lalu dipakai sbg translate3d, bukan scrollTop.
   const motion = useRef<{
     pos: Spring;
+    tween: { from: number; to: number; t0: number; dur: number } | null;
     lines: Map<number, Spring>;
     raf: number;
     last: number;
-  }>({ pos: { cur: 0, target: 0, vel: 0 }, lines: new Map(), raf: 0, last: 0 });
+  }>({
+    pos: { cur: 0, target: 0, vel: 0 },
+    tween: null,
+    lines: new Map(),
+    raf: 0,
+    last: 0,
+  });
 
   const runSpring = useCallback((now: number) => {
     const m = motion.current;
@@ -202,6 +231,7 @@ export function LyricsPanel({ immersive = false }: { immersive?: boolean }) {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       m.pos.cur = m.pos.target;
       m.pos.vel = 0;
+      m.tween = null;
       if (trackRef.current) trackRef.current.style.transform = `translate3d(0, ${m.pos.cur}px, 0)`;
       m.lines.forEach((_s, i) => {
         const w = wraps.current[i];
@@ -211,17 +241,47 @@ export function LyricsPanel({ immersive = false }: { immersive?: boolean }) {
       m.raf = 0;
       return;
     }
-    stepSpring(m.pos, dt);
+
+    let alive = false;
+    if (m.tween) {
+      // Lompat jauh: satu tween ease-out tanpa overshoot, bukan spring berombak.
+      const k = Math.min(1, (now - m.tween.t0) / m.tween.dur);
+      const eased = 1 - Math.pow(1 - k, 3);
+      m.pos.cur = m.tween.from + (m.tween.to - m.tween.from) * eased;
+      m.pos.vel = 0;
+      if (k >= 1) {
+        m.pos.cur = m.pos.target;
+        m.tween = null;
+      } else alive = true;
+    } else {
+      stepSpring(m.pos, dt, LYRIC_MOTION.stiffness, LYRIC_MOTION.damping);
+      const done =
+        Math.abs(m.pos.target - m.pos.cur) <= LYRIC_MOTION.snapPx &&
+        Math.abs(m.pos.vel) <= LYRIC_MOTION.snapVel;
+      if (done) {
+        m.pos.cur = m.pos.target;
+        m.pos.vel = 0;
+      } else alive = true;
+    }
     if (trackRef.current) trackRef.current.style.transform = `translate3d(0, ${m.pos.cur}px, 0)`;
-    let alive = Math.abs(m.pos.cur - m.pos.target) > 0.1 || Math.abs(m.pos.vel) > 1;
+
     m.lines.forEach((s, i) => {
-      if (s.delay && s.delay > 0) s.delay -= dt * 1000;
-      else stepSpring(s, dt, 190, 22);
+      if (s.delay && s.delay > 0) {
+        s.delay -= dt * 1000;
+        alive = true;
+        return;
+      }
+      stepSpring(s, dt, LYRIC_MOTION.stiffness, LYRIC_MOTION.damping);
       const w = wraps.current[i];
-      if (w) w.style.transform = Math.abs(s.cur) > 0.1 ? `translate3d(0, ${s.cur}px, 0)` : "";
-      if (Math.abs(s.cur) > 0.1 || Math.abs(s.vel) > 1) alive = true;
-      else m.lines.delete(i);
+      if (Math.abs(s.cur) <= LYRIC_MOTION.snapPx && Math.abs(s.vel) <= LYRIC_MOTION.snapVel) {
+        if (w) w.style.transform = "";
+        m.lines.delete(i);
+        return;
+      }
+      if (w) w.style.transform = `translate3d(0, ${s.cur}px, 0)`;
+      alive = true;
     });
+
     if (alive) m.raf = requestAnimationFrame(runSpring);
     else {
       m.raf = 0;
@@ -260,6 +320,7 @@ export function LyricsPanel({ immersive = false }: { immersive?: boolean }) {
     const tr = trackRef.current;
     if (!sc || !tr) return;
     const m = motion.current;
+    m.tween = null;
     m.lines.clear();
     wraps.current.forEach((w) => {
       if (w) w.style.transform = "";
@@ -330,26 +391,38 @@ export function LyricsPanel({ immersive = false }: { immersive?: boolean }) {
         0,
       );
       const delta = target - m.pos.target;
+      const far =
+        Math.abs(delta) > sc.clientHeight * LYRIC_MOTION.jumpViewports ||
+        Math.abs(activeIdx - prev) > LYRIC_MOTION.jumpLines;
       m.pos.target = target;
-      if (reduce || prev < 0 || Math.abs(delta) > sc.clientHeight * 1.2) {
+      m.lines.clear();
+      wraps.current.forEach((w) => {
+        if (w) w.style.transform = "";
+      });
+      if (reduce || prev < 0) {
         m.pos.cur = target;
         m.pos.vel = 0;
+        m.tween = null;
         tr.style.transform = `translate3d(0, ${target}px, 0)`;
-        m.lines.clear();
-        wraps.current.forEach((w) => {
-          if (w) w.style.transform = "";
-        });
         return;
       }
+      if (far) {
+        // Seek / klik baris jauh: gelindingan pendek 250ms, tanpa ombak per baris.
+        m.tween = { from: m.pos.cur, to: target, t0: performance.now(), dur: LYRIC_MOTION.jumpMs };
+        m.pos.vel = 0;
+        startSpring();
+        return;
+      }
+      m.tween = null;
       // Ombak: baris sekitar aktif mulai di posisi lama lalu spring menyusul.
-      m.lines.clear();
-      const radius = 8;
+      const radius = LYRIC_MOTION.waveRadiusLines;
       for (let i = Math.max(0, activeIdx - radius); i <= Math.min(lines.length - 1, activeIdx + radius); i++) {
         m.lines.set(i, {
           cur: -delta,
           target: 0,
           vel: 0,
-          delay: Math.min(Math.abs(i - activeIdx), 8) * 40,
+          delay:
+            Math.min(Math.abs(i - activeIdx), LYRIC_MOTION.staggerMaxLines) * LYRIC_MOTION.staggerMs,
         });
       }
       startSpring();
