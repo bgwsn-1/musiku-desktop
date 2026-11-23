@@ -2144,7 +2144,7 @@ dependencies = [
 
 [[package]]
 name = "musiku-core"
-version = "0.1.5"
+version = "0.1.7"
 dependencies = [
  "anyhow",
  "md5",
@@ -2160,7 +2160,7 @@ dependencies = [
 
 [[package]]
 name = "musiku-desktop"
-version = "0.1.5"
+version = "0.1.7"
 dependencies = [
  "discord-rich-presence",
  "musiku-server",
@@ -2171,7 +2171,7 @@ dependencies = [
 
 [[package]]
 name = "musiku-server"
-version = "0.1.5"
+version = "0.1.7"
 dependencies = [
  "anyhow",
  "axum",
