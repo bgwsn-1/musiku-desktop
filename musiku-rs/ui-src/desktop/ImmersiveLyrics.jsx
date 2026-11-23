@@ -172,7 +172,7 @@ export function ImmersiveLyrics({ onExit }) {
           </div>
         </div>
 
-        <div className="im-right relative flex min-w-0 flex-1 flex-col py-10 pr-10">
+        <div className="im-right relative flex min-w-0 flex-1 flex-col pb-10 pr-10 pt-20">
           <div className="im-lyrics min-h-0 flex-1">
             <LyricsPanel immersive />
           </div>

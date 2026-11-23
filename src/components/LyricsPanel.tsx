@@ -282,25 +282,28 @@ export function LyricsPanel({ immersive = false }: { immersive?: boolean }) {
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 items-center gap-3 px-5 pb-3 pt-1 lg:pt-4">
-        <Artwork
-          src={t?.thumbs}
-          className="h-11 w-11 shrink-0 rounded-lg object-cover shadow-[var(--shadow-art)]"
-        />
-        <div className="min-w-0 flex-1">
-          <h2 className="truncate text-[16px] font-semibold leading-tight text-label1">{t?.title}</h2>
-          <p className="truncate text-[13px] leading-tight text-label2" aria-live="polite">
-            {status}
-          </p>
+      {/* Imersif: judul/artis sudah ada di .im-card, keluar pakai .im-exit. */}
+      {!immersive && (
+        <div className="flex shrink-0 items-center gap-3 px-5 pb-3 pt-1 lg:pt-4">
+          <Artwork
+            src={t?.thumbs}
+            className="h-11 w-11 shrink-0 rounded-lg object-cover shadow-[var(--shadow-art)]"
+          />
+          <div className="min-w-0 flex-1">
+            <h2 className="truncate text-[16px] font-semibold leading-tight text-label1">{t?.title}</h2>
+            <p className="truncate text-[13px] leading-tight text-label2" aria-live="polite">
+              {status}
+            </p>
+          </div>
+          <button
+            onClick={() => p.toggleUi("lyrics")}
+            className="glass-btn flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-fill1 text-label1"
+            aria-label="Tutup lirik"
+          >
+            <IconClose className="h-[18px] w-[18px]" />
+          </button>
         </div>
-        <button
-          onClick={() => p.toggleUi("lyrics")}
-          className="glass-btn flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-fill1 text-label1"
-          aria-label="Tutup lirik"
-        >
-          <IconClose className="h-[18px] w-[18px]" />
-        </button>
-      </div>
+      )}
 
       <div
         ref={scrollRef}
@@ -324,7 +327,7 @@ export function LyricsPanel({ immersive = false }: { immersive?: boolean }) {
           <p className="mt-16 text-center text-[15px] text-label2">Lirik tidak tersedia untuk lagu ini.</p>
         )}
         {!loading && lines.length > 0 && (
-          <div key={id ?? "x"} className={immersive ? "pt-[46dvh] pb-[46dvh]" : "pt-[10dvh] pb-[40dvh]"}>
+          <div key={id ?? "x"} className={immersive ? "pt-[50dvh] pb-[46dvh]" : "pt-[10dvh] pb-[40dvh]"}>
             {lines.map((l, i) => {
               const active = i === activeIdx;
               const dist = activeIdx < 0 ? 3 : Math.min(3, Math.abs(i - activeIdx));
