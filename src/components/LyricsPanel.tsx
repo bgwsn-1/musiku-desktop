@@ -11,6 +11,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type TouchEvent as ReactTouchEvent,
 } from "react";
 import type { Lyrics as LyricsData } from "@/lib/types";
 
@@ -28,6 +29,17 @@ export function parseLrc(raw: string): LrcLine[] {
     }
   }
   return out.sort((a, b) => a.time - b.time);
+}
+
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+
+type Spring = { cur: number; target: number; vel: number; delay?: number };
+
+// Spring kecil dengan sedikit overshoot (stiffness 210, damping 24).
+function stepSpring(s: Spring, dt: number, k = 210, c = 24) {
+  const a = -k * (s.cur - s.target) - c * s.vel;
+  s.vel += a * dt;
+  s.cur += s.vel * dt;
 }
 
 type RowProps = {
@@ -68,7 +80,7 @@ const LyricRow = memo(function LyricRow({
         immersive
           ? ({
               "--dist": dist,
-              willChange: dist <= 1 ? "transform, opacity, filter" : undefined,
+              willChange: dist <= 3 ? "transform, opacity, filter" : undefined,
             } as CSSProperties)
           : { animationDelay: `${Math.min(index, 10) * 45}ms` }
       }
@@ -165,13 +177,65 @@ export function LyricsPanel({ immersive = false }: { immersive?: boolean }) {
 
   const lines = useMemo(() => (data?.synced && data.text ? parseLrc(data.text) : []), [data]);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const trackRef = useRef<HTMLDivElement | null>(null);
   const wraps = useRef<(HTMLDivElement | null)[]>([]);
   const lastUserScroll = useRef(0);
+  const touchY = useRef(0);
   const [browsing, setBrowsing] = useState(false);
   const browseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [resumeTick, setResumeTick] = useState(0);
   const scrollTween = useRef<(() => void) | null>(null);
   const idleMs = immersive ? 3000 : 3500;
+
+  // Imersif: posisi dihitung per frame lalu dipakai sbg translate3d, bukan scrollTop.
+  const motion = useRef<{
+    pos: Spring;
+    lines: Map<number, Spring>;
+    raf: number;
+    last: number;
+  }>({ pos: { cur: 0, target: 0, vel: 0 }, lines: new Map(), raf: 0, last: 0 });
+
+  const runSpring = useCallback((now: number) => {
+    const m = motion.current;
+    const dt = Math.min(0.032, Math.max(0.001, (now - (m.last || now)) / 1000));
+    m.last = now;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      m.pos.cur = m.pos.target;
+      m.pos.vel = 0;
+      if (trackRef.current) trackRef.current.style.transform = `translate3d(0, ${m.pos.cur}px, 0)`;
+      m.lines.forEach((_s, i) => {
+        const w = wraps.current[i];
+        if (w) w.style.transform = "";
+      });
+      m.lines.clear();
+      m.raf = 0;
+      return;
+    }
+    stepSpring(m.pos, dt);
+    if (trackRef.current) trackRef.current.style.transform = `translate3d(0, ${m.pos.cur}px, 0)`;
+    let alive = Math.abs(m.pos.cur - m.pos.target) > 0.1 || Math.abs(m.pos.vel) > 1;
+    m.lines.forEach((s, i) => {
+      if (s.delay && s.delay > 0) s.delay -= dt * 1000;
+      else stepSpring(s, dt, 190, 22);
+      const w = wraps.current[i];
+      if (w) w.style.transform = Math.abs(s.cur) > 0.1 ? `translate3d(0, ${s.cur}px, 0)` : "";
+      if (Math.abs(s.cur) > 0.1 || Math.abs(s.vel) > 1) alive = true;
+      else m.lines.delete(i);
+    });
+    if (alive) m.raf = requestAnimationFrame(runSpring);
+    else {
+      m.raf = 0;
+      m.last = 0;
+    }
+  }, []);
+
+  const startSpring = useCallback(() => {
+    const m = motion.current;
+    if (!m.raf) {
+      m.last = 0;
+      m.raf = requestAnimationFrame(runSpring);
+    }
+  }, [runSpring]);
 
   // Referensi stabil: baris di-memo tidak ikut re-render tiap tick player.
   const seekRef = useRef(p.seek);
@@ -188,10 +252,41 @@ export function LyricsPanel({ immersive = false }: { immersive?: boolean }) {
       if (immersive) setResumeTick((n) => n + 1); // balik ke baris aktif setelah idle
     }, idleMs);
   };
+
+  const browseBy = (dy: number) => {
+    userMoved();
+    if (!immersive) return; // layout lain tetap memakai scroll native
+    const sc = scrollRef.current;
+    const tr = trackRef.current;
+    if (!sc || !tr) return;
+    const m = motion.current;
+    m.lines.clear();
+    wraps.current.forEach((w) => {
+      if (w) w.style.transform = "";
+    });
+    const next = clamp(m.pos.target - dy, sc.clientHeight - tr.offsetHeight, 0);
+    m.pos.target = next;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      m.pos.cur = next;
+      m.pos.vel = 0;
+      tr.style.transform = `translate3d(0, ${next}px, 0)`;
+    } else startSpring();
+  };
+  const onTouchStart = (e: ReactTouchEvent) => {
+    touchY.current = e.touches[0]?.clientY ?? 0;
+    if (immersive) userMoved();
+  };
+  const onTouchMove = (e: ReactTouchEvent) => {
+    const y = e.touches[0]?.clientY ?? 0;
+    browseBy(y - touchY.current);
+    touchY.current = y;
+  };
+
   useEffect(
     () => () => {
       if (browseTimer.current) clearTimeout(browseTimer.current);
       scrollTween.current?.();
+      if (motion.current.raf) cancelAnimationFrame(motion.current.raf);
     },
     [],
   );
@@ -211,8 +306,9 @@ export function LyricsPanel({ immersive = false }: { immersive?: boolean }) {
    * each starting a beat after the one above it, so the lyrics ripple upward.
    * Never fights someone who is reading ahead.
    *
-   * Imersif memakai jalur terpisah: baris aktif di tengah, tween 560ms,
-   * dan auto-scroll lanjut lagi 3 detik setelah user berhenti scroll.
+   * Imersif memakai jalur terpisah: track digeser translate3d oleh spring
+   * (baris aktif di tengah, stagger ombak), dan lanjut lagi 3 detik setelah
+   * user berhenti scroll. Layout lain tetap memakai scrollTop + ripple lama.
    */
   useEffect(() => {
     const sc = scrollRef.current;
@@ -220,34 +316,47 @@ export function LyricsPanel({ immersive = false }: { immersive?: boolean }) {
     const prev = lastIdx.current;
     lastIdx.current = activeIdx;
     if (!sc || !el || activeIdx < 0) return;
-    if (Date.now() - lastUserScroll.current < idleMs) return;
-    const target = immersive
-      ? Math.max(0, el.offsetTop + el.offsetHeight / 2 - sc.clientHeight / 2)
-      : Math.max(0, el.offsetTop - sc.clientHeight * 0.32);
+    // Kurangi 100ms supaya timer idle 3000ms tidak kalah race dengan guard ini.
+    if (Date.now() - lastUserScroll.current < idleMs - 100) return;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     if (immersive) {
-      scrollTween.current?.();
-      const from = sc.scrollTop;
-      if (reduce || prev < 0 || Math.abs(target - from) > sc.clientHeight * 1.5) {
-        sc.scrollTop = target; // lompatan besar / first line / reduce motion
+      const tr = trackRef.current;
+      if (!tr) return;
+      const m = motion.current;
+      const target = clamp(
+        sc.clientHeight / 2 - (el.offsetTop + el.offsetHeight / 2),
+        sc.clientHeight - tr.offsetHeight,
+        0,
+      );
+      const delta = target - m.pos.target;
+      m.pos.target = target;
+      if (reduce || prev < 0 || Math.abs(delta) > sc.clientHeight * 1.2) {
+        m.pos.cur = target;
+        m.pos.vel = 0;
+        tr.style.transform = `translate3d(0, ${target}px, 0)`;
+        m.lines.clear();
+        wraps.current.forEach((w) => {
+          if (w) w.style.transform = "";
+        });
         return;
       }
-      const delta = target - from;
-      const t0 = performance.now();
-      let raf = 0;
-      const tick = (now: number) => {
-        const k = Math.min(1, (now - t0) / 560);
-        const eased = 1 - Math.pow(1 - k, 4); // cubic-bezier(0.22, 1, 0.36, 1)
-        sc.scrollTop = from + delta * eased;
-        if (k < 1) raf = requestAnimationFrame(tick);
-        else scrollTween.current = null;
-      };
-      raf = requestAnimationFrame(tick);
-      scrollTween.current = () => cancelAnimationFrame(raf);
-      return () => scrollTween.current?.();
+      // Ombak: baris sekitar aktif mulai di posisi lama lalu spring menyusul.
+      m.lines.clear();
+      const radius = 8;
+      for (let i = Math.max(0, activeIdx - radius); i <= Math.min(lines.length - 1, activeIdx + radius); i++) {
+        m.lines.set(i, {
+          cur: -delta,
+          target: 0,
+          vel: 0,
+          delay: Math.min(Math.abs(i - activeIdx), 8) * 40,
+        });
+      }
+      startSpring();
+      return;
     }
 
+    const target = Math.max(0, el.offsetTop - sc.clientHeight * 0.32);
     const delta = target - sc.scrollTop;
     if (Math.abs(delta) < 1) return;
     if (reduce || prev < 0 || Math.abs(delta) > sc.clientHeight * 1.2) {
@@ -280,6 +389,31 @@ export function LyricsPanel({ immersive = false }: { immersive?: boolean }) {
           ? "Mencari lirik…"
           : "Tidak ada lirik";
 
+  const list = !loading && lines.length > 0 && (
+    <div key={id ?? "x"} className={immersive ? "pt-[50dvh] pb-[46dvh]" : "pt-[10dvh] pb-[40dvh]"}>
+      {lines.map((l, i) => {
+        const active = i === activeIdx;
+        const dist = activeIdx < 0 ? 3 : Math.min(3, Math.abs(i - activeIdx));
+        const dur = Math.max(0.6, (lines[i + 1]?.time ?? l.time + 5) - l.time);
+        const prog = active ? Math.min(1, Math.max(0, (p.position - l.time) / dur) / 0.85) : 0;
+        return (
+          <LyricRow
+            key={i}
+            line={l}
+            index={i}
+            active={active}
+            dist={dist}
+            browsing={browsing}
+            prog={prog}
+            immersive={immersive}
+            wraps={wraps}
+            seek={seek}
+          />
+        );
+      })}
+    </div>
+  );
+
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
       {/* Imersif: judul/artis sudah ada di .im-card, keluar pakai .im-exit. */}
@@ -307,12 +441,13 @@ export function LyricsPanel({ immersive = false }: { immersive?: boolean }) {
 
       <div
         ref={scrollRef}
-        onWheel={userMoved}
-        onTouchMove={userMoved}
+        onWheel={(e) => browseBy(e.deltaY)}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
         data-browsing={immersive && browsing ? "1" : undefined}
         className={
           immersive
-            ? "im-lyrics-scroll relative min-h-0 flex-1 overflow-y-auto px-5"
+            ? "im-lyrics-scroll relative min-h-0 flex-1 overflow-hidden px-5"
             : "relative min-h-0 flex-1 overflow-y-auto px-5 [mask-image:linear-gradient(to_bottom,transparent,#000_6%,#000_90%,transparent)]"
         }
       >
@@ -326,30 +461,7 @@ export function LyricsPanel({ immersive = false }: { immersive?: boolean }) {
         {!loading && !data?.text && (
           <p className="mt-16 text-center text-[15px] text-label2">Lirik tidak tersedia untuk lagu ini.</p>
         )}
-        {!loading && lines.length > 0 && (
-          <div key={id ?? "x"} className={immersive ? "pt-[50dvh] pb-[46dvh]" : "pt-[10dvh] pb-[40dvh]"}>
-            {lines.map((l, i) => {
-              const active = i === activeIdx;
-              const dist = activeIdx < 0 ? 3 : Math.min(3, Math.abs(i - activeIdx));
-              const dur = Math.max(0.6, (lines[i + 1]?.time ?? l.time + 5) - l.time);
-              const prog = active ? Math.min(1, Math.max(0, (p.position - l.time) / dur) / 0.85) : 0;
-              return (
-                <LyricRow
-                  key={i}
-                  line={l}
-                  index={i}
-                  active={active}
-                  dist={dist}
-                  browsing={browsing}
-                  prog={prog}
-                  immersive={immersive}
-                  wraps={wraps}
-                  seek={seek}
-                />
-              );
-            })}
-          </div>
-        )}
+        {immersive ? <div ref={trackRef} className="im-lyrics-track relative">{list}</div> : list}
         {!loading && plain && (
           <div className="whitespace-pre-wrap py-8 pb-28 text-[18px] font-medium leading-8 text-label1">
             {plain.join("\n")}

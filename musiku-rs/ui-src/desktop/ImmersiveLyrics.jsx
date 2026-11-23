@@ -1,6 +1,6 @@
 // Mode lirik imersif — HANYA untuk bundle desktop (Windows/Linux).
 // Web/Android memakai stub di src/components/ImmersiveLyrics.tsx.
-import { useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import Hls from "hls.js";
 import { usePlayer } from "@/lib/player";
 import { LyricsPanel } from "@/components/LyricsPanel";
@@ -8,14 +8,15 @@ import { IconClose, IconEllipsis, IconMusic } from "@/components/Icons";
 import { TrackMenu } from "@/components/TrackMenu";
 import { AddToPlaylistMenu } from "@/components/TrackRow";
 import { AuroraBackground } from "@/components/AuroraBackground";
+import { ImmersiveProgressBar } from "./ImmersiveProgressBar";
 
 const EMPTY = { ready: false, motion: null, still: null };
 const reduced = () =>
   typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-export function ImmersiveLyrics({ onExit }) {
-  const p = usePlayer();
-  const t = p.current;
+// Stage di-memo: tick posisi player tidak me-render ulang artwork / HLS / aurora.
+const ImmersiveStage = memo(function ImmersiveStage({ track, onExit }) {
+  const t = track;
   const videoRef = useRef(null);
   const auroraRef = useRef(null);
   const [artState, setArtState] = useState({ trackKey: "", ...EMPTY });
@@ -139,36 +140,39 @@ export function ImmersiveLyrics({ onExit }) {
       <div className="im-scrim" aria-hidden="true" />
 
       <div className="im-body relative flex min-h-0 flex-1">
-        <div className="im-left relative flex min-w-0 basis-[44%] flex-col items-center justify-center px-10 pb-28 pt-16">
-          <div className="im-art aspect-square w-full max-w-[min(50dvh,460px)]">
-            {useMotion ? (
-              <video
-                ref={videoRef}
-                className="im-art-media"
-                width="460"
-                height="460"
-                poster={stillSrc}
-                muted
-                loop
-                playsInline
-                aria-label={`Motion Art ${t.title}`}
-              />
-            ) : stillSrc ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={stillSrc}
-                alt={`Sampul ${t.title}`}
-                className="im-art-media"
-                width="460"
-                height="460"
-                fetchPriority="high"
-                onError={() => setFailedSrc(stillSrc)}
-              />
-            ) : (
-              <div className="im-art-fallback">
-                <IconMusic className="h-1/3 w-1/3 text-label3" />
-              </div>
-            )}
+        <div className="im-left relative flex min-w-0 basis-[44%] flex-col items-center justify-center px-10 pb-32 pt-16">
+          <div className="im-art-wrap w-full max-w-[min(50dvh,460px)]">
+            <div className="im-art aspect-square w-full">
+              {useMotion ? (
+                <video
+                  ref={videoRef}
+                  className="im-art-media"
+                  width="460"
+                  height="460"
+                  poster={stillSrc}
+                  muted
+                  loop
+                  playsInline
+                  aria-label={`Motion Art ${t.title}`}
+                />
+              ) : stillSrc ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={stillSrc}
+                  alt={`Sampul ${t.title}`}
+                  className="im-art-media"
+                  width="460"
+                  height="460"
+                  fetchPriority="high"
+                  onError={() => setFailedSrc(stillSrc)}
+                />
+              ) : (
+                <div className="im-art-fallback">
+                  <IconMusic className="h-1/3 w-1/3 text-label3" />
+                </div>
+              )}
+            </div>
+            <ImmersiveProgressBar />
           </div>
         </div>
 
@@ -219,4 +223,12 @@ export function ImmersiveLyrics({ onExit }) {
       {addOpen && <AddToPlaylistMenu track={t} onClose={() => setAddOpen(false)} />}
     </div>
   );
+});
+
+export function ImmersiveLyrics({ onExit }) {
+  const p = usePlayer();
+  const onExitRef = useRef(onExit);
+  onExitRef.current = onExit;
+  const stableExit = useCallback(() => onExitRef.current?.(), []);
+  return <ImmersiveStage track={p.current} onExit={stableExit} />;
 }
