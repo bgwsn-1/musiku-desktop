@@ -54,6 +54,14 @@ const LYRIC_MOTION = {
   snapVel: 24,
 };
 
+// Kontras lirik imersif: baris jauh makin redup, baris aktif putih penuh.
+const LYRIC_TONE = {
+  /** Opacity baris non-aktif untuk jarak 1, 2, dan 3+ dari baris aktif. */
+  rest: [0.4, 0.32, 0.24],
+  /** Saat user scroll manual, semua baris dinaikkan agar tetap terbaca. */
+  browsing: 0.8,
+};
+
 type Spring = { cur: number; target: number; vel: number; delay?: number };
 
 function stepSpring(s: Spring, dt: number, k: number, c: number) {
@@ -120,7 +128,13 @@ const LyricRow = memo(function LyricRow({
         }
         style={
           immersive
-            ? undefined
+            ? {
+                opacity: active
+                  ? 1
+                  : browsing
+                    ? LYRIC_TONE.browsing
+                    : LYRIC_TONE.rest[Math.min(dist, 3) - 1],
+              }
             : {
                 opacity: active ? 1 : browsing ? 0.78 : [0.52, 0.4, 0.3][dist - 1],
                 filter: active || browsing ? "none" : `blur(${[0.5, 1.2, 2][dist - 1]}px)`,

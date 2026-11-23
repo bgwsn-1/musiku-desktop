@@ -23,11 +23,18 @@ export interface AuroraHandle {
   setCover: (url: string | null | undefined) => void;
 }
 
-export const AuroraBackground = forwardRef<AuroraHandle>(
-  function AuroraBackground(_props, ref) {
+export interface AuroraProps {
+  /** Dipanggil setelah palet baru terpasang (mis. untuk shadow cover). */
+  onColors?: (colors: string[]) => void;
+}
+
+export const AuroraBackground = forwardRef<AuroraHandle, AuroraProps>(
+  function AuroraBackground({ onColors }, ref) {
     const root = useRef<HTMLDivElement | null>(null);
     const currentUrl = useRef<string | null | undefined>(null);
     const seq = useRef(0);
+    const onColorsRef = useRef(onColors);
+    onColorsRef.current = onColors;
 
     const apply = async (url: string | null | undefined, id: number) => {
       const el = root.current;
@@ -37,6 +44,7 @@ export const AuroraBackground = forwardRef<AuroraHandle>(
       for (let i = 0; i < 4; i++) {
         el.style.setProperty(`--c${i + 1}`, colors[i] ?? AURORA_FALLBACK[i]);
       }
+      onColorsRef.current?.(colors);
     };
 
     useImperativeHandle(ref, () => ({

@@ -1218,7 +1218,10 @@ textarea:focus-visible {
   overflow: hidden;
   border-radius: 14px;
   background: #111114;
-  box-shadow: 0 24px 72px rgba(0, 0, 0, 0.32);
+  /* Glow dari warna dominan palet aurora; hitam cuma kontak tipis. */
+  box-shadow:
+    0 30px 100px -24px var(--im-glow, rgba(43, 47, 74, 0.35)),
+    0 12px 30px -18px rgba(0, 0, 0, 0.55);
   isolation: isolate;
 }
 .im-art-media {
@@ -1287,6 +1290,50 @@ textarea:focus-visible {
   .im-progress-track,
   .im-progress-thumb { transition: none; }
 }
+
+/* Judul + artis + badge + menu, selebar cover. */
+.im-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+.im-meta:focus-within { outline: none; }
+
+/* Kontrol player di bawah progress bar. */
+.im-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  margin-top: 1.25rem;
+}
+.im-ctl {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  color: #fff;
+  cursor: pointer;
+  transition: background-color 0.18s ease, transform 0.18s ease;
+}
+.im-ctl:hover { background: rgba(255, 255, 255, 0.14); }
+.im-ctl:active { transform: scale(0.94); }
+.im-ctl:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+.im-ctl-primary {
+  width: 56px;
+  height: 56px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #101014;
+  box-shadow: 0 8px 24px -10px rgba(0, 0, 0, 0.6);
+}
+.im-ctl-primary:hover { background: #fff; }
+@media (prefers-reduced-motion: reduce) {
+  .im-ctl { transition: none; }
+}
 .im-root .im-right { min-width: 320px; }
 .im-lyrics { --label-1: #fff; min-width: 0; }
 
@@ -1327,11 +1374,9 @@ textarea:focus-visible {
   text-wrap: pretty;
   /* Tanpa panel gelap: shadow tipis menjaga kontras di atas aurora. */
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7), 0 2px 16px rgba(0, 0, 0, 0.4);
-  /* --dist: 0 aktif, 1/2/3 makin jauh. max() bikin transisi diskrit tetap presisi. */
+  /* --dist: 0 aktif, 1/2/3 makin jauh. Opacity diatur di LYRIC_TONE. */
   --d1: max(0, calc(var(--dist, 0) - 1));
-  --d2: max(0, calc(var(--dist, 0) - 2));
-  opacity: max(0.2, calc(1 - var(--dist, 0) * 0.45 + var(--d1) * 0.25 + var(--d2) * 0.05));
-  /* Blur hanya 2 baris terdekat (0.5px / 1.5px); jarak 3+ cuma opacity. */
+  /* Blur hanya 2 baris terdekat (0.5px / 1.5px); jarak 3+ tanpa blur. */
   filter: blur(
     calc(
       clamp(0, calc(3 - var(--dist, 0)), 1) *
@@ -1359,7 +1404,6 @@ textarea:focus-visible {
 .im-lyrics .im-lyric-line[data-interlude="1"] { min-height: 1.6em; }
 .im-lyrics .im-lyric-word { transition: opacity 0.4s ease; }
 .im-lyrics .im-lyrics-scroll[data-browsing="1"] .im-lyric-line {
-  opacity: 0.78;
   filter: none;
   transform: none;
 }
@@ -1408,23 +1452,6 @@ textarea:focus-visible {
   .im-lyrics .im-dots.on i { animation: none; }
 }
 
-.im-card {
-  position: absolute;
-  left: 2rem;
-  bottom: 2rem;
-  z-index: 3;
-  display: flex;
-  align-items: center;
-  gap: 0.85rem;
-  width: min(420px, calc(100% - 4rem));
-  padding: 1rem 1.1rem;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 22px;
-  background: rgba(28, 28, 32, 0.42);
-  -webkit-backdrop-filter: blur(28px) saturate(1.8);
-  backdrop-filter: blur(28px) saturate(1.8);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 18px 44px -18px rgba(0, 0, 0, 0.7);
-}
 .im-badge {
   flex: none;
   padding: 4px 8px;
@@ -1460,16 +1487,7 @@ textarea:focus-visible {
   z-index: 4;
 }
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
-  .im-card {
-    background: var(--surface-solid);
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-    border-color: var(--label-3);
-  }
   .im-badge { background: var(--fill-2); }
-}
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .im-card { background: rgba(20, 20, 24, 0.94); }
 }
 @media (prefers-reduced-motion: reduce) {
   .liquid-a,

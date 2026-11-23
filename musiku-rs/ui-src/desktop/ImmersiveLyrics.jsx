@@ -8,11 +8,22 @@ import { IconClose, IconEllipsis, IconMusic } from "@/components/Icons";
 import { TrackMenu } from "@/components/TrackMenu";
 import { AddToPlaylistMenu } from "@/components/TrackRow";
 import { AuroraBackground } from "@/components/AuroraBackground";
+import { AURORA_FALLBACK } from "@/lib/aurora-palette";
 import { ImmersiveProgressBar } from "./ImmersiveProgressBar";
+import { ImmersiveControls } from "./ImmersiveControls";
 
 const EMPTY = { ready: false, motion: null, still: null };
 const reduced = () =>
   typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// Shadow cover memakai warna dominan palet aurora (alpha ~0.35), bukan hitam.
+const GLOW_ALPHA = 0.35;
+const hexToRgba = (hex, alpha) => {
+  const m = /^#([0-9a-f]{6})$/i.exec(hex || "");
+  if (!m) return `rgba(43, 47, 74, ${alpha})`;
+  const n = parseInt(m[1], 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+};
 
 // Stage di-memo: tick posisi player tidak me-render ulang artwork / HLS / aurora.
 const ImmersiveStage = memo(function ImmersiveStage({ track, onExit }) {
@@ -27,6 +38,7 @@ const ImmersiveStage = memo(function ImmersiveStage({ track, onExit }) {
   );
   const [ctx, setCtx] = useState(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [palette, setPalette] = useState(AURORA_FALLBACK);
 
   const trackKey = t ? `${t.videoId}|${t.title || ""}|${t.artist || ""}` : "";
   const activeTrackKey = useRef(trackKey);
@@ -136,12 +148,15 @@ const ImmersiveStage = memo(function ImmersiveStage({ track, onExit }) {
       aria-label="Lirik imersif"
       className="im-root force-dark dialog-in fixed inset-0 z-[70] hidden overflow-hidden bg-window lg:flex"
     >
-      <AuroraBackground ref={auroraRef} />
+      <AuroraBackground ref={auroraRef} onColors={setPalette} />
       <div className="im-scrim" aria-hidden="true" />
 
       <div className="im-body relative flex min-h-0 flex-1">
-        <div className="im-left relative flex min-w-0 basis-[44%] flex-col items-center justify-center px-10 pb-32 pt-16">
-          <div className="im-art-wrap w-full max-w-[min(50dvh,460px)]">
+        <div className="im-left relative flex min-w-0 basis-[44%] flex-col items-center justify-center px-10 py-10">
+          <div
+            className="im-art-wrap w-full max-w-[min(50dvh,440px)]"
+            style={{ "--im-glow": hexToRgba(palette[0], GLOW_ALPHA) }}
+          >
             <div className="im-art aspect-square w-full">
               {useMotion ? (
                 <video
@@ -172,7 +187,35 @@ const ImmersiveStage = memo(function ImmersiveStage({ track, onExit }) {
                 </div>
               )}
             </div>
+
             <ImmersiveProgressBar />
+
+            <div className="im-meta">
+              <div className="min-w-0 flex-1">
+                <h2 className="truncate text-[22px] font-bold leading-tight tracking-[-0.02em] text-white">
+                  {t.title}
+                </h2>
+                {t.artist && (
+                  <p className="truncate text-[14px] leading-tight text-white/55">{t.artist}</p>
+                )}
+              </div>
+              <span className="im-badge" title="Audio dari YouTube Music (AAC/Opus)">
+                LOSSY
+              </span>
+              <button
+                onClick={(e) => {
+                  const r = e.currentTarget.getBoundingClientRect();
+                  setCtx({ x: r.right, y: r.bottom + 4, end: true });
+                }}
+                className="im-more glass-btn"
+                aria-haspopup="menu"
+                aria-label="Opsi lainnya"
+              >
+                <IconEllipsis className="h-[20px] w-[20px]" />
+              </button>
+            </div>
+
+            <ImmersiveControls />
           </div>
         </div>
 
@@ -191,31 +234,6 @@ const ImmersiveStage = memo(function ImmersiveStage({ track, onExit }) {
       >
         <IconClose className="h-5 w-5" />
       </button>
-
-      <div className="im-card">
-        <div className="min-w-0 flex-1">
-          <h2 className="truncate text-[22px] font-bold leading-tight tracking-[-0.02em] text-white">
-            {t.title}
-          </h2>
-          {t.artist && (
-            <p className="truncate text-[14px] leading-tight text-white/55">{t.artist}</p>
-          )}
-        </div>
-        <span className="im-badge" title="Audio dari YouTube Music (AAC/Opus)">
-          LOSSY
-        </span>
-        <button
-          onClick={(e) => {
-            const r = e.currentTarget.getBoundingClientRect();
-            setCtx({ x: r.right, y: r.bottom + 4, end: true });
-          }}
-          className="im-more glass-btn"
-          aria-haspopup="menu"
-          aria-label="Opsi lainnya"
-        >
-          <IconEllipsis className="h-[20px] w-[20px]" />
-        </button>
-      </div>
 
       {ctx && (
         <TrackMenu track={t} anchor={ctx} onClose={() => setCtx(null)} onAddToPlaylist={() => setAddOpen(true)} />

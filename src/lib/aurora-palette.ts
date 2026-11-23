@@ -3,6 +3,14 @@
 
 export const AURORA_FALLBACK = ["#2b2f4a", "#3a2a55", "#1f3a4d", "#402a3a"];
 
+// Cover abu-abu tetap terasa berwarna, tapi cover colorful tidak jadi neon.
+const SAT_BOOST = 1.4;
+const LIGHT_LIFT = 0.05;
+const SAT_MIN = 0.2;
+const SAT_MAX = 0.82;
+const LIGHT_MIN = 0.12;
+const LIGHT_MAX = 0.7;
+
 const SIZE = 48;
 const cache = new Map<string, string[]>();
 
@@ -26,9 +34,55 @@ const dist = (a: RGB, b: RGB): number =>
 const isUsable = (c: RGB): boolean => {
   const l = lum(c.r, c.g, c.b);
   if (l < 0.07 || l > 0.93) return false; // terlalu gelap / putih
-  if (sat(c.r, c.g, c.b) < 0.1) return false; // abu
+  if (sat(c.r, c.g, c.b) < 0.06) return false; // abu murni
   return true;
 };
+
+/** Naikkan saturasi & lightness sedikit, dengan clamp supaya tidak neon. */
+function enrich(c: RGB): string {
+  const [h, s, l] = rgbToHsl(c.r, c.g, c.b);
+  const outS = Math.min(SAT_MAX, Math.max(SAT_MIN, s * SAT_BOOST));
+  const outL = Math.min(LIGHT_MAX, Math.max(LIGHT_MIN, l + LIGHT_LIFT));
+  return hslToHex(h, outS, outL);
+}
+
+function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
+  const rn = r / 255;
+  const gn = g / 255;
+  const bn = b / 255;
+  const mx = Math.max(rn, gn, bn);
+  const mn = Math.min(rn, gn, bn);
+  const l = (mx + mn) / 2;
+  if (mx === mn) return [0, 0, l];
+  const d = mx - mn;
+  const s = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
+  const h =
+    mx === rn
+      ? ((gn - bn) / d + (gn < bn ? 6 : 0)) / 6
+      : mx === gn
+        ? ((bn - rn) / d + 2) / 6
+        : ((rn - gn) / d + 4) / 6;
+  return [h, s, l];
+}
+
+function hslToHex(h: number, s: number, l: number): string {
+  if (s <= 0) {
+    const v = Math.round(l * 255);
+    return toHex(v, v, v);
+  }
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+  const p = 2 * l - q;
+  const channel = (t: number): number => {
+    let x = t;
+    if (x < 0) x += 1;
+    if (x > 1) x -= 1;
+    if (x < 1 / 6) return p + (q - p) * 6 * x;
+    if (x < 1 / 2) return q;
+    if (x < 2 / 3) return p + (q - p) * (2 / 3 - x) * 6;
+    return p;
+  };
+  return toHex(channel(h + 1 / 3) * 255, channel(h) * 255, channel(h - 1 / 3) * 255);
+}
 
 /**
  * Ambil 4 warna dominan yang saling jauh. Kalau gambar gagal dimuat /
@@ -117,7 +171,7 @@ function pickColors(buckets: RGB[] | null): string[] {
     }
   }
   // Sisa warna diisi dari fallback (bukan duplikat) supaya 4 blob tetap beda.
-  const out = picked.slice(0, 4).map((c) => toHex(c.r, c.g, c.b));
+  const out = picked.slice(0, 4).map(enrich);
   while (out.length < 4) out.push(AURORA_FALLBACK[out.length]);
   return out;
 }
