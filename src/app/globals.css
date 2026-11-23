@@ -1268,6 +1268,115 @@ textarea:focus-visible {
 .im-lyrics button[aria-label="Tutup lirik"] {
   display: none; /* keluar mode imersif memakai tombol di kanan atas */
 }
+
+/* ─── Lirik sinkron imersif (scope ketat: .im-lyrics) ───────────────────
+   Komponen LyricsPanel dipakai juga di panel kanan; semua aturan di bawah
+   hanya aktif lewat prop immersive → class .im-lyrics-* / atribut .im-lyrics. */
+.im-lyrics .im-lyrics-scroll {
+  --fade-y: linear-gradient(to bottom, transparent 0, #000 8%, #000 88%, transparent 100%);
+  --fade-x: linear-gradient(to right, transparent 0, #000 5%, #000 100%);
+  -webkit-mask-image: var(--fade-x), var(--fade-y);
+  -webkit-mask-composite: source-in;
+  mask-image: var(--fade-x), var(--fade-y);
+  mask-composite: intersect;
+  padding-right: 1.75rem;
+  scrollbar-width: none;
+}
+.im-lyrics .im-lyrics-scroll::-webkit-scrollbar { display: none; }
+.im-lyrics .im-lyric-in { animation-duration: 0.55s; }
+.im-lyrics .im-lyric-in[data-far="1"] {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 1.9em;
+}
+
+.im-lyrics .im-lyric-line {
+  display: block;
+  width: 100%;
+  transform-origin: left center;
+  padding: 0.45rem 1.5rem 0.45rem 0.5rem;
+  border-radius: 14px;
+  color: #fff;
+  font-size: clamp(26px, 2.7vw, 40px);
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: -0.02em;
+  text-align: left;
+  text-wrap: pretty;
+  /* --dist: 0 aktif, 1/2/3 makin jauh. max() bikin transisi diskrit tetap presisi. */
+  --d1: max(0, calc(var(--dist, 0) - 1));
+  --d2: max(0, calc(var(--dist, 0) - 2));
+  opacity: max(0.2, calc(1 - var(--dist, 0) * 0.45 + var(--d1) * 0.25 + var(--d2) * 0.05));
+  /* Blur hanya 2 baris terdekat (0.5px / 1.5px); jarak 3+ cuma opacity. */
+  filter: blur(
+    calc(
+      clamp(0, calc(3 - var(--dist, 0)), 1) *
+        (min(1, var(--dist, 0)) * 0.5px + min(1, var(--d1)) * 1px)
+    )
+  );
+  transform: scale(calc(1.05 - min(1, var(--dist, 0)) * 0.05));
+  transition:
+    opacity 0.4s ease,
+    filter 0.4s ease,
+    transform 0.4s ease,
+    text-shadow 0.4s ease;
+}
+.im-lyrics .im-lyric-line[aria-current="true"] {
+  font-weight: 800;
+  color: #fff;
+  text-shadow: 0 0 16px rgba(255, 255, 255, 0.3), 0 0 40px rgba(170, 195, 255, 0.18);
+}
+.im-lyrics .im-lyric-line[data-interlude="1"] { min-height: 1.6em; }
+.im-lyrics .im-lyric-word { transition: opacity 0.4s ease; }
+.im-lyrics .im-lyrics-scroll[data-browsing="1"] .im-lyric-line {
+  opacity: 0.78;
+  filter: none;
+  transform: none;
+}
+
+/* Interlude: 3 titik menyala berurutan, bernapas, collapse saat baris berganti. */
+.im-lyrics .im-dots {
+  height: auto;
+  max-height: 34px;
+  opacity: 1;
+  overflow: hidden;
+  vertical-align: middle;
+  transition: max-height 0.4s ease, opacity 0.4s ease;
+}
+.im-lyrics .im-dots:not(.on) { max-height: 0; opacity: 0; }
+.im-lyrics .im-dots i {
+  width: 12px;
+  height: 12px;
+  background: currentColor;
+  opacity: calc(0.28 + var(--on, 0) * 0.72);
+  transform: scale(calc(0.82 + var(--on, 0) * 0.3));
+}
+.im-lyrics .im-dots i:nth-child(1) { --on: clamp(0, calc(var(--p, 0) * 3), 1); }
+.im-lyrics .im-dots i:nth-child(2) { --on: clamp(0, calc(var(--p, 0) * 3 - 1), 1); }
+.im-lyrics .im-dots i:nth-child(3) { --on: clamp(0, calc(var(--p, 0) * 3 - 2), 1); }
+.im-lyrics .im-dots.on i {
+  animation: im-dot-breathe 1.5s ease-in-out infinite;
+  animation-delay: calc(var(--i, 0) * 170ms);
+}
+@keyframes im-dot-breathe {
+  0%, 100% {
+    opacity: calc(0.28 + var(--on, 0) * 0.62);
+    transform: scale(calc(0.82 + var(--on, 0) * 0.26));
+  }
+  50% {
+    opacity: calc(0.5 + var(--on, 0) * 0.5);
+    transform: scale(calc(1 + var(--on, 0) * 0.34));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .im-lyrics .im-lyric-line {
+    transform: none !important;
+    filter: none !important;
+    transition: opacity 0.2s linear;
+  }
+  .im-lyrics .im-lyric-in,
+  .im-lyrics .im-dots.on i { animation: none; }
+}
+
 .im-card {
   position: absolute;
   left: 2rem;

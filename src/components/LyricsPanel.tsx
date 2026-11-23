@@ -3,7 +3,15 @@
 import { usePlayer } from "@/lib/player";
 import { IconClose } from "@/components/Icons";
 import { Artwork } from "@/components/Artwork";
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import type { Lyrics as LyricsData } from "@/lib/types";
 
 type LrcLine = { time: number; text: string };
@@ -22,7 +30,116 @@ export function parseLrc(raw: string): LrcLine[] {
   return out.sort((a, b) => a.time - b.time);
 }
 
-export function LyricsPanel() {
+type RowProps = {
+  line: LrcLine;
+  index: number;
+  active: boolean;
+  dist: number;
+  browsing: boolean;
+  prog: number;
+  immersive: boolean;
+  wraps: { current: (HTMLDivElement | null)[] };
+  seek: (time: number) => void;
+};
+
+// Baris di-memo: tick player cuma me-render baris aktif, bukan seluruh lirik.
+const LyricRow = memo(function LyricRow({
+  line,
+  index,
+  active,
+  dist,
+  browsing,
+  prog,
+  immersive,
+  wraps,
+  seek,
+}: RowProps) {
+  const words = line.text ? line.text.split(/\s+/) : [];
+  const total = words.reduce((n, w) => n + w.length + 1, 0) || 1;
+  let acc = 0;
+  return (
+    <div
+      ref={(el) => {
+        wraps.current[index] = el;
+      }}
+      className={immersive ? "lyric-in im-lyric-in" : "lyric-in will-change-transform"}
+      data-far={immersive && dist >= 3 ? "1" : undefined}
+      style={
+        immersive
+          ? ({
+              "--dist": dist,
+              willChange: dist <= 1 ? "transform, opacity, filter" : undefined,
+            } as CSSProperties)
+          : { animationDelay: `${Math.min(index, 10) * 45}ms` }
+      }
+    >
+      <button
+        onClick={() => seek(line.time)}
+        aria-current={active ? "true" : undefined}
+        aria-label={line.text ? undefined : "Jeda instrumental"}
+        data-im={immersive ? "1" : undefined}
+        data-interlude={!line.text ? "1" : undefined}
+        className={
+          immersive
+            ? "im-lyric-line"
+            : "block w-full origin-left rounded-xl px-2 py-2 text-left text-[28px] font-bold leading-[1.18] tracking-[-0.02em] text-label1 [@media(hover:hover)]:hover:!opacity-90 [@media(hover:hover)]:hover:![filter:none]"
+        }
+        style={
+          immersive
+            ? undefined
+            : {
+                opacity: active ? 1 : browsing ? 0.78 : [0.52, 0.4, 0.3][dist - 1],
+                filter: active || browsing ? "none" : `blur(${[0.5, 1.2, 2][dist - 1]}px)`,
+                transform: `scale(${active ? 1 : 0.92})`,
+                transition:
+                  "opacity 0.6s ease, filter 0.6s ease, transform 0.7s cubic-bezier(0.22, 1, 0.36, 1)",
+              }
+        }
+      >
+        {line.text ? (
+          active ? (
+            words.map((w, k) => {
+              const start = acc / total;
+              acc += w.length + 1;
+              const lit = prog >= start;
+              return (
+                <span
+                  key={k}
+                  className={immersive ? "im-lyric-word" : "transition-opacity duration-500 ease-out"}
+                  style={{ opacity: lit ? 1 : 0.42 }}
+                >
+                  {w}
+                  {k < words.length - 1 ? " " : ""}
+                </span>
+              );
+            })
+          ) : (
+            line.text
+          )
+        ) : (
+          <span
+            className={`lyric-dots ${active ? "on" : ""}${immersive ? " im-dots" : ""}`}
+            aria-hidden="true"
+            style={immersive && active ? ({ "--p": prog } as CSSProperties) : undefined}
+          >
+            {[0, 1, 2].map((d) => (
+              <i
+                key={d}
+                style={
+                  immersive
+                    ? ({ "--i": d } as CSSProperties)
+                    : { opacity: active ? (prog * 3 > d ? 1 : 0.35) : 0.6 }
+                }
+              />
+            ))}
+          </span>
+        )}
+      </button>
+    </div>
+  );
+});
+
+export function LyricsPanel({ immersive = false }: { immersive?: boolean }) {
   const p = usePlayer();
   const t = p.current;
   const id = t?.videoId ?? null;
@@ -52,16 +169,29 @@ export function LyricsPanel() {
   const lastUserScroll = useRef(0);
   const [browsing, setBrowsing] = useState(false);
   const browseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [resumeTick, setResumeTick] = useState(0);
+  const scrollTween = useRef<(() => void) | null>(null);
+  const idleMs = immersive ? 3000 : 3500;
+
+  // Referensi stabil: baris di-memo tidak ikut re-render tiap tick player.
+  const seekRef = useRef(p.seek);
+  seekRef.current = p.seek;
+  const seek = useCallback((time: number) => seekRef.current(time), []);
 
   const userMoved = () => {
     lastUserScroll.current = Date.now();
+    scrollTween.current?.();
     setBrowsing(true);
     if (browseTimer.current) clearTimeout(browseTimer.current);
-    browseTimer.current = setTimeout(() => setBrowsing(false), 3500);
+    browseTimer.current = setTimeout(() => {
+      setBrowsing(false);
+      if (immersive) setResumeTick((n) => n + 1); // balik ke baris aktif setelah idle
+    }, idleMs);
   };
   useEffect(
     () => () => {
       if (browseTimer.current) clearTimeout(browseTimer.current);
+      scrollTween.current?.();
     },
     [],
   );
@@ -80,6 +210,9 @@ export function LyricsPanel() {
    * new target at once, then every line eases from its old spot to the new one,
    * each starting a beat after the one above it, so the lyrics ripple upward.
    * Never fights someone who is reading ahead.
+   *
+   * Imersif memakai jalur terpisah: baris aktif di tengah, tween 560ms,
+   * dan auto-scroll lanjut lagi 3 detik setelah user berhenti scroll.
    */
   useEffect(() => {
     const sc = scrollRef.current;
@@ -87,11 +220,36 @@ export function LyricsPanel() {
     const prev = lastIdx.current;
     lastIdx.current = activeIdx;
     if (!sc || !el || activeIdx < 0) return;
-    if (Date.now() - lastUserScroll.current < 3500) return;
-    const target = Math.max(0, el.offsetTop - sc.clientHeight * 0.32);
+    if (Date.now() - lastUserScroll.current < idleMs) return;
+    const target = immersive
+      ? Math.max(0, el.offsetTop + el.offsetHeight / 2 - sc.clientHeight / 2)
+      : Math.max(0, el.offsetTop - sc.clientHeight * 0.32);
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    if (immersive) {
+      scrollTween.current?.();
+      const from = sc.scrollTop;
+      if (reduce || prev < 0 || Math.abs(target - from) > sc.clientHeight * 1.5) {
+        sc.scrollTop = target; // lompatan besar / first line / reduce motion
+        return;
+      }
+      const delta = target - from;
+      const t0 = performance.now();
+      let raf = 0;
+      const tick = (now: number) => {
+        const k = Math.min(1, (now - t0) / 560);
+        const eased = 1 - Math.pow(1 - k, 4); // cubic-bezier(0.22, 1, 0.36, 1)
+        sc.scrollTop = from + delta * eased;
+        if (k < 1) raf = requestAnimationFrame(tick);
+        else scrollTween.current = null;
+      };
+      raf = requestAnimationFrame(tick);
+      scrollTween.current = () => cancelAnimationFrame(raf);
+      return () => scrollTween.current?.();
+    }
+
     const delta = target - sc.scrollTop;
     if (Math.abs(delta) < 1) return;
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduce || prev < 0 || Math.abs(delta) > sc.clientHeight * 1.2) {
       sc.scrollTo({ top: target, behavior: "auto" });
       return;
@@ -110,7 +268,7 @@ export function LyricsPanel() {
       w.style.transition = `transform 680ms cubic-bezier(0.22, 1, 0.36, 1) ${Math.min(after, 8) * 48}ms`;
       w.style.transform = "";
     });
-  }, [activeIdx]);
+  }, [activeIdx, immersive, idleMs, resumeTick]);
 
   const plain = !data?.synced && data?.text ? data.text.split(/\r?\n/) : null;
   const status =
@@ -148,7 +306,12 @@ export function LyricsPanel() {
         ref={scrollRef}
         onWheel={userMoved}
         onTouchMove={userMoved}
-        className="relative min-h-0 flex-1 overflow-y-auto px-5 [mask-image:linear-gradient(to_bottom,transparent,#000_6%,#000_90%,transparent)]"
+        data-browsing={immersive && browsing ? "1" : undefined}
+        className={
+          immersive
+            ? "im-lyrics-scroll relative min-h-0 flex-1 overflow-y-auto px-5"
+            : "relative min-h-0 flex-1 overflow-y-auto px-5 [mask-image:linear-gradient(to_bottom,transparent,#000_6%,#000_90%,transparent)]"
+        }
       >
         {loading && (
           <div className="animate-pulse space-y-4 py-8" aria-hidden="true">
@@ -161,66 +324,25 @@ export function LyricsPanel() {
           <p className="mt-16 text-center text-[15px] text-label2">Lirik tidak tersedia untuk lagu ini.</p>
         )}
         {!loading && lines.length > 0 && (
-          <div key={id ?? "x"} className="pt-[10dvh] pb-[40dvh]">
+          <div key={id ?? "x"} className={immersive ? "pt-[46dvh] pb-[46dvh]" : "pt-[10dvh] pb-[40dvh]"}>
             {lines.map((l, i) => {
               const active = i === activeIdx;
               const dist = activeIdx < 0 ? 3 : Math.min(3, Math.abs(i - activeIdx));
               const dur = Math.max(0.6, (lines[i + 1]?.time ?? l.time + 5) - l.time);
               const prog = active ? Math.min(1, Math.max(0, (p.position - l.time) / dur) / 0.85) : 0;
-              const words = l.text ? l.text.split(/\s+/) : [];
-              const total = words.reduce((n, w) => n + w.length + 1, 0) || 1;
-              let acc = 0;
               return (
-                <div
+                <LyricRow
                   key={i}
-                  ref={(el) => {
-                    wraps.current[i] = el;
-                  }}
-                  className="lyric-in will-change-transform"
-                  style={{ animationDelay: `${Math.min(i, 10) * 45}ms` }}
-                >
-                  <button
-                    onClick={() => p.seek(l.time)}
-                    aria-current={active ? "true" : undefined}
-                    aria-label={l.text ? undefined : "Jeda instrumental"}
-                    className="block w-full origin-left rounded-xl px-2 py-2 text-left text-[28px] font-bold leading-[1.18] tracking-[-0.02em] text-label1 [@media(hover:hover)]:hover:!opacity-90 [@media(hover:hover)]:hover:![filter:none]"
-                    style={{
-                      opacity: active ? 1 : browsing ? 0.78 : [0.52, 0.4, 0.3][dist - 1],
-                      filter: active || browsing ? "none" : `blur(${[0.5, 1.2, 2][dist - 1]}px)`,
-                      transform: `scale(${active ? 1 : 0.92})`,
-                      transition:
-                        "opacity 0.6s ease, filter 0.6s ease, transform 0.7s cubic-bezier(0.22, 1, 0.36, 1)",
-                    }}
-                  >
-                    {l.text ? (
-                      active ? (
-                        words.map((w, k) => {
-                          const start = acc / total;
-                          acc += w.length + 1;
-                          const lit = prog >= start;
-                          return (
-                            <span
-                              key={k}
-                              className="transition-opacity duration-500 ease-out"
-                              style={{ opacity: lit ? 1 : 0.42 }}
-                            >
-                              {w}
-                              {k < words.length - 1 ? " " : ""}
-                            </span>
-                          );
-                        })
-                      ) : (
-                        l.text
-                      )
-                    ) : (
-                      <span className={`lyric-dots ${active ? "on" : ""}`} aria-hidden="true">
-                        {[0, 1, 2].map((d) => (
-                          <i key={d} style={{ opacity: active ? (prog * 3 > d ? 1 : 0.35) : 0.6 }} />
-                        ))}
-                      </span>
-                    )}
-                  </button>
-                </div>
+                  line={l}
+                  index={i}
+                  active={active}
+                  dist={dist}
+                  browsing={browsing}
+                  prog={prog}
+                  immersive={immersive}
+                  wraps={wraps}
+                  seek={seek}
+                />
               );
             })}
           </div>
