@@ -1119,32 +1119,91 @@ textarea:focus-visible {
 /* ─── Immersive lyrics (klien desktop; tidak dipakai web/Android) ───────
    Warna dan blur diambil dari artwork; scrim gelap menjaga lirik tetap terbaca. */
 .im-root { --ambient-opacity: 1; background: #09090b; }
-.im-ambient {
+/* Latar aurora immersive: 4 blob radial-gradient (tanpa blur filter) */
+@property --c1 { syntax: "<color>"; inherits: false; initial-value: #2b2f4a; }
+@property --c2 { syntax: "<color>"; inherits: false; initial-value: #3a2a55; }
+@property --c3 { syntax: "<color>"; inherits: false; initial-value: #1f3a4d; }
+@property --c4 { syntax: "<color>"; inherits: false; initial-value: #402a3a; }
+
+.aurora {
   position: absolute;
   inset: 0;
   z-index: 0;
   overflow: hidden;
   pointer-events: none;
   background: #09090b;
+  --c1: #2b2f4a;
+  --c2: #3a2a55;
+  --c3: #1f3a4d;
+  --c4: #402a3a;
+  transition:
+    --c1 1.5s ease,
+    --c2 1.5s ease,
+    --c3 1.5s ease,
+    --c4 1.5s ease;
 }
-.im-scene { position: absolute; inset: 0; }
-.im-scene-new { animation: imSceneIn 0.8s ease both; }
-.im-scene-old { animation: imSceneOut 0.8s ease both; }
-@keyframes imSceneIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-@keyframes imSceneOut {
-  from { opacity: 1; }
-  to { opacity: 0; }
-}
-.im-atmosphere {
+.aurora-blob {
   position: absolute;
-  inset: -4%;
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: cover;
-  transform: scale(1.08);
+  width: 70vmax;
+  height: 70vmax;
+  border-radius: 50%;
+  mix-blend-mode: screen;
+  opacity: 0.7;
+  will-change: transform;
+}
+.aurora-b1 {
+  left: -18vmax;
+  top: -16vmax;
+  background: radial-gradient(circle at 50% 50%, var(--c1) 0%, transparent 68%);
+  animation: aurora-a 34s ease-in-out infinite alternate;
+  animation-delay: -6s;
+}
+.aurora-b2 {
+  right: -20vmax;
+  top: -12vmax;
+  background: radial-gradient(circle at 50% 50%, var(--c2) 0%, transparent 66%);
+  animation: aurora-b 28s ease-in-out infinite alternate;
+  animation-delay: -13s;
+}
+.aurora-b3 {
+  left: -14vmax;
+  bottom: -22vmax;
+  background: radial-gradient(circle at 50% 50%, var(--c3) 0%, transparent 68%);
+  animation: aurora-c 40s ease-in-out infinite alternate;
+  animation-delay: -21s;
+}
+.aurora-b4 {
+  right: -16vmax;
+  bottom: -18vmax;
+  background: radial-gradient(circle at 50% 50%, var(--c4) 0%, transparent 66%);
+  animation: aurora-d 31s ease-in-out infinite alternate;
+  animation-delay: -3s;
+}
+@keyframes aurora-a {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to { transform: translate3d(9vmax, 7vmax, 0) scale(1.18); }
+}
+@keyframes aurora-b {
+  from { transform: translate3d(0, 0, 0) scale(1.1); }
+  to { transform: translate3d(-8vmax, 9vmax, 0) scale(0.95); }
+}
+@keyframes aurora-c {
+  from { transform: translate3d(0, 0, 0) scale(0.96); }
+  to { transform: translate3d(10vmax, -7vmax, 0) scale(1.2); }
+}
+@keyframes aurora-d {
+  from { transform: translate3d(0, 0, 0) scale(1.05); }
+  to { transform: translate3d(-7vmax, -9vmax, 0) scale(1); }
+}
+.aurora[data-paused="1"] .aurora-blob { animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) {
+  .aurora-blob { animation: none; }
+  .aurora { transition: none; }
+}
+.aurora-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.25);
 }
 .im-scrim {
   position: absolute;
@@ -1273,8 +1332,6 @@ textarea:focus-visible {
   .im-card { background: rgba(20, 20, 24, 0.94); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .im-scene-new,
-  .im-scene-old,
   .liquid-a,
   .liquid-b,
   .liquid-c {
