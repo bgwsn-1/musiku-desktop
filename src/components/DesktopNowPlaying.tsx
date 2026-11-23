@@ -5,6 +5,7 @@ import { usePlayer } from "@/lib/player";
 import {
   IconClose,
   IconCrossfade,
+  IconDisc,
   IconEllipsis,
   IconHeart,
   IconKeyboard,
@@ -25,6 +26,7 @@ import { Artwork } from "@/components/Artwork";
 import { shareTrack } from "@/components/ShareCard";
 import { LyricsPanel } from "@/components/LyricsPanel";
 import { ImmersiveLyrics } from "@/components/ImmersiveLyrics";
+import { CoverFlow } from "@/components/CoverFlow";
 import { QueuePanel } from "@/components/QueuePanel";
 import { toast } from "@/components/Toast";
 import { TrackMenu, type MenuAnchor } from "@/components/TrackMenu";
@@ -52,6 +54,7 @@ export function DesktopNowPlaying({
   const [ctx, setCtx] = useState<MenuAnchor | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [immersive, setImmersive] = useState(false);
+  const [coverFlow, setCoverFlow] = useState(false);
   const [desktopClient, setDesktopClient] = useState(false);
   const closeBtn = useRef<HTMLButtonElement | null>(null);
 
@@ -62,12 +65,15 @@ export function DesktopNowPlaying({
 
   // lagu habis → lamanenya gak nyangka, tutup
   useEffect(() => {
-    if (!open) setImmersive(false);
+    if (!open) {
+      setImmersive(false);
+      setCoverFlow(false);
+    }
     if (open && !t) onClose();
   }, [open, t, onClose]);
 
   useEffect(() => {
-    if (!open || immersive) return;
+    if (!open || immersive || coverFlow) return;
     closeBtn.current?.focus({ preventScroll: true });
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "?") {
@@ -81,11 +87,14 @@ export function DesktopNowPlaying({
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [open, onClose, immersive]);
+  }, [open, onClose, immersive, coverFlow]);
 
   if (!open || !t) return null;
   if (immersive && desktopClient) {
     return <ImmersiveLyrics onExit={() => setImmersive(false)} />;
+  }
+  if (coverFlow && desktopClient) {
+    return <CoverFlow onExit={() => setCoverFlow(false)} />;
   }
   const liked = p.isLiked(t.videoId);
   const remaining = Math.max(0, (p.duration || 0) - p.position);
@@ -117,14 +126,24 @@ export function DesktopNowPlaying({
             <IconKeyboard className="h-5 w-5" />
           </button>
           {desktopClient && (
-            <button
-              onClick={() => setImmersive(true)}
-              className={`${round} h-11 w-11 text-label2 hover:text-label1`}
-              aria-label="Aktifkan mode lirik imersif"
-              title="Mode lirik imersif"
-            >
-              <IconLyrics className="h-5 w-5" />
-            </button>
+            <>
+              <button
+                onClick={() => setCoverFlow(true)}
+                className={`${round} h-11 w-11 text-label2 hover:text-label1`}
+                aria-label="Aktifkan Cover Flow"
+                title="Cover Flow"
+              >
+                <IconDisc className="h-5 w-5" />
+              </button>
+              <button
+                onClick={() => setImmersive(true)}
+                className={`${round} h-11 w-11 text-label2 hover:text-label1`}
+                aria-label="Aktifkan mode lirik imersif"
+                title="Mode lirik imersif"
+              >
+                <IconLyrics className="h-5 w-5" />
+              </button>
+            </>
           )}
           <button
             ref={closeBtn}

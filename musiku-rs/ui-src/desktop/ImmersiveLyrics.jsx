@@ -11,8 +11,8 @@ import { AuroraBackground } from "@/components/AuroraBackground";
 import { AURORA_FALLBACK } from "@/lib/aurora-palette";
 import { ImmersiveProgressBar } from "./ImmersiveProgressBar";
 import { ImmersiveControls } from "./ImmersiveControls";
+import { trackKeyOf, useAppleArtwork } from "./useAppleArtwork";
 
-const EMPTY = { ready: false, motion: null, still: null };
 const reduced = () =>
   typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -30,7 +30,6 @@ const ImmersiveStage = memo(function ImmersiveStage({ track, onExit }) {
   const t = track;
   const videoRef = useRef(null);
   const auroraRef = useRef(null);
-  const [artState, setArtState] = useState({ trackKey: "", ...EMPTY });
   const [motionOk, setMotionOk] = useState(true);
   const [failedSrc, setFailedSrc] = useState(null);
   const [visible, setVisible] = useState(
@@ -40,10 +39,8 @@ const ImmersiveStage = memo(function ImmersiveStage({ track, onExit }) {
   const [addOpen, setAddOpen] = useState(false);
   const [palette, setPalette] = useState(AURORA_FALLBACK);
 
-  const trackKey = t ? `${t.videoId}|${t.title || ""}|${t.artist || ""}` : "";
-  const activeTrackKey = useRef(trackKey);
-  activeTrackKey.current = trackKey;
-  const art = artState.trackKey === trackKey ? artState : EMPTY;
+  const trackKey = trackKeyOf(t);
+  const art = useAppleArtwork(t);
 
   // Hentikan motion art saat window tak terlihat (minimize / tab lain).
   useEffect(() => {
@@ -60,30 +57,10 @@ const ImmersiveStage = memo(function ImmersiveStage({ track, onExit }) {
     auroraRef.current?.setCover(art.still || t.thumbs || null);
   }, [trackKey, art.ready, art.still, t?.thumbs]);
 
-  // Resolver artwork Apple: Motion Art dulu, lalu cover statis Apple.
-  // ready=true ditandai juga saat fetch gagal supaya palet tetap jalan dari thumbs.
+  // Artwork di-resolve hook bersama (cache + abort). Reset state lokal per lagu.
   useEffect(() => {
-    if (!t) return;
-    let live = true;
-    const currentTrackKey = trackKey;
-    const ac = new AbortController();
-    const q = new URLSearchParams();
-    q.set("title", t.title || "");
-    if (t.artist) q.set("artist", String(t.artist));
     setMotionOk(true);
     setFailedSrc(null);
-    const finish = (motion, still) => {
-      if (!live) return;
-      setArtState({ trackKey: currentTrackKey, ready: true, motion, still });
-    };
-    fetch(`/api/apple-artwork?${q.toString()}`, { signal: ac.signal })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => finish(j?.motion || null, j?.still || null))
-      .catch(() => finish(null, null));
-    return () => {
-      live = false;
-      ac.abort();
-    };
   }, [trackKey]);
 
   // Motion Art = HLS. hls.js membersihkan InstancedHttpStream-nya saat unmount.

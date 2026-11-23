@@ -37,9 +37,10 @@ const options = {
     "process.env.NODE_ENV": JSON.stringify(watch ? "development" : "production"),
   },
   alias: {
-    // Mode imersif & ikon Apple Music hanya untuk desktop (Win/Linux).
+    // Mode imersif, Cover Flow & ikon Apple Music hanya untuk desktop (Win/Linux).
     // Web/Android tetap memakai komponen asli di src/ lewat alias `@` di bawah.
     "@/components/ImmersiveLyrics": path.join(__dirname, "desktop/ImmersiveLyrics.jsx"),
+    "@/components/CoverFlow": path.join(__dirname, "desktop/CoverFlow.jsx"),
     "@/components/Icons": path.join(__dirname, "icons/Icons.ios.jsx"),
     "@": WEB_SRC,
     "next/link": path.join(__dirname, "shims/next-link.jsx"),
