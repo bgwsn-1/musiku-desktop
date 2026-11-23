@@ -42,6 +42,8 @@ export async function extractPalette(url: string): Promise<string[]> {
     .then((img) => sample(img))
     .catch(() => null);
 
+  // Gagal load / CORS: jangan cache fallback, biar bisa retry di lain waktu.
+  if (!colors) return [...AURORA_FALLBACK];
   const out = pickColors(colors);
   cache.set(url, out);
   return out;
@@ -114,7 +116,8 @@ function pickColors(buckets: RGB[] | null): string[] {
       if (picked.every((p) => dist(p, c) > 20)) picked.push(c);
     }
   }
-  while (picked.length < 4) picked.push(scored[picked.length % scored.length]);
-
-  return picked.slice(0, 4).map((c) => toHex(c.r, c.g, c.b));
+  // Sisa warna diisi dari fallback (bukan duplikat) supaya 4 blob tetap beda.
+  const out = picked.slice(0, 4).map((c) => toHex(c.r, c.g, c.b));
+  while (out.length < 4) out.push(AURORA_FALLBACK[out.length]);
+  return out;
 }

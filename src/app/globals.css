@@ -1120,10 +1120,10 @@ textarea:focus-visible {
    Warna dan blur diambil dari artwork; scrim gelap menjaga lirik tetap terbaca. */
 .im-root { --ambient-opacity: 1; background: #09090b; }
 /* Latar aurora immersive: 4 blob radial-gradient (tanpa blur filter) */
-@property --c1 { syntax: "<color>"; inherits: false; initial-value: #2b2f4a; }
-@property --c2 { syntax: "<color>"; inherits: false; initial-value: #3a2a55; }
-@property --c3 { syntax: "<color>"; inherits: false; initial-value: #1f3a4d; }
-@property --c4 { syntax: "<color>"; inherits: false; initial-value: #402a3a; }
+@property --c1 { syntax: "<color>"; inherits: true; initial-value: #2b2f4a; }
+@property --c2 { syntax: "<color>"; inherits: true; initial-value: #3a2a55; }
+@property --c3 { syntax: "<color>"; inherits: true; initial-value: #1f3a4d; }
+@property --c4 { syntax: "<color>"; inherits: true; initial-value: #402a3a; }
 
 .aurora {
   position: absolute;

@@ -9,7 +9,7 @@ import { TrackMenu } from "@/components/TrackMenu";
 import { AddToPlaylistMenu } from "@/components/TrackRow";
 import { AuroraBackground } from "@/components/AuroraBackground";
 
-const EMPTY = { motion: null, still: null };
+const EMPTY = { ready: false, motion: null, still: null };
 const reduced = () =>
   typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -20,7 +20,10 @@ export function ImmersiveLyrics({ onExit }) {
   const auroraRef = useRef(null);
   const [artState, setArtState] = useState({ trackKey: "", ...EMPTY });
   const [motionOk, setMotionOk] = useState(true);
-  const [stillFailed, setStillFailed] = useState(false);
+  const [failedSrc, setFailedSrc] = useState(null);
+  const [visible, setVisible] = useState(
+    () => typeof document === "undefined" || document.visibilityState === "visible",
+  );
   const [ctx, setCtx] = useState(null);
   const [addOpen, setAddOpen] = useState(false);
 
@@ -29,17 +32,23 @@ export function ImmersiveLyrics({ onExit }) {
   activeTrackKey.current = trackKey;
   const art = artState.trackKey === trackKey ? artState : EMPTY;
 
-  // Palet aurora dari cover yang lagi diputar.
+  // Hentikan motion art saat window tak terlihat (minimize / tab lain).
   useEffect(() => {
-    if (!t) return;
-    auroraRef.current?.setCover(t.thumbs || null);
+    const sync = () =>
+      setVisible(typeof document === "undefined" || document.visibilityState === "visible");
+    sync();
+    document.addEventListener("visibilitychange", sync);
+    return () => document.removeEventListener("visibilitychange", sync);
   }, []);
+
+  // Palet aurora: tunggu resolver artwork selesai supaya hanya crossfade sekali.
   useEffect(() => {
-    if (!t) return;
+    if (!t || !art.ready) return;
     auroraRef.current?.setCover(art.still || t.thumbs || null);
-  }, [trackKey, art.still]);
+  }, [trackKey, art.ready, art.still, t?.thumbs]);
 
   // Resolver artwork Apple: Motion Art dulu, lalu cover statis Apple.
+  // ready=true ditandai juga saat fetch gagal supaya palet tetap jalan dari thumbs.
   useEffect(() => {
     if (!t) return;
     let live = true;
@@ -49,14 +58,15 @@ export function ImmersiveLyrics({ onExit }) {
     q.set("title", t.title || "");
     if (t.artist) q.set("artist", String(t.artist));
     setMotionOk(true);
-    setStillFailed(false);
+    setFailedSrc(null);
+    const finish = (motion, still) => {
+      if (!live) return;
+      setArtState({ trackKey: currentTrackKey, ready: true, motion, still });
+    };
     fetch(`/api/apple-artwork?${q.toString()}`, { signal: ac.signal })
       .then((r) => (r.ok ? r.json() : null))
-      .then((j) => {
-        if (!live || !j) return;
-        setArtState({ trackKey: currentTrackKey, motion: j.motion || null, still: j.still || null });
-      })
-      .catch(() => {});
+      .then((j) => finish(j?.motion || null, j?.still || null))
+      .catch(() => finish(null, null));
     return () => {
       live = false;
       ac.abort();
@@ -66,7 +76,7 @@ export function ImmersiveLyrics({ onExit }) {
   // Motion Art = HLS. hls.js membersihkan InstancedHttpStream-nya saat unmount.
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || !art.motion || !motionOk) return;
+    if (!video || !art.motion || !motionOk || !visible) return;
     let hls = null;
     const isReduced = reduced();
     const play = () => {
@@ -98,7 +108,7 @@ export function ImmersiveLyrics({ onExit }) {
       video.removeAttribute("src");
       video.load();
     };
-  }, [art.motion, motionOk, trackKey]);
+  }, [art.motion, motionOk, trackKey, visible]);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -112,7 +122,12 @@ export function ImmersiveLyrics({ onExit }) {
   if (!t) return null;
 
   const useMotion = !!art.motion && motionOk;
-  const stillSrc = stillFailed || !art.still ? t.thumbs : art.still;
+  const stillSrc =
+    art.still && failedSrc !== art.still
+      ? art.still
+      : t.thumbs && failedSrc !== t.thumbs
+        ? t.thumbs
+        : null;
 
   return (
     <div
@@ -136,7 +151,6 @@ export function ImmersiveLyrics({ onExit }) {
                 muted
                 loop
                 playsInline
-                crossOrigin="anonymous"
                 aria-label={`Motion Art ${t.title}`}
               />
             ) : stillSrc ? (
@@ -147,9 +161,8 @@ export function ImmersiveLyrics({ onExit }) {
                 className="im-art-media"
                 width="460"
                 height="460"
-                crossOrigin="anonymous"
                 fetchPriority="high"
-                onError={() => setStillFailed(true)}
+                onError={() => setFailedSrc(stillSrc)}
               />
             ) : (
               <div className="im-art-fallback">

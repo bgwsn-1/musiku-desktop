@@ -27,11 +27,13 @@ export const AuroraBackground = forwardRef<AuroraHandle>(
   function AuroraBackground(_props, ref) {
     const root = useRef<HTMLDivElement | null>(null);
     const currentUrl = useRef<string | null | undefined>(null);
+    const seq = useRef(0);
 
-    const apply = async (url: string | null | undefined) => {
+    const apply = async (url: string | null | undefined, id: number) => {
       const el = root.current;
       if (!el) return;
       const colors = url ? await extractPalette(url) : [...AURORA_FALLBACK];
+      if (id !== seq.current) return; // ganti lagu cepat: hasil lama dibuang
       for (let i = 0; i < 4; i++) {
         el.style.setProperty(`--c${i + 1}`, colors[i] ?? AURORA_FALLBACK[i]);
       }
@@ -41,7 +43,8 @@ export const AuroraBackground = forwardRef<AuroraHandle>(
       setCover: (url) => {
         if (currentUrl.current === url) return;
         currentUrl.current = url;
-        void apply(url);
+        const id = ++seq.current;
+        void apply(url, id);
       },
     }));
 
