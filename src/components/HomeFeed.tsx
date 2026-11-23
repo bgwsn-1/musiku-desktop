@@ -10,6 +10,7 @@ import { useEffect, useState } from "react";
 import { GridCard, Shelf } from "@/components/GridCard";
 import { FeaturedCarousel, SongColumns } from "@/components/HomeFeatured";
 import { RecentShelf } from "@/components/RecentShelf";
+import { IconChevronRight, IconPlay } from "@/components/Icons";
 import { ArtistVideo } from "@/components/ArtistVideo";
 import type { HomeItem, HomeShelf } from "@/lib/types";
 
@@ -161,36 +162,39 @@ export function HomeFeed({ shelves }: { shelves: HomeShelf[] }) {
         <section aria-label="Artis paling banyak diputar" className="mb-5">
           <Link
             href={`/artist/${top.browseId}`}
-            className="card-anim artist-hero group relative block h-[176px] overflow-hidden rounded-[18px] border border-[var(--hairline)] bg-fill1 text-left [margin:0]"
+            className="card-anim group flex items-center gap-3.5 rounded-[16px] border border-[var(--hairline)] bg-fill1/70 p-3 text-left transition-colors hover:bg-fill2"
             aria-label={`${top.title}, ${
               top.monthly ?? `${fmtCount(top.subscribers)} pelanggan`
             }`}
           >
-            {(top.banner || top.thumbs) && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={top.banner ?? top.thumbs ?? ""}
-                alt=""
+            <span className="relative h-[84px] w-[84px] shrink-0 overflow-hidden rounded-[12px] bg-fill1 shadow-[var(--shadow-art)]">
+              {(top.banner || top.thumbs) && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={top.banner ?? top.thumbs ?? ""}
+                  alt=""
+                  aria-hidden="true"
+                  className="absolute inset-0 h-full w-full object-cover"
+                  loading="eager"
+                />
+              )}
+              {/* motion art di dalam kotak, seperti header artis */}
+              <ArtistVideo videoId={top.videoId} />
+              {/* fade halus di bawah area sampul */}
+              <span
+                className="absolute inset-x-0 bottom-0 h-9 bg-gradient-to-t from-black/50 to-transparent"
                 aria-hidden="true"
-                className="artist-hero-img"
-                loading="eager"
               />
-            )}
-            {/* header bergerak seperti halaman detail artis */}
-            <ArtistVideo videoId={top.videoId} />
-            <div
-              className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent"
-              aria-hidden="true"
-            />
-            {/* fade lembut di tepi bawah kartu */}
-            <div className="artist-hero-fade" aria-hidden="true" />
-
-            <span className="relative flex h-full flex-col justify-end p-4 pb-[calc(var(--hero-fade)*0.6)]">
-              <span className="t-eyebrow !text-white/75">Artis · #1 Global</span>
-              <span className="mt-1 truncate text-[22px] font-bold leading-tight text-white">
+              <span className="absolute right-1.5 bottom-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-black/55 text-white backdrop-blur-md">
+                <IconPlay className="ml-0.5 h-3 w-3" />
+              </span>
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="t-eyebrow !text-label3">Artis · #1 Global</span>
+              <span className="mt-0.5 block truncate text-[18px] font-semibold leading-tight text-label1">
                 {top.title}
               </span>
-              <span className="mt-0.5 truncate text-[13px] text-white/80">
+              <span className="block truncate text-[13.5px] leading-tight text-label2">
                 {top.monthly
                   ? top.monthly
                   : fmtCount(top.subscribers)
@@ -198,6 +202,7 @@ export function HomeFeed({ shelves }: { shelves: HomeShelf[] }) {
                     : "Paling banyak diputar"}
               </span>
             </span>
+            <IconChevronRight className="h-4 w-4 shrink-0 text-label3" />
           </Link>
         </section>
       )}
