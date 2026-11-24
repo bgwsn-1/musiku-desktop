@@ -20,6 +20,7 @@ export function CoverItem({
 }) {
   const [failed, setFailed] = useState(false);
   const [pop, setPop] = useState(false);
+  const [pressed, setPressed] = useState(false);
   const lastPulse = useRef(pulse);
   useEffect(() => setFailed(false), [src]);
 
@@ -41,6 +42,7 @@ export function CoverItem({
   const showImg = !!src && !failed;
   const title = track.title || "Lagu tanpa judul";
   const artist = track.artist || "Artis tidak diketahui";
+  const label = history ? `Riwayat: ${title} - ${artist}` : `${title} - ${artist}`;
 
   return (
     <div
@@ -50,17 +52,25 @@ export function CoverItem({
       data-playing={active && !history ? (playing ? "1" : "0") : undefined}
       aria-hidden={history ? "true" : undefined}
     >
-      <button
-        type="button"
-        className="cf-hit"
-        onClick={() => onSelect(index)}
-        disabled={history}
-        aria-label={history ? `Riwayat: ${title} - ${artist}` : `${title} - ${artist}`}
-        aria-current={active ? "true" : undefined}
-        tabIndex={active && !history ? 0 : -1}
+      {/* Wrapper scale: membungkus kartu + menu, bukan transform 3D dari .cf-item. */}
+      <div
+        className="cf-scale"
+        data-pressed={pressed ? "1" : undefined}
+        onPointerDown={() => setPressed(true)}
+        onPointerUp={() => setPressed(false)}
+        onPointerCancel={() => setPressed(false)}
+        onPointerLeave={() => setPressed(false)}
       >
-        <span className="cf-card" data-pop={pop ? "1" : undefined}>
-          <span className="cf-card-inner">
+        <div className="cf-card" data-pop={pop ? "1" : undefined}>
+          <button
+            type="button"
+            className="cf-hit"
+            onClick={() => onSelect(index)}
+            disabled={history}
+            aria-label={label}
+            aria-current={active ? "true" : undefined}
+            tabIndex={active && !history ? 0 : -1}
+          >
             {showImg ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -76,31 +86,38 @@ export function CoverItem({
                 <IconMusic className="h-1/3 w-1/3 text-label3" />
               </span>
             )}
-          </span>
-        </span>
-        {showLabel && (
-          <span className="cf-caption" key={captionKey ?? track.videoId}>
-            <span className="cf-title">{title}</span>
-            <span className="cf-artist-line">
-              <span className="cf-artist">{artist}</span>
-              {active && !history && (
-                <span className="cf-badge" title="Audio dari YouTube Music (AAC/Opus)">
-                  LOSSY
-                </span>
-              )}
-            </span>
-          </span>
-        )}
-      </button>
-      {active && (
+          </button>
+          {active && (
+            <button
+              type="button"
+              className="cf-more"
+              onClick={(e) => onMenu(index, e)}
+              aria-haspopup="menu"
+              aria-label="Opsi lainnya"
+            >
+              <IconEllipsis className="h-[18px] w-[18px]" />
+            </button>
+          )}
+        </div>
+      </div>
+      {showLabel && (
         <button
           type="button"
-          className="cf-more"
-          onClick={(e) => onMenu(index, e)}
-          aria-haspopup="menu"
-          aria-label="Opsi lainnya"
+          className="cf-caption"
+          key={captionKey ?? track.videoId}
+          onClick={() => onSelect(index)}
+          disabled={history}
+          tabIndex={-1}
         >
-          <IconEllipsis className="h-[18px] w-[18px]" />
+          <span className="cf-title">{title}</span>
+          <span className="cf-artist-line">
+            <span className="cf-artist">{artist}</span>
+            {active && !history && (
+              <span className="cf-badge" title="Audio dari YouTube Music (AAC/Opus)">
+                LOSSY
+              </span>
+            )}
+          </span>
         </button>
       )}
     </div>

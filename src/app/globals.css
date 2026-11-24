@@ -1783,9 +1783,13 @@ textarea:focus-visible {
   color: #fff;
   cursor: pointer;
 }
+/* Ring hanya untuk keyboard; klik mouse tidak meninggalkan outline putih. */
+.cf-root button:focus:not(:focus-visible) { outline: none; }
 .cf-exit:focus-visible,
 .cf-more:focus-visible,
-.cf-hit:focus-visible {
+.cf-hit:focus-visible,
+.cf-caption:focus-visible,
+.cf-root .im-ctl:focus-visible {
   outline: 2px solid #fff;
   outline-offset: 3px;
 }
@@ -1824,9 +1828,28 @@ textarea:focus-visible {
   will-change: auto; /* dipasang JS hanya untuk cover dekat tengah */
   pointer-events: auto;
 }
+/* Scale pause/play & feedback tekan. Transform 3D milik .cf-item (rAF). */
+.cf-scale {
+  position: relative;
+  display: block;
+  width: 100%;
+  transform: scale(1);
+  transition: transform var(--cf-playpause-ms, 350ms) ease;
+}
+.cf-item[data-active="1"][data-playing="0"] .cf-scale {
+  transform: scale(var(--cf-pause-scale, 0.92));
+}
+.cf-item[data-active="1"] .cf-scale[data-pressed="1"] {
+  transform: scale(var(--cf-press-scale, 0.97));
+  transition-duration: 0.12s;
+}
 .cf-hit {
   display: block;
   width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
   color: #fff;
   text-align: left;
 }
@@ -1837,7 +1860,7 @@ textarea:focus-visible {
   aspect-ratio: 1;
   overflow: hidden;
   border-radius: 14px;
-  background: #111114;
+  background: transparent;
 }
 /* Sedikit gelap di cover samping (tanpa filter, ramah WebKitGTK). */
 .cf-item:not([data-active="1"]) .cf-card::after {
@@ -1863,20 +1886,6 @@ textarea:focus-visible {
   align-items: center;
   justify-content: center;
   background: linear-gradient(to bottom, var(--fill-2), var(--fill-1));
-}
-/* Efek klik/pause/pop di wrapper dalam: transform utama .cf-item tetap milik rAF. */
-.cf-card-inner {
-  display: block;
-  width: 100%;
-  height: 100%;
-  transition: transform var(--cf-playpause-ms, 350ms) ease;
-}
-.cf-item[data-active="1"][data-playing="0"] .cf-card-inner {
-  transform: scale(var(--cf-pause-scale, 0.92));
-}
-.cf-item .cf-hit:active .cf-card-inner {
-  transform: scale(var(--cf-press-scale, 0.97));
-  transition-duration: 0.12s;
 }
 @keyframes cfPop {
   0% { transform: scale(1); }
@@ -1915,6 +1924,11 @@ textarea:focus-visible {
   display: block;
   width: 100%;
   margin-top: 1rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
   text-align: center;
   animation: cfCaptionIn var(--cf-caption-ms, 240ms) ease both;
 }
@@ -1991,9 +2005,12 @@ textarea:focus-visible {
   .cf-item { transition: opacity 0.25s ease; }
   .cf-more { transition: none; }
   .cf-card[data-pop="1"] { animation: none; }
-  .cf-card-inner { transition: none; }
-  .cf-item[data-active="1"][data-playing="0"] .cf-card-inner,
-  .cf-item .cf-hit:active .cf-card-inner { transform: none; }
+  /* Tanpa scale: pause cukup diwakili perubahan opacity halus. */
+  .cf-scale {
+    transform: none !important;
+    transition: opacity 180ms ease;
+  }
+  .cf-item[data-active="1"][data-playing="0"] .cf-scale { opacity: 0.82; }
   .cf-caption,
   .cf-play-icon { animation: cfFade 180ms ease both; }
 }
