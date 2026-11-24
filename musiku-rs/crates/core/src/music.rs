@@ -8,6 +8,7 @@
 
 use std::sync::OnceLock;
 
+use futures_util::future::join_all;
 use regex::Regex;
 use rustypipe::client::RustyPipe;
 use rustypipe::model::{AlbumItem, AlbumType, ArtistItem, Thumbnail, TrackItem};
@@ -267,11 +268,11 @@ impl Musiku {
                 }
                 let mut map: std::collections::HashMap<String, Entry> =
                     std::collections::HashMap::new();
-                for region in REGIONS {
-                    let charts = match yt.music_charts(Some(region)).await {
-                        Ok(c) => c,
-                        Err(_) => continue,
-                    };
+                // 6 region sekaligus: dulu berurutan, jadi cold home nunggu
+                // 6 round-trip berturut-turut sebelum bisa lanjut.
+                let charts_list =
+                    join_all(REGIONS.into_iter().map(|r| yt.music_charts(Some(r)))).await;
+                for charts in charts_list.into_iter().flatten() {
                     for (idx, a) in charts.artists.iter().take(PER_REGION).enumerate() {
                         let score = (PER_REGION - idx) as u32;
                         let v = serde_json::json!({
@@ -382,11 +383,10 @@ impl Musiku {
 
                 let mut albums: Vec<(i64, HomeItem)> = Vec::new();
                 let mut songs: Vec<HomeItem> = Vec::new();
-                for id in ids {
-                    let raw = match self.artist(&id).await {
-                        Ok(v) => v,
-                        Err(_) => continue,
-                    };
+                // Detail 6 artis diambil paralel; `join_all` menjaga urutan ids,
+                // jadi perilaku sorting/urutan shelf tidak berubah.
+                let details = join_all(ids.iter().map(|id| self.artist(id))).await;
+                for raw in details.into_iter().flatten() {
                     let detail: ArtistDetail = match serde_json::from_value(raw) {
                         Ok(d) => d,
                         Err(_) => continue,
@@ -518,7 +518,13 @@ impl Musiku {
         let key = format!("artist:{browse_id}");
         self.cache
             .get_or_try(&key, async {
-                let a = self.pipe.query().music_artist(browse_id, false).await?;
+                // Dua sumber detail artis tidak saling bergantung → jalankan bareng.
+                let query = self.pipe.query();
+                let (artist_res, browse_res) = tokio::join!(
+                    query.music_artist(browse_id, false),
+                    crate::ytmusic::browse(browse_id),
+                );
+                let a = artist_res?;
 
                 // rustypipe tidak memisahkan single; kita pisahkan sendiri.
                 let mut albums: Vec<AlbumSummary> = Vec::new();
@@ -534,8 +540,7 @@ impl Musiku {
                 // banner lebar, jumlah pengikut berformat, pendengar bulanan, dan
                 // id video header semuanya dibaca dari respons browse mentah —
                 // sama seperti `artistStats()` di versi web.
-                let stats = crate::ytmusic::browse(browse_id)
-                    .await
+                let stats = browse_res
                     .map(|raw| crate::ytmusic::parse_artist(&raw))
                     .unwrap_or_default();
 

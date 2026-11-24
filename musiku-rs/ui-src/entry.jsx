@@ -42,6 +42,18 @@ async function jget(url) {
   return r.json();
 }
 
+// Prefetch sekali per URL. Home, mood, dan charts dimulai bersamaan supaya
+// HomeFeed tidak menunggu waterfall kedua setelah /api/home selesai.
+const bootFetch = new Map();
+function cachedGet(url) {
+  let p = bootFetch.get(url);
+  if (!p) {
+    p = jget(url).catch(() => null);
+    bootFetch.set(url, p);
+  }
+  return p;
+}
+
 function Centered({ title, sub }) {
   return (
     <div className="py-24 text-center">
@@ -67,9 +79,9 @@ function useHomeShelves() {
   const [shelves, setShelves] = useState(null); // null = memuat
   useEffect(() => {
     let live = true;
-    jget("/api/home")
-      .then((s) => live && setShelves(Array.isArray(s) ? s : []))
-      .catch(() => live && setShelves([]));
+    cachedGet("/api/home").then((s) => {
+      if (live) setShelves(Array.isArray(s) ? s : []);
+    });
     return () => {
       live = false;
     };
@@ -466,6 +478,13 @@ function App() {
     </PlayerProvider>
   );
 }
+
+// Hangatkan tiga endpoint beranda sebelum React selesai mount. Server sudah
+// mendebup request yang sama (moka try_get_with), jadi ini tidak menambah
+// fetch upstream — hanya menggeser semuanya ke awal.
+void cachedGet("/api/home");
+void cachedGet("/api/moods");
+void cachedGet("/api/artists/charts");
 
 const el = document.getElementById("root");
 // Lirik mengambang (jendela `?overlay=lyrics` + LyricsBridge) dinonaktifkan:

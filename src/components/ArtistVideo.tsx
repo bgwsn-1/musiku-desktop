@@ -16,7 +16,8 @@ export function ArtistVideo({ videoId }: { videoId?: string | null }) {
   const [src, setSrc] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
 
-  // jangan unduh video kalau tidak perlu
+  // Jangan unduh video kalau tidak perlu, dan jangan rebut bandwidth saat
+  // beranda masih memuat cover. Poster tetap tampil sampai video siap.
   useEffect(() => {
     if (!videoId) return;
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -28,7 +29,27 @@ export function ArtistVideo({ videoId }: { videoId?: string | null }) {
     if (mq.matches || save?.saveData) return;
     if (save?.effectiveType === "slow-2g" || save?.effectiveType === "2g")
       return;
-    setSrc(`/api/stream/${videoId}?video=1`);
+
+    let live = true;
+    let idle: number | undefined;
+    let timer: number | undefined;
+    const kick = () => {
+      if (live) setSrc(`/api/stream/${videoId}?video=1`);
+    };
+    const w = window as Window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    if (typeof w.requestIdleCallback === "function") {
+      idle = w.requestIdleCallback(kick, { timeout: 1500 });
+    } else {
+      timer = window.setTimeout(kick, 500);
+    }
+    return () => {
+      live = false;
+      if (idle !== undefined) w.cancelIdleCallback?.(idle);
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
   }, [videoId]);
 
   useEffect(() => {
