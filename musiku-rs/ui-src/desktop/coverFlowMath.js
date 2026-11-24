@@ -24,6 +24,26 @@ export const CF_LAYOUT = {
   jumpDistance: 2.5,
 };
 
+// Efek & timing Cover Flow. Durasi CSS di-root memakai CSS var dari blok ini.
+export const CF_FX = {
+  /** Debounce setelah geser terakhir sebelum lagu benar-benar diganti. */
+  seekDebounceMs: 300,
+  /** Pop cover aktif saat lagu ganti. */
+  popMs: 300,
+  popScale: 1.03,
+  /** Crossfade caption + translateY. */
+  captionMs: 240,
+  captionShiftPx: 8,
+  /** Feedback tekan & kondisi pause. */
+  pressScale: 0.97,
+  pauseScale: 0.92,
+  playPauseMs: 350,
+  /** Transisi ikon play/pause. */
+  iconMs: 220,
+  /** Reset progress saat ganti lagu. */
+  progressResetMs: 350,
+};
+
 export const CF_MOTION = {
   /** Spring kalem: zeta = damping / (2*sqrt(stiffness)) ~= 0.97. */
   stiffness: 240,

@@ -8,9 +8,11 @@ const fmt = (s) => {
   return `${Math.floor(n / 60)}:${String(n % 60).padStart(2, "0")}`;
 };
 
-export function ImmersiveProgressBar() {
+// smoothReset dipakai Cover Flow supaya progress turun halus saat ganti lagu.
+// Default false → perilaku ImmersiveLyrics persis seperti sebelumnya.
+export function ImmersiveProgressBar({ smoothReset = false, resetMs = 350 }) {
   const p = usePlayer();
-  const { duration, seek, playing } = p;
+  const { duration, seek, playing, current } = p;
   const rootRef = useRef(null);
   const trackRef = useRef(null);
   const fillRef = useRef(null);
@@ -21,8 +23,27 @@ export function ImmersiveProgressBar() {
   const drag = useRef({ on: false, ratio: 0 });
   const shownSec = useRef(-1);
   const raf = useRef(0);
+  const lastRatio = useRef(0);
+  const reset = useRef({ active: false, from: 0, start: 0, ms: 0, lastId: null });
   const seekRef = useRef(seek);
   seekRef.current = seek;
+
+  // Ganti lagu: mulai easing dari rasio terakhir ke 0, bukan loncat.
+  useEffect(() => {
+    if (!smoothReset) return;
+    const id = current?.videoId ?? "";
+    const r = reset.current;
+    if (r.lastId === null) {
+      r.lastId = id;
+      return;
+    }
+    if (r.lastId === id) return;
+    r.lastId = id;
+    r.from = lastRatio.current;
+    r.start = performance.now();
+    r.ms = Math.max(1, resetMs);
+    r.active = true;
+  }, [current?.videoId, smoothReset, resetMs]);
 
   // timeupdate datang ~4x/detik; interpolasi antar event bikin bar tetap mulus.
   useEffect(() => {
@@ -37,9 +58,17 @@ export function ImmersiveProgressBar() {
       if (d) pos = Math.min(d, Math.max(0, pos));
       if (drag.current.on) pos = drag.current.ratio * d;
       const ratio = d ? pos / d : 0;
+      lastRatio.current = ratio;
 
-      if (fillRef.current) fillRef.current.style.transform = `scaleX(${ratio})`;
-      if (thumbRef.current) thumbRef.current.style.left = `${ratio * 100}%`;
+      let drawn = ratio;
+      if (smoothReset && reset.current.active) {
+        const k = Math.min(1, (now - reset.current.start) / reset.current.ms);
+        const eased = 1 - Math.pow(1 - k, 3);
+        drawn = reset.current.from * (1 - eased);
+        if (k >= 1) reset.current.active = false;
+      }
+      if (fillRef.current) fillRef.current.style.transform = `scaleX(${drawn})`;
+      if (thumbRef.current) thumbRef.current.style.left = `${drawn * 100}%`;
 
       const sec = Math.floor(pos);
       if (sec !== shownSec.current) {
@@ -49,7 +78,7 @@ export function ImmersiveProgressBar() {
       }
       raf.current = requestAnimationFrame(paint);
     },
-    [duration],
+    [duration, smoothReset],
   );
 
   useEffect(() => {

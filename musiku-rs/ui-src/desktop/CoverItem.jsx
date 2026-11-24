@@ -1,11 +1,43 @@
 // Satu cover carousel: thumbnail ringan / still resolusi tinggi untuk tengah,
 // fallback ikon musik kalau gambar gagal dimuat.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { IconEllipsis, IconMusic } from "@/components/Icons";
+import { CF_FX } from "./coverFlowMath";
 
-export function CoverItem({ track, index, active, history = false, showLabel = true, src, register, onSelect, onMenu }) {
+export function CoverItem({
+  track,
+  index,
+  active,
+  history = false,
+  showLabel = true,
+  pulse = 0,
+  captionKey,
+  playing = false,
+  src,
+  register,
+  onSelect,
+  onMenu,
+}) {
   const [failed, setFailed] = useState(false);
+  const [pop, setPop] = useState(false);
+  const lastPulse = useRef(pulse);
   useEffect(() => setFailed(false), [src]);
+
+  // Pulse naik hanya saat p.index berubah. Semua cover menerima pulse yang sama,
+  // jadi cover yang baru jadi aktif karena browsing tidak ikut "pop".
+  useEffect(() => {
+    if (lastPulse.current === pulse) return;
+    lastPulse.current = pulse;
+    if (!active || history) return;
+    setPop(false);
+    const raf = requestAnimationFrame(() => setPop(true));
+    const end = setTimeout(() => setPop(false), CF_FX.popMs + 40);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(end);
+    };
+  }, [pulse, active, history]);
+
   const showImg = !!src && !failed;
   const title = track.title || "Lagu tanpa judul";
   const artist = track.artist || "Artis tidak diketahui";
@@ -15,6 +47,7 @@ export function CoverItem({ track, index, active, history = false, showLabel = t
       ref={(el) => register(index, el)}
       className={`cf-item${history ? " cf-item-history" : ""}`}
       data-active={active ? "1" : undefined}
+      data-playing={active && !history ? (playing ? "1" : "0") : undefined}
       aria-hidden={history ? "true" : undefined}
     >
       <button
@@ -26,25 +59,27 @@ export function CoverItem({ track, index, active, history = false, showLabel = t
         aria-current={active ? "true" : undefined}
         tabIndex={active && !history ? 0 : -1}
       >
-        <span className="cf-card">
-          {showImg ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={src}
-              alt=""
-              className="cf-img"
-              loading={active ? "eager" : "lazy"}
-              fetchPriority={active ? "high" : undefined}
-              onError={() => setFailed(true)}
-            />
-          ) : (
-            <span className="cf-fallback">
-              <IconMusic className="h-1/3 w-1/3 text-label3" />
-            </span>
-          )}
+        <span className="cf-card" data-pop={pop ? "1" : undefined}>
+          <span className="cf-card-inner">
+            {showImg ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={src}
+                alt=""
+                className="cf-img"
+                loading={active ? "eager" : "lazy"}
+                fetchPriority={active ? "high" : undefined}
+                onError={() => setFailed(true)}
+              />
+            ) : (
+              <span className="cf-fallback">
+                <IconMusic className="h-1/3 w-1/3 text-label3" />
+              </span>
+            )}
+          </span>
         </span>
         {showLabel && (
-          <span className="cf-caption">
+          <span className="cf-caption" key={captionKey ?? track.videoId}>
             <span className="cf-title">{title}</span>
             <span className="cf-artist-line">
               <span className="cf-artist">{artist}</span>

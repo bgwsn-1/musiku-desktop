@@ -1864,6 +1864,26 @@ textarea:focus-visible {
   justify-content: center;
   background: linear-gradient(to bottom, var(--fill-2), var(--fill-1));
 }
+/* Efek klik/pause/pop di wrapper dalam: transform utama .cf-item tetap milik rAF. */
+.cf-card-inner {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transition: transform var(--cf-playpause-ms, 350ms) ease;
+}
+.cf-item[data-active="1"][data-playing="0"] .cf-card-inner {
+  transform: scale(var(--cf-pause-scale, 0.92));
+}
+.cf-item .cf-hit:active .cf-card-inner {
+  transform: scale(var(--cf-press-scale, 0.97));
+  transition-duration: 0.12s;
+}
+@keyframes cfPop {
+  0% { transform: scale(1); }
+  50% { transform: scale(var(--cf-pop-scale, 1.03)); }
+  100% { transform: scale(1); }
+}
+.cf-card[data-pop="1"] { animation: cfPop var(--cf-pop-ms, 300ms) ease both; }
 .cf-more {
   position: absolute;
   top: 0.75rem;
@@ -1896,6 +1916,11 @@ textarea:focus-visible {
   width: 100%;
   margin-top: 1rem;
   text-align: center;
+  animation: cfCaptionIn var(--cf-caption-ms, 240ms) ease both;
+}
+@keyframes cfCaptionIn {
+  from { opacity: 0; transform: translateY(var(--cf-caption-shift, 8px)); }
+  to { opacity: 1; transform: none; }
 }
 .cf-artist-line {
   display: flex;
@@ -1943,14 +1968,32 @@ textarea:focus-visible {
   margin: 0 auto 1.75rem;
 }
 .cf-bottom .im-progress { margin-top: 0; }
+@keyframes cfIconIn {
+  from { opacity: 0.3; transform: scale(0.82); }
+  to { opacity: 1; transform: scale(1); }
+}
+.cf-play-icon {
+  display: inline-flex;
+  animation: cfIconIn var(--cf-icon-ms, 220ms) ease both;
+}
 /* Sisi kiri/kanan bawah sengaja kosong; kontrol tepat di tengah. */
 .cf-bottom-row {
   display: flex;
   align-items: center;
   justify-content: center;
 }
+@keyframes cfFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
 @media (prefers-reduced-motion: reduce) {
   .cf-root { animation: none; }
   .cf-item { transition: opacity 0.25s ease; }
   .cf-more { transition: none; }
+  .cf-card[data-pop="1"] { animation: none; }
+  .cf-card-inner { transition: none; }
+  .cf-item[data-active="1"][data-playing="0"] .cf-card-inner,
+  .cf-item .cf-hit:active .cf-card-inner { transform: none; }
+  .cf-caption,
+  .cf-play-icon { animation: cfFade 180ms ease both; }
 }

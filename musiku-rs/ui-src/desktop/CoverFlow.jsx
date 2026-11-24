@@ -6,7 +6,7 @@ import { AuroraBackground } from "@/components/AuroraBackground";
 import { IconClose } from "@/components/Icons";
 import { TrackMenu } from "@/components/TrackMenu";
 import { AddToPlaylistMenu } from "@/components/TrackRow";
-import { CF_LAYOUT, CF_MOTION, clamp } from "./coverFlowMath";
+import { CF_LAYOUT, CF_MOTION, CF_FX, clamp } from "./coverFlowMath";
 import { useCoverFlowMotion } from "./useCoverFlowMotion";
 import { useAppleArtwork } from "./useAppleArtwork";
 import { CoverItem } from "./CoverItem";
@@ -21,11 +21,19 @@ export function CoverFlow({ onExit }) {
   const [active, setActive] = useState(() => clamp(p.index, 0, Math.max(0, queue.length - 1)));
   const [menu, setMenu] = useState(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [trackPulse, setTrackPulse] = useState(0);
   const auroraRef = useRef(null);
   const stageRef = useRef(null);
   const motion = useCoverFlowMotion(queue.length);
   const activeTrack = queue[active] || p.current;
   const art = useAppleArtwork(activeTrack);
+
+  // Ref selalu segar: dipakai timer debounce & efek player tanpa re-register.
+  const playerRef = useRef({ index: p.index, videoId: p.current?.videoId });
+  playerRef.current = { index: p.index, videoId: p.current?.videoId };
+  const playerIndexRef = useRef(p.index);
+  const seekTimer = useRef(null);
+  const externalDuringDrag = useRef(null);
 
   // Player punya `recent` (riwayat, terbaru duluan). Pakai hanya kalau kita
   // berada di track pertama antrian; kalau kosong, sisi kiri dibiarkan kosong.
@@ -36,32 +44,82 @@ export function CoverFlow({ onExit }) {
 
   const onExitRef = useRef(onExit);
   onExitRef.current = onExit;
-  const exit = useCallback(() => onExitRef.current?.(), []);
 
+  const cancelSeek = useCallback(() => {
+    if (seekTimer.current) clearTimeout(seekTimer.current);
+    seekTimer.current = null;
+  }, []);
+
+  const exit = useCallback(() => {
+    cancelSeek();
+    onExitRef.current?.();
+  }, [cancelSeek]);
+
+  // Gerakan visual saja — tidak menyentuh player.
   const jump = useCallback(
     (i) => {
       const next = clamp(i, 0, Math.max(0, queue.length - 1));
       setActive(next);
       motion.goTo(next);
+      return next;
     },
     [queue.length, motion],
   );
 
-  // Track berganti dari luar (next otomatis, tombol player): ikut kecuali drag.
-  const playerIndex = useRef(p.index);
+  // Satu-satunya jalur yang menyuruh player berpindah trek.
+  const playIndex = useCallback(
+    (i) => {
+      const next = clamp(i, 0, Math.max(0, queue.length - 1));
+      cancelSeek();
+      if (next === playerRef.current.index) return; // jangan restart lagu yang sama
+      playerIndexRef.current = next;
+      p.jumpTo(next);
+    },
+    [cancelSeek, p.jumpTo, queue.length],
+  );
+
+  // Geser bebas → putar setelah diam ~300ms. Cover yang dilewati tidak diputar.
+  const scheduleSeek = useCallback(
+    (i) => {
+      cancelSeek();
+      const next = clamp(i, 0, Math.max(0, queue.length - 1));
+      seekTimer.current = setTimeout(() => {
+        seekTimer.current = null;
+        if (motion.dragging.current) return;
+        playIndex(next);
+      }, CF_FX.seekDebounceMs);
+    },
+    [cancelSeek, motion, playIndex, queue.length],
+  );
+
+  const browse = useCallback(
+    (i) => {
+      const next = jump(i);
+      scheduleSeek(next);
+    },
+    [jump, scheduleSeek],
+  );
+
+  // Perubahan dari player (next/prev bawah, auto-next): carousel ikut.
+  // Tidak memanggil play lagi; pending debounce milik user dibatalkan.
   useEffect(() => {
     if (p.index < 0 || p.index >= queue.length) return;
-    if (motion.dragging.current || p.index === playerIndex.current) return;
-    playerIndex.current = p.index;
+    if (motion.dragging.current) {
+      externalDuringDrag.current = p.index;
+      playerIndexRef.current = p.index;
+      return;
+    }
+    if (p.index === playerIndexRef.current) return;
+    playerIndexRef.current = p.index;
+    cancelSeek();
     jump(p.index);
-  }, [p.index, queue.length, jump, motion]);
+  }, [p.index, queue.length, motion, jump, cancelSeek]);
 
   useEffect(() => {
     const next = clamp(active, 0, Math.max(0, queue.length - 1));
     if (next !== active) jump(next);
   }, [queue.length, active, jump]);
 
-  // Elemen baru masuk jendela render → lukis posisinya sebelum frame berikutnya.
   useEffect(() => {
     motion.sync();
   }, [active, queue, motion, historyTrack?.videoId]);
@@ -75,20 +133,31 @@ export function CoverFlow({ onExit }) {
     return () => clearTimeout(id);
   }, [active, activeTrack?.videoId, activeTrack?.thumbs, art.ready, art.still]);
 
-  const playCenter = useCallback(() => {
-    const tr = queue[active];
-    if (!tr) return;
-    if (p.current?.videoId === tr.videoId) p.toggle();
-    else p.playOne(tr, queue);
-  }, [active, queue, p.current?.videoId, p.toggle, p.playOne]);
+  // Pulse khusus efek: naik hanya saat trek player berubah (bukan saat browse).
+  useEffect(() => {
+    setTrackPulse((n) => n + 1);
+  }, [p.index]);
+
+  // Timer debounce ikut mati saat overlay ditutup / komponen unmount.
+  useEffect(() => cancelSeek, [cancelSeek]);
 
   const select = useCallback(
     (i) => {
-      if (i === active) playCenter();
-      else jump(i);
+      cancelSeek();
+      if (i === active) {
+        const tr = queue[active];
+        if (!tr) return;
+        if (p.current?.videoId === tr.videoId) p.toggle();
+        else playIndex(active);
+        return;
+      }
+      jump(i);
+      playIndex(i); // klik samping langsung putar trek itu
     },
-    [active, jump, playCenter],
+    [active, queue, p.current?.videoId, p.toggle, cancelSeek, playIndex, jump],
   );
+
+  const playCenter = useCallback(() => select(active), [select, active]);
 
   const openMenu = useCallback((i, e) => {
     const r = e.currentTarget.getBoundingClientRect();
@@ -108,19 +177,19 @@ export function CoverFlow({ onExit }) {
       }
       if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
         e.preventDefault();
-        jump(active + (e.key === "ArrowRight" ? 1 : -1));
+        browse(active + (e.key === "ArrowRight" ? 1 : -1));
         return;
       }
       if (e.key === "Home" || e.key === "End") {
         e.preventDefault();
-        jump(e.key === "Home" ? 0 : queue.length - 1);
+        browse(e.key === "Home" ? 0 : queue.length - 1);
         return;
       }
       if (/^[1-9]$/.test(e.key)) {
         const i = Number(e.key) - 1;
         if (i < queue.length) {
           e.preventDefault();
-          jump(i);
+          browse(i);
         }
         return;
       }
@@ -132,7 +201,7 @@ export function CoverFlow({ onExit }) {
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [active, queue.length, jump, playCenter, exit]);
+  }, [active, queue.length, browse, playCenter, exit]);
 
   // ── Wheel / trackpad: satu langkah per throttle ───────────────────────
   const wheelAt = useRef(0);
@@ -146,11 +215,11 @@ export function CoverFlow({ onExit }) {
       const now = performance.now();
       if (now - wheelAt.current < CF_MOTION.wheelMs) return;
       wheelAt.current = now;
-      jump(active + (d > 0 ? 1 : -1));
+      browse(active + (d > 0 ? 1 : -1));
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, [active, jump]);
+  }, [active, browse]);
 
   // ── Drag pointer dengan inersia ringan ────────────────────────────────
   const drag = useRef({ on: false, x: 0, start: 0, lastX: 0, lastT: 0, v: 0, moved: 0 });
@@ -185,6 +254,7 @@ export function CoverFlow({ onExit }) {
     if (!d.on) return;
     d.on = false;
     motion.dragging.current = false;
+    externalDuringDrag.current = null; // keputusan user setelah drag yang menang
     if (d.moved < 6) return;
     suppressClick.current = true;
     setTimeout(() => {
@@ -195,7 +265,7 @@ export function CoverFlow({ onExit }) {
       -0.65,
       0.65,
     );
-    jump(Math.round(motion.pos.current + bias));
+    browse(Math.round(motion.pos.current + bias));
   };
 
   // Tanpa pointer capture: klik tombol cover tetap sampai, drag tetap jalan
@@ -230,6 +300,16 @@ export function CoverFlow({ onExit }) {
       aria-roledescription="carousel"
       aria-label="Cover Flow"
       className="cf-root force-dark dialog-in fixed inset-0 z-[70] hidden overflow-hidden bg-window lg:flex"
+      style={{
+        "--cf-pop-ms": `${CF_FX.popMs}ms`,
+        "--cf-pop-scale": CF_FX.popScale,
+        "--cf-caption-ms": `${CF_FX.captionMs}ms`,
+        "--cf-caption-shift": `${CF_FX.captionShiftPx}px`,
+        "--cf-press-scale": CF_FX.pressScale,
+        "--cf-pause-scale": CF_FX.pauseScale,
+        "--cf-playpause-ms": `${CF_FX.playPauseMs}ms`,
+        "--cf-icon-ms": `${CF_FX.iconMs}ms`,
+      }}
     >
       <AuroraBackground ref={auroraRef} />
       <div className="cf-scrim" aria-hidden="true" />
@@ -270,6 +350,9 @@ export function CoverFlow({ onExit }) {
               index={i}
               active={i === active}
               showLabel={Math.abs(i - active) <= CF_LAYOUT.labelDistance}
+              pulse={trackPulse}
+              captionKey={i === active ? `play-${p.index}` : i}
+              playing={p.playing}
               src={i === active ? art.still || queue[i].thumbs : queue[i].thumbs}
               register={motion.register}
               onSelect={(idx) => {
