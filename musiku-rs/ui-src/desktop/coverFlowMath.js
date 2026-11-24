@@ -1,17 +1,21 @@
 // Semua angka yang bisa di-tweak untuk Cover Flow ada di dua blok ini.
 export const CF_LAYOUT = {
-  /** Jarak antar indeks dalam px pada skala 1. */
-  spacing: 300,
+  /** Jarak cover pertama di kiri/kanan tengah (px). Sengaja lega agar label tidak tertutup. */
+  spacingNear: 460,
+  /** Jarak antar cover berikutnya; makin jauh makin rapat. */
+  spacingFar: 300,
+  /** Faktor pengecilan jarak berikutnya (0 < f < 1). */
+  farDecay: 0.82,
   /** Sudut rotateY maksimal (derajat); kiri positif, kanan negatif. */
   angle: 52,
   angleMax: 60,
   /** Kedalaman mundur tiap langkah dari tengah. */
   zDepth: 220,
-  /** Pengecilan & pemudaran tiap langkah dari tengah. */
+  /** Pengecilan tiap langkah dari tengah. */
   scaleStep: 0.13,
   scaleMin: 0.62,
-  opacityStep: 0.2,
-  opacityMin: 0.12,
+  /** Opacity per jarak: 0, 1, 2, 3, 4+ (disela linear saat posisi pecahan). */
+  opacityStops: [1, 0.85, 0.6, 0.4, 0.25],
   /** Berapa cover di kiri/kanan tengah yang dirender (2 * radius + 1). */
   radius: 4,
   /** Jarak lompatan yang masih memakai spring penuh. */
@@ -37,6 +41,27 @@ export const CF_MOTION = {
 
 export const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
+/** Posisi X murni dari offset: +-1 renggang, setelah itu makin rapat. */
+export function xForOffset(offset) {
+  const d = Math.abs(offset);
+  if (d <= 1) return offset * CF_LAYOUT.spacingNear;
+  const next = Math.max(0, d - 1);
+  const extra =
+    CF_LAYOUT.spacingFar *
+    (1 - Math.pow(CF_LAYOUT.farDecay, next)) /
+    (1 - CF_LAYOUT.farDecay);
+  return Math.sign(offset) * (CF_LAYOUT.spacingNear + extra);
+}
+
+function opacityForDistance(d) {
+  const stops = CF_LAYOUT.opacityStops;
+  const i = Math.min(Math.floor(d), stops.length - 1);
+  const f = Math.min(1, d - i);
+  const a = stops[i];
+  const b = stops[Math.min(i + 1, stops.length - 1)];
+  return a + (b - a) * f;
+}
+
 /**
  * Fungsi murni: offset pecahan (i - posisi) -> transform satu cover.
  * Hanya menulis transform/opacity/z-index; tidak ada layout-property.
@@ -47,12 +72,12 @@ export function coverTransform(offset, reduce = false) {
   if (reduce) {
     // Tanpa rotasi/spring: yang bukan aktif cuma fade, tetap di tempatnya.
     return {
-      transform: `translate3d(${offset * CF_LAYOUT.spacing * 0.35}px, 0, 0) scale(1)`,
+      transform: `translate3d(${xForOffset(offset) * 0.35}px, 0, 0) scale(1)`,
       opacity: d < 0.5 ? 1 : 0,
       zIndex: 100 - Math.round(d * 10),
     };
   }
-  const x = offset * CF_LAYOUT.spacing;
+  const x = xForOffset(offset);
   const z = -Math.min(d, CF_LAYOUT.radius) * CF_LAYOUT.zDepth;
   const angle = Math.min(
     CF_LAYOUT.angleMax,
@@ -60,10 +85,9 @@ export function coverTransform(offset, reduce = false) {
   );
   const rot = -sign * angle; // kiri (offset < 0) menghadap ke dalam -> positif
   const scale = Math.max(CF_LAYOUT.scaleMin, 1 - d * CF_LAYOUT.scaleStep);
-  const opacity = Math.max(CF_LAYOUT.opacityMin, 1 - d * CF_LAYOUT.opacityStep);
   return {
     transform: `translate3d(${x}px, 0, ${z}px) rotateY(${rot}deg) scale(${scale})`,
-    opacity,
+    opacity: opacityForDistance(d),
     zIndex: 100 - Math.round(d * 10),
   };
 }

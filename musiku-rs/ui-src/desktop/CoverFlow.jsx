@@ -27,6 +27,13 @@ export function CoverFlow({ onExit }) {
   const activeTrack = queue[active] || p.current;
   const art = useAppleArtwork(activeTrack);
 
+  // Player punya `recent` (riwayat, terbaru duluan). Pakai hanya kalau kita
+  // berada di track pertama antrian; kalau kosong, sisi kiri dibiarkan kosong.
+  const historyTrack = useMemo(() => {
+    if (active !== 0 || !p.recent?.length || !activeTrack) return null;
+    return p.recent.find((r) => r.videoId !== activeTrack.videoId) || null;
+  }, [active, p.recent, activeTrack?.videoId]);
+
   const onExitRef = useRef(onExit);
   onExitRef.current = onExit;
   const exit = useCallback(() => onExitRef.current?.(), []);
@@ -57,7 +64,7 @@ export function CoverFlow({ onExit }) {
   // Elemen baru masuk jendela render → lukis posisinya sebelum frame berikutnya.
   useEffect(() => {
     motion.sync();
-  }, [active, queue, motion]);
+  }, [active, queue, motion, historyTrack?.videoId]);
 
   // Aurora mengikuti cover tengah, di-debounce supaya tidak crossfade terus.
   useEffect(() => {
@@ -171,7 +178,7 @@ export function CoverFlow({ onExit }) {
     d.v = (e.clientX - d.lastX) / Math.max(1, now - d.lastT);
     d.lastX = e.clientX;
     d.lastT = now;
-    motion.setPos(d.start - dx / CF_LAYOUT.spacing);
+    motion.setPos(d.start - dx / CF_LAYOUT.spacingNear);
   };
   const onPointerUp = () => {
     const d = drag.current;
@@ -184,7 +191,7 @@ export function CoverFlow({ onExit }) {
       suppressClick.current = false;
     }, 0);
     const bias = clamp(
-      (-d.v * 1000 * CF_MOTION.inertiaSec) / CF_LAYOUT.spacing,
+      (-d.v * 1000 * CF_MOTION.inertiaSec) / CF_LAYOUT.spacingNear,
       -0.65,
       0.65,
     );
@@ -242,6 +249,19 @@ export function CoverFlow({ onExit }) {
         onPointerDown={onPointerDown}
       >
         <div className="cf-track" role="group" aria-label="Cover album">
+          {historyTrack && (
+            <CoverItem
+              key={`history-${historyTrack.videoId}`}
+              track={historyTrack}
+              index={-1}
+              active={false}
+              history
+              src={historyTrack.thumbs}
+              register={motion.register}
+              onSelect={() => {}}
+              onMenu={openMenu}
+            />
+          )}
           {visible.map((i) => (
             <CoverItem
               key={`${queue[i].videoId}-${i}`}

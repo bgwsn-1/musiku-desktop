@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { IconEllipsis, IconMusic } from "@/components/Icons";
 
-export function CoverItem({ track, index, active, src, register, onSelect, onMenu }) {
+export function CoverItem({ track, index, active, history = false, src, register, onSelect, onMenu }) {
   const [failed, setFailed] = useState(false);
   useEffect(() => setFailed(false), [src]);
   const showImg = !!src && !failed;
@@ -13,16 +13,18 @@ export function CoverItem({ track, index, active, src, register, onSelect, onMen
   return (
     <div
       ref={(el) => register(index, el)}
-      className="cf-item"
+      className={`cf-item${history ? " cf-item-history" : ""}`}
       data-active={active ? "1" : undefined}
+      aria-hidden={history ? "true" : undefined}
     >
       <button
         type="button"
         className="cf-hit"
         onClick={() => onSelect(index)}
-        aria-label={`${title} - ${artist}`}
+        disabled={history}
+        aria-label={history ? `Riwayat: ${title} - ${artist}` : `${title} - ${artist}`}
         aria-current={active ? "true" : undefined}
-        tabIndex={active ? 0 : -1}
+        tabIndex={active && !history ? 0 : -1}
       >
         <span className="cf-card">
           {showImg ? (
@@ -43,7 +45,14 @@ export function CoverItem({ track, index, active, src, register, onSelect, onMen
         </span>
         <span className="cf-caption">
           <span className="cf-title">{title}</span>
-          <span className="cf-artist">{artist}</span>
+          <span className="cf-artist-line">
+            <span className="cf-artist">{artist}</span>
+            {active && !history && (
+              <span className="cf-badge" title="Audio dari YouTube Music (AAC/Opus)">
+                LOSSY
+              </span>
+            )}
+          </span>
         </span>
       </button>
       {active && (
