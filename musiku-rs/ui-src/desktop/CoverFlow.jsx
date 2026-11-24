@@ -256,6 +256,7 @@ export function CoverFlow({ onExit }) {
               index={-1}
               active={false}
               history
+              showLabel={CF_LAYOUT.labelDistance >= 1}
               src={historyTrack.thumbs}
               register={motion.register}
               onSelect={() => {}}
@@ -268,6 +269,7 @@ export function CoverFlow({ onExit }) {
               track={queue[i]}
               index={i}
               active={i === active}
+              showLabel={Math.abs(i - active) <= CF_LAYOUT.labelDistance}
               src={i === active ? art.still || queue[i].thumbs : queue[i].thumbs}
               register={motion.register}
               onSelect={(idx) => {

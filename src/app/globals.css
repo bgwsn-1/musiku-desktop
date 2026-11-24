@@ -1763,9 +1763,12 @@ textarea:focus-visible {
 .cf-scrim {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.24);
+  background: rgba(0, 0, 0, 0.16);
   pointer-events: none;
 }
+/* Scoped ke Cover Flow: palet aurora tetap terbaca tanpa mengubah layout lain. */
+.cf-root .aurora-overlay { background: rgba(0, 0, 0, 0.08); }
+.cf-root .aurora-blob { opacity: 0.82; }
 .cf-exit {
   position: absolute;
   left: 2rem;

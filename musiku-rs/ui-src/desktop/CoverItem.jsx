@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { IconEllipsis, IconMusic } from "@/components/Icons";
 
-export function CoverItem({ track, index, active, history = false, src, register, onSelect, onMenu }) {
+export function CoverItem({ track, index, active, history = false, showLabel = true, src, register, onSelect, onMenu }) {
   const [failed, setFailed] = useState(false);
   useEffect(() => setFailed(false), [src]);
   const showImg = !!src && !failed;
@@ -43,17 +43,19 @@ export function CoverItem({ track, index, active, history = false, src, register
             </span>
           )}
         </span>
-        <span className="cf-caption">
-          <span className="cf-title">{title}</span>
-          <span className="cf-artist-line">
-            <span className="cf-artist">{artist}</span>
-            {active && !history && (
-              <span className="cf-badge" title="Audio dari YouTube Music (AAC/Opus)">
-                LOSSY
-              </span>
-            )}
+        {showLabel && (
+          <span className="cf-caption">
+            <span className="cf-title">{title}</span>
+            <span className="cf-artist-line">
+              <span className="cf-artist">{artist}</span>
+              {active && !history && (
+                <span className="cf-badge" title="Audio dari YouTube Music (AAC/Opus)">
+                  LOSSY
+                </span>
+              )}
+            </span>
           </span>
-        </span>
+        )}
       </button>
       {active && (
         <button

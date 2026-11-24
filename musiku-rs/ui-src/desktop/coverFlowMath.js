@@ -2,20 +2,22 @@
 export const CF_LAYOUT = {
   /** Jarak cover pertama di kiri/kanan tengah (px). Sengaja lega agar label tidak tertutup. */
   spacingNear: 460,
-  /** Jarak antar cover berikutnya; makin jauh makin rapat. */
-  spacingFar: 300,
-  /** Faktor pengecilan jarak berikutnya (0 < f < 1). */
-  farDecay: 0.82,
+  /** Jarak ±1 ke ±2; masih dekat dengan spacingNear supaya transisi gradual. */
+  spacingFar: 400,
+  /** Faktor pengecilan jarak setelah ±2 (gap ±2→±3 = spacingFar * f). */
+  farDecay: 0.85,
   /** Sudut rotateY maksimal (derajat); kiri positif, kanan negatif. */
   angle: 52,
   angleMax: 60,
   /** Kedalaman mundur tiap langkah dari tengah. */
   zDepth: 220,
-  /** Pengecilan tiap langkah dari tengah. */
-  scaleStep: 0.13,
-  scaleMin: 0.62,
+  /** Pengecilan tiap langkah dari tengah; landai supaya ±2 tidak menumpuk. */
+  scaleStep: 0.12,
+  scaleMin: 0.6,
   /** Opacity per jarak: 0, 1, 2, 3, 4+ (disela linear saat posisi pecahan). */
   opacityStops: [1, 0.85, 0.6, 0.4, 0.25],
+  /** Label judul/artis hanya untuk cover aktif dan sejauh ini (±1). */
+  labelDistance: 1,
   /** Berapa cover di kiri/kanan tengah yang dirender (2 * radius + 1). */
   radius: 4,
   /** Jarak lompatan yang masih memakai spring penuh. */
