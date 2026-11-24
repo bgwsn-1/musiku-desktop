@@ -53,6 +53,16 @@ pub async fn resolve_video(video_id: &str) -> Result<String> {
         .await
 }
 
+/// Hapus cache URL audio (dipakai saat googlevideo membalas 401/403/410).
+pub async fn invalidate_audio(video_id: &str) {
+    audio_cache().invalidate(video_id).await;
+}
+
+/// Hapus cache URL video (dipakai saat googlevideo membalas 401/403/410).
+pub async fn invalidate_video(video_id: &str) {
+    video_cache().invalidate(video_id).await;
+}
+
 /// Validasi id video — sama dengan `/^[\w-]{6,25}$/` di route TS.
 pub fn valid_video_id(id: &str) -> bool {
     let len = id.len();

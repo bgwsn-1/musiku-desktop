@@ -1,0 +1,9 @@
+/target
+
+# Dependensi & cache build UI (React, esbuild, Tailwind).
+# Hasil build-nya (crates/server/ui/assets/app.{css,js}) justru DI-COMMIT,
+# karena di-embed ke binary lewat include_bytes!.
+/ui-src/node_modules
+/ui-src/package-lock.json
+/rustypipe_cache.json
+/rustypipe_reports

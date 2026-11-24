@@ -32,10 +32,41 @@ pub struct Musiku {
 
 static MUSIKU: OnceLock<Musiku> = OnceLock::new();
 
+/// Direktori cache milik aplikasi di lokasi standar OS agar `rustypipe` tidak
+/// menulis `rustypipe_cache.json` / `rustypipe_reports/` ke CWD (yang bisa
+/// read-only pada instalasi `/usr/bin` atau `Program Files`).
+fn rustypipe_cache_dir() -> std::path::PathBuf {
+    #[cfg(target_os = "windows")]
+    let base = std::env::var_os("LOCALAPPDATA")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(std::env::temp_dir);
+
+    #[cfg(target_os = "macos")]
+    let base = std::env::var_os("HOME")
+        .map(|h| std::path::PathBuf::from(h).join("Library").join("Caches"))
+        .unwrap_or_else(std::env::temp_dir);
+
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+    let base = std::env::var_os("XDG_CACHE_HOME")
+        .filter(|v| !v.is_empty())
+        .map(std::path::PathBuf::from)
+        .or_else(|| {
+            std::env::var_os("HOME").map(|h| std::path::PathBuf::from(h).join(".cache"))
+        })
+        .unwrap_or_else(std::env::temp_dir);
+
+    let dir = base.join("musiku").join("rustypipe");
+    let _ = std::fs::create_dir_all(&dir);
+    dir
+}
+
 /// Akses instance global.
 pub fn global() -> &'static Musiku {
     MUSIKU.get_or_init(|| Musiku {
-        pipe: RustyPipe::new(),
+        pipe: RustyPipe::builder()
+            .storage_dir(rustypipe_cache_dir())
+            .build()
+            .unwrap_or_else(|_| RustyPipe::new()),
         cache: JsonCache::new(METADATA_TTL),
         // CATATAN: jangan pakai `.timeout(...)` di sini. Timeout itu membatasi
         // **seluruh** transfer, jadi proxy `/api/stream` (yang memakai client ini
@@ -208,17 +239,29 @@ impl Musiku {
     pub async fn home(&self) -> anyhow::Result<serde_json::Value> {
         self.cache
             .get_or_try("home", async {
-                let gnew = self.global_new().await.unwrap_or_else(|_| {
-                    serde_json::json!({ "albums": [], "songs": [] })
-                });
+                let (gnew_res, artists_res) =
+                    tokio::join!(self.global_new(), self.global_artist_list());
+
+                let mut last_err: Option<anyhow::Error> = None;
+                let gnew = match gnew_res {
+                    Ok(v) => v,
+                    Err(e) => {
+                        last_err = Some(e);
+                        serde_json::json!({ "albums": [], "songs": [] })
+                    }
+                };
+                let global_artists = match artists_res {
+                    Ok(v) => v,
+                    Err(e) => {
+                        last_err = Some(e);
+                        serde_json::Value::Array(Vec::new())
+                    }
+                };
+
                 let new_albums: Vec<HomeItem> =
                     serde_json::from_value(gnew["albums"].clone()).unwrap_or_default();
                 let new_songs: Vec<HomeItem> =
                     serde_json::from_value(gnew["songs"].clone()).unwrap_or_default();
-                let global_artists = self
-                    .global_artist_list()
-                    .await
-                    .unwrap_or_else(|_| serde_json::Value::Array(Vec::new()));
 
                 let mut shelves: Vec<HomeShelf> = Vec::new();
                 let push = |shelves: &mut Vec<HomeShelf>, title: &str, items: Vec<HomeItem>| {
@@ -238,6 +281,13 @@ impl Musiku {
                 let artists: Vec<HomeItem> =
                     serde_json::from_value(global_artists).unwrap_or_default();
                 push(&mut shelves, "Artis Populer", artists.into_iter().take(12).collect());
+
+                // Jangan cache beranda kosong bila terjadi kegagalan jaringan sementara.
+                if shelves.is_empty() {
+                    if let Some(e) = last_err {
+                        return Err(e);
+                    }
+                }
 
                 Ok(serde_json::to_value(shelves)?)
             })
@@ -272,7 +322,19 @@ impl Musiku {
                 // 6 round-trip berturut-turut sebelum bisa lanjut.
                 let charts_list =
                     join_all(REGIONS.into_iter().map(|r| yt.music_charts(Some(r)))).await;
-                for charts in charts_list.into_iter().flatten() {
+                let mut ok_count = 0usize;
+                let mut last_err: Option<String> = None;
+                for res in charts_list {
+                    let charts = match res {
+                        Ok(c) => {
+                            ok_count += 1;
+                            c
+                        }
+                        Err(e) => {
+                            last_err = Some(e.to_string());
+                            continue;
+                        }
+                    };
                     for (idx, a) in charts.artists.iter().take(PER_REGION).enumerate() {
                         let score = (PER_REGION - idx) as u32;
                         let v = serde_json::json!({
@@ -293,6 +355,12 @@ impl Musiku {
                                 value: v,
                             });
                     }
+                }
+                if ok_count == 0 {
+                    anyhow::bail!(
+                        "gagal memuat charts artis: {}",
+                        last_err.unwrap_or_else(|| "semua region gagal".into())
+                    );
                 }
                 let mut items: Vec<(u32, u32, serde_json::Value)> = map
                     .into_values()
@@ -367,10 +435,7 @@ impl Musiku {
     pub async fn global_new(&self) -> anyhow::Result<serde_json::Value> {
         self.cache
             .get_or_try("global_new", async {
-                let list = self
-                    .global_artist_list()
-                    .await
-                    .unwrap_or_else(|_| serde_json::Value::Array(Vec::new()));
+                let list = self.global_artist_list().await?;
                 let ids: Vec<String> = list
                     .as_array()
                     .map(|arr| {
@@ -386,7 +451,19 @@ impl Musiku {
                 // Detail 6 artis diambil paralel; `join_all` menjaga urutan ids,
                 // jadi perilaku sorting/urutan shelf tidak berubah.
                 let details = join_all(ids.iter().map(|id| self.artist(id))).await;
-                for raw in details.into_iter().flatten() {
+                let mut ok_count = 0usize;
+                let mut last_err: Option<anyhow::Error> = None;
+                for res in details {
+                    let raw = match res {
+                        Ok(v) => {
+                            ok_count += 1;
+                            v
+                        }
+                        Err(e) => {
+                            last_err = Some(e);
+                            continue;
+                        }
+                    };
                     let detail: ArtistDetail = match serde_json::from_value(raw) {
                         Ok(d) => d,
                         Err(_) => continue,
@@ -435,6 +512,11 @@ impl Musiku {
                             thumbs: t.thumbs.clone(),
                             kind: HomeItemKind::Song,
                         });
+                    }
+                }
+                if !ids.is_empty() && ok_count == 0 {
+                    if let Some(e) = last_err {
+                        return Err(e);
                     }
                 }
                 albums.sort_by_key(|(year, _)| std::cmp::Reverse(*year));
@@ -604,20 +686,17 @@ impl Musiku {
         self.cache
             .get_or_try(&key, async {
                 let yt = self.pipe.query();
+                let details = yt.music_details(video_id).await?;
 
-                let mut title: Option<String> = None;
-                let mut artist: Option<String> = None;
-                let mut duration: Option<f64> = None;
+                let title = details.track.name.clone();
+                let artist = details.track.artists.first().map(|a| a.name.clone());
+                let duration = details.track.duration.map(|x| x as f64);
 
-                let details = yt.music_details(video_id).await.ok();
-                if let Some(d) = &details {
-                    title = Some(d.track.name.clone());
-                    artist = d.track.artists.first().map(|a| a.name.clone());
-                    duration = d.track.duration.map(|x| x as f64);
-                }
-
-                if let Some(t) = &title {
-                    if let Some(found) = self.lrclib_lookup(t, artist.as_deref(), duration).await {
+                if !title.is_empty() {
+                    if let Some(found) = self
+                        .lrclib_lookup(&title, artist.as_deref(), duration)
+                        .await?
+                    {
                         return Ok(serde_json::to_value(found)?);
                     }
                 }
@@ -632,24 +711,35 @@ impl Musiku {
     }
 
     /// Pencarian lirik di lrclib.net (port `fromLrclib()`).
+    /// Mengembalikan `Err` untuk error jaringan / 429 / 5xx agar tidak
+    /// ter-cache sebagai "tidak ada lirik", dan `Ok(None)` bila memang tidak ada.
     async fn lrclib_lookup(
         &self,
         title: &str,
         artist: Option<&str>,
         duration: Option<f64>,
-    ) -> Option<Lyrics> {
+    ) -> anyhow::Result<Option<Lyrics>> {
         let mut q: Vec<(String, String)> = vec![("track_name".into(), title.to_string())];
         if let Some(a) = artist {
             q.push(("artist_name".into(), a.to_string()));
         }
 
-        let resp = self.http.get("https://lrclib.net/api/search").query(&q).send().await.ok()?;
-        if !resp.status().is_success() {
-            return None;
+        let resp = self
+            .http
+            .get("https://lrclib.net/api/search")
+            .query(&q)
+            .send()
+            .await?;
+        let status = resp.status();
+        if status == reqwest::StatusCode::NOT_FOUND {
+            return Ok(None);
         }
-        let items: Vec<serde_json::Value> = resp.json().await.ok()?;
+        if !status.is_success() {
+            anyhow::bail!("lrclib HTTP {status}");
+        }
+        let items: Vec<serde_json::Value> = resp.json().await?;
         if items.is_empty() {
-            return None;
+            return Ok(None);
         }
 
         let target = duration.unwrap_or(0.0);
@@ -659,21 +749,27 @@ impl Musiku {
             (if synced { 1_000_000.0 } else { 0.0 }) - (dur - target).abs()
         };
 
-        let best = items.iter().max_by(|a, b| {
-            score(a).partial_cmp(&score(b)).unwrap_or(std::cmp::Ordering::Equal)
-        })?;
+        let Some(best) = items.iter().max_by(|a, b| {
+            score(a)
+                .partial_cmp(&score(b))
+                .unwrap_or(std::cmp::Ordering::Equal)
+        }) else {
+            return Ok(None);
+        };
 
         let synced_text = best.get("syncedLyrics").and_then(|v| v.as_str());
         let plain_text = best.get("plainLyrics").and_then(|v| v.as_str());
-        let text = synced_text.or(plain_text)?;
+        let Some(text) = synced_text.or(plain_text) else {
+            return Ok(None);
+        };
         if text.is_empty() {
-            return None;
+            return Ok(None);
         }
 
-        Some(Lyrics {
+        Ok(Some(Lyrics {
             text: Some(text.to_string()),
             synced: synced_text.is_some(),
             source: Some("lrclib".into()),
-        })
+        }))
     }
 }

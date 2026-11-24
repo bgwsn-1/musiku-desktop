@@ -1,0 +1,640 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   Mode Imersif Desktop (studio-stage full-bleed)
+   - Lapisan artwork penuh menyatu halus ke latar warna dominan (AuroraBackground)
+   - Kartu lirik / antrean transparan membulat di kanan (glass #1)
+   - Kapsul kontrol mengambang di bawah dengan kotak trek + scrub bar (glass #2)
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.im-stage {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #0b0909;
+  color: #f6efe9;
+  isolation: isolate;
+}
+
+/* ── Lapisan artwork full-bleed ───────────────────────────────────────── */
+.im-hero-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* Ambient blurred backdrop dari sampul agar pinggiran luar kaya warna */
+.im-hero-ambient {
+  position: absolute;
+  inset: -12%;
+  width: 124%;
+  height: 124%;
+  object-fit: cover;
+  filter: blur(56px) saturate(1.25) brightness(0.42);
+  transform: scale(1.06);
+  opacity: 0.85;
+  transition: opacity 0.6s ease;
+}
+
+/* Artwork utama tajam: menyatu halus ke kanan saat panel lirik/antrean terbuka */
+.im-hero-art {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: min(64vw, 112vh);
+  object-fit: cover;
+  object-position: center 22%;
+  display: block;
+  -webkit-mask-image: linear-gradient(
+    to right,
+    rgba(0, 0, 0, 0.94) 0%,
+    #000 10%,
+    #000 66%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    rgba(0, 0, 0, 0.94) 0%,
+    #000 10%,
+    #000 66%,
+    transparent 100%
+  );
+  transition: width 0.45s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.4s ease;
+}
+
+.im-stage[data-panel="closed"] .im-hero-art {
+  width: 100%;
+  object-position: center 25%;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+.im-hero-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.25;
+}
+
+.im-hero-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      to right,
+      rgba(10, 7, 7, 0.14) 0%,
+      rgba(10, 7, 7, 0.08) 42%,
+      rgba(10, 7, 7, 0.56) 72%,
+      rgba(10, 7, 7, 0.72) 100%
+    ),
+    linear-gradient(
+      to top,
+      rgba(10, 7, 7, 0.76) 0%,
+      rgba(10, 7, 7, 0.22) 22%,
+      transparent 48%
+    );
+}
+
+/* ── Area konten & kartu lirik / antrean (sisi kanan) ─────────────────── */
+.im-workspace {
+  position: relative;
+  z-index: 3;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  justify-content: flex-end;
+  align-items: stretch;
+  padding: 28px 28px 98px 28px;
+  pointer-events: none;
+}
+
+.im-panel-card {
+  pointer-events: auto;
+  width: min(47vw, 720px);
+  min-width: 340px;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-radius: 22px;
+  background: rgba(14, 10, 10, 0.76);
+  backdrop-filter: blur(24px) saturate(1.15);
+  -webkit-backdrop-filter: blur(24px) saturate(1.15);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 24px 64px -20px rgba(0, 0, 0, 0.68);
+  overflow: hidden;
+  padding: 22px 26px;
+}
+
+.im-panel-card .im-lyrics {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  --label-1: #f6efe9;
+}
+
+.im-panel-card .im-lyrics .im-lyrics-scroll {
+  padding: 0.75rem 1.25rem 0.75rem 0.25rem;
+}
+
+.im-panel-card .im-lyrics .im-lyric-line {
+  color: rgba(246, 239, 233, 0.92);
+  font-size: clamp(24px, 2.45vw, 38px);
+  font-weight: 700;
+  line-height: 1.32;
+  letter-spacing: -0.025em;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.55);
+}
+
+.im-panel-card .im-lyrics .im-lyric-line[aria-current="true"] {
+  color: #f6efe9;
+  font-weight: 800;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.55);
+}
+
+/* ── Panel Antrean di dalam kartu kanan ───────────────────────────────── */
+.im-queue {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.im-queue-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 14px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.im-queue-title {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: #f6efe9;
+}
+
+.im-queue-count {
+  font-size: 12px;
+  color: #d4c8c2;
+  font-variant-numeric: tabular-nums;
+}
+
+.im-queue-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-right: 4px;
+}
+
+.im-queue-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px;
+  border-radius: 12px;
+  transition: background-color 0.16s ease;
+}
+
+.im-queue-row:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.im-queue-row[data-current="1"] {
+  background: rgba(255, 143, 112, 0.16);
+}
+
+.im-queue-play {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  border-radius: 8px;
+}
+
+.im-queue-play:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 3px;
+}
+
+.im-queue-thumb {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex: none;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.im-queue-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.im-queue-name {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: #f6efe9;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.im-queue-row[data-current="1"] .im-queue-name {
+  color: #ff8f70;
+}
+
+.im-queue-sub {
+  display: block;
+  font-size: 12px;
+  color: #d4c8c2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.im-queue-rm {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #d4c8c2;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  transition: background-color 0.16s ease, color 0.16s ease;
+}
+
+.im-queue-rm:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+}
+
+.im-queue-rm:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+}
+
+.im-queue-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 24px;
+  color: #d4c8c2;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* ── Kapsul kontrol mengambang di bawah ───────────────────────────────── */
+.im-dock-wrap {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 20px;
+  z-index: 5;
+  display: flex;
+  justify-content: center;
+  padding: 0 16px;
+  pointer-events: none;
+}
+
+.im-dock {
+  pointer-events: auto;
+  width: min(880px, 100%);
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: rgba(14, 11, 11, 0.48);
+  box-shadow: 0 18px 46px -12px rgba(0, 0, 0, 0.72);
+}
+
+.im-dock-left,
+.im-dock-right {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+}
+
+.im-dock-btn {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #f6efe9;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  transition: background-color 0.16s ease, color 0.16s ease, transform 0.12s ease;
+}
+
+.im-dock-btn:hover {
+  background: rgba(255, 255, 255, 0.13);
+}
+
+.im-dock-btn:active {
+  transform: scale(0.93);
+}
+
+.im-dock-btn:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+}
+
+.im-dock-btn[data-active="1"] {
+  color: #ff9e85;
+  background: rgba(255, 158, 133, 0.16);
+}
+
+.im-dock-btn-play {
+  width: 38px;
+  height: 38px;
+}
+
+.im-dock-badge {
+  position: absolute;
+  top: 2px;
+  right: 1px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #ff9e85;
+  color: #120d0d;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 16px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.im-dock-time {
+  margin-left: 6px;
+  padding-right: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #d8ccc6;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  user-select: none;
+}
+
+/* ── Kotak info lagu + progress bar terintegrasi di tengah kapsul ─────── */
+.im-dock-track {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 9px 12px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  overflow: hidden;
+}
+
+.im-dock-track-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.im-dock-track-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: #f6efe9;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.im-dock-track-sub {
+  margin: 1px 0 0;
+  font-size: 11.5px;
+  line-height: 1.25;
+  color: #d4c8c2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.im-dock-track-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+}
+
+.im-dock-mini {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #d8ccc6;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  transition: background-color 0.16s ease, color 0.16s ease;
+}
+
+.im-dock-mini:hover {
+  background: rgba(255, 255, 255, 0.13);
+  color: #ffffff;
+}
+
+.im-dock-mini[data-liked="1"] {
+  color: #ff9e85;
+}
+
+.im-dock-mini:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+}
+
+/* Scrub bar tipis menempel di tepi bawah kotak info lagu */
+.im-dock-scrub {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 10px;
+  display: flex;
+  align-items: flex-end;
+  cursor: pointer;
+  touch-action: none;
+  outline: none;
+}
+
+.im-dock-scrub-rail {
+  width: 100%;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.16);
+  transition: height 0.16s ease;
+  overflow: hidden;
+}
+
+.im-dock-scrub:hover .im-dock-scrub-rail,
+.im-dock-scrub[data-dragging="1"] .im-dock-scrub-rail,
+.im-dock-scrub:focus-visible .im-dock-scrub-rail {
+  height: 5px;
+}
+
+.im-dock-scrub:focus-visible {
+  box-shadow: inset 0 -2px 0 0 #ffffff;
+}
+
+.im-dock-scrub-fill {
+  width: 100%;
+  height: 100%;
+  background: #f6efe9;
+  transform-origin: 0 50%;
+  transform: scaleX(0);
+}
+
+/* ── Popover volume ───────────────────────────────────────────────────── */
+.im-vol-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.im-vol-pop {
+  position: absolute;
+  bottom: calc(100% + 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(18, 14, 14, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.im-vol-range {
+  width: 104px;
+  accent-color: #ff8f70;
+  cursor: pointer;
+}
+
+.im-vol-val {
+  min-width: 30px;
+  font-size: 11px;
+  color: #d8ccc6;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Responsif untuk jendela sempit (< 1024px dan < 720px) ────────────── */
+@media (max-width: 1023px) {
+  .im-hero-art {
+    width: 100%;
+    -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 58%, transparent 100%);
+    mask-image: linear-gradient(to bottom, #000 0%, #000 58%, transparent 100%);
+  }
+
+  .im-workspace {
+    padding: 16px 16px 96px 16px;
+    justify-content: center;
+  }
+
+  .im-panel-card {
+    width: 100%;
+    min-width: 0;
+    padding: 16px 18px;
+  }
+}
+
+@media (max-width: 720px) {
+  .im-dock {
+    border-radius: 22px;
+    flex-wrap: wrap;
+    row-gap: 8px;
+    padding: 8px 10px;
+  }
+
+  .im-dock-track {
+    order: -1;
+    flex-basis: 100%;
+  }
+
+  .im-dock-left {
+    flex: 1;
+  }
+
+  .im-dock-time {
+    display: none;
+  }
+
+  .im-dock-btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  .im-workspace {
+    padding-bottom: 136px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .im-hero-ambient,
+  .im-hero-art,
+  .im-dock-btn,
+  .im-dock-scrub-rail,
+  .im-queue-row {
+    transition: none;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .im-panel-card,
+  .im-dock,
+  .im-vol-pop {
+    background: #120e0e;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}

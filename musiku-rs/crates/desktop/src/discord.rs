@@ -101,7 +101,11 @@ fn artwork_key(url: Option<String>) -> Option<String> {
     if !url.starts_with("https://") || url.len() > 512 {
         return None;
     }
-    let host = url[8..].split('/').next()?.to_ascii_lowercase();
+    let authority = url[8..].split(['/', '?', '#']).next()?;
+    if authority.is_empty() || authority.contains('@') {
+        return None;
+    }
+    let host = authority.split(':').next()?.to_ascii_lowercase();
     let allowed = [
         "ytimg.com",
         "ggpht.com",
@@ -115,15 +119,27 @@ fn artwork_key(url: Option<String>) -> Option<String> {
     known.then_some(url)
 }
 
+/// Discord IPC mewajibkan panjang string field `details` / `state` minimal 2
+/// karakter (jika ada). Padding spasi mencegah payload ditolak untuk judul
+/// 1 karakter (mis. lagu "I" atau "7").
+fn pad_min_two(s: String) -> String {
+    if s.chars().count() < 2 {
+        format!("{s} ")
+    } else {
+        s
+    }
+}
+
 fn state_line(artist: Option<String>, album: Option<String>) -> Option<String> {
     let artist = clip(artist);
     let album = clip(album);
-    match (artist, album) {
-        (Some(a), Some(b)) if a != b => Some(format!("{a} — {b}")),
-        (Some(a), _) => Some(a),
-        (_, Some(b)) => Some(b),
-        _ => None,
-    }
+    let line = match (artist, album) {
+        (Some(a), Some(b)) if a != b => format!("{a} — {b}"),
+        (Some(a), _) => a,
+        (_, Some(b)) => b,
+        _ => return None,
+    };
+    Some(pad_min_two(line))
 }
 
 impl Presence {
@@ -192,12 +208,14 @@ impl Presence {
             .or_else(|| clip(Some(payload.title.clone())))
             .unwrap_or_else(|| "Musiku".to_string());
 
-        let activity = Activity::new()
+        let details = clip(Some(payload.title))
+            .map(pad_min_two)
+            .unwrap_or_else(|| "Musiku".to_string());
+        let mut activity = Activity::new()
             .name("Musiku")
             .activity_type(ActivityType::Listening)
             .status_display_type(StatusDisplayType::Details)
-            .details(clip(Some(payload.title)).unwrap_or_else(|| "Musiku".to_string()))
-            .state(state_line(payload.artist, payload.album).unwrap_or_default())
+            .details(details)
             .timestamps(timestamps)
             .assets(
                 Assets::new()
@@ -206,6 +224,9 @@ impl Presence {
                     .small_image(ICON_ASSET)
                     .small_text("Musiku"),
             );
+        if let Some(state) = state_line(payload.artist, payload.album) {
+            activity = activity.state(state);
+        }
 
         self.send(activity);
     }
@@ -270,5 +291,21 @@ mod tests {
             "mengirim presence memblokir {}ms",
             started.elapsed().as_millis()
         );
+    }
+
+    #[test]
+    fn artwork_key_tolak_host_palsu() {
+        assert!(artwork_key(Some("https://i.ytimg.com/vi/abc/hqdefault.jpg".into())).is_some());
+        assert!(artwork_key(Some("https://evil.com?.ytimg.com".into())).is_none());
+        assert!(artwork_key(Some("https://evil.com@i.ytimg.com/a.jpg".into())).is_none());
+        assert!(artwork_key(Some("http://i.ytimg.com/a.jpg".into())).is_none());
+    }
+
+    #[test]
+    fn discord_min_length_dan_state_kosong() {
+        assert_eq!(pad_min_two("I".into()), "I ");
+        assert_eq!(pad_min_two("OK".into()), "OK");
+        assert!(state_line(None, None).is_none());
+        assert_eq!(state_line(Some("X".into()), None).as_deref(), Some("X "));
     }
 }

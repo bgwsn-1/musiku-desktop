@@ -34,24 +34,26 @@ fn music_desc() -> &'static Regex {
     })
 }
 
-/// URL thumbnail langsung dari upload.wikimedia.org. Lebar harus salah satu
-/// ukuran tetap yang diizinkan Wikimedia, bukan angka bebas.
+/// URL thumbnail Wikimedia Commons lewat `Special:FilePath` dengan percent-encoding
+/// yang benar untuk nama berkas berkarakter khusus (`%`, `#`, `?`, `&`, Unicode).
+/// Wikimedia otomatis merender SVG ke PNG 500px dan melayani gambar raster kecil
+/// tanpa membalas 404.
 fn commons_thumb(file: &str) -> String {
-    let clean = file.replace(' ', "_");
-    let h = format!("{:x}", md5::compute(&clean));
-    let is_svg = clean.to_ascii_lowercase().ends_with(".svg");
-    format!(
-        "https://upload.wikimedia.org/wikipedia/commons/thumb/{}/{}/{}/500px-{}{}",
-        &h[0..1],
-        &h[0..2],
-        clean,
-        clean,
-        if is_svg { ".png" } else { "" }
-    )
+    let clean = file.trim().replace(' ', "_");
+    let mut url = reqwest::Url::parse("https://commons.wikimedia.org/wiki/Special:FilePath/")
+        .expect("url commons valid");
+    if let Ok(mut segs) = url.path_segments_mut() {
+        segs.pop_if_empty();
+        segs.push(&clean);
+    }
+    url.query_pairs_mut().append_pair("width", "500");
+    url.into()
 }
 
 /// Logo dari Wikidata (klaim P154 pada entitas artis pertama yang cocok).
-async fn wikidata_logo(name: &str) -> Option<String> {
+/// Mengembalikan `Err` untuk kegagalan jaringan/HTTP agar tidak di-cache
+/// sebagai hasil kosong selama 24 jam.
+async fn wikidata_logo(name: &str) -> anyhow::Result<Option<String>> {
     let http = global().http();
 
     let found: Value = http
@@ -66,27 +68,30 @@ async fn wikidata_logo(name: &str) -> Option<String> {
         ])
         .header("user-agent", UA)
         .send()
-        .await
-        .ok()?
+        .await?
+        .error_for_status()?
         .json()
-        .await
-        .ok()?;
+        .await?;
 
-    let entity_id = found
+    let Some(entity_id) = found
         .get("search")
-        .and_then(|v| v.as_array())?
-        .iter()
-        .find(|s| {
-            let desc = s
-                .get("description")
-                .and_then(|d| d.as_str())
-                .unwrap_or("")
-                .to_ascii_lowercase();
-            !desc.contains("disambiguation") && music_desc().is_match(&desc)
-        })?
-        .get("id")?
-        .as_str()?
-        .to_string();
+        .and_then(|v| v.as_array())
+        .and_then(|arr| {
+            arr.iter().find(|s| {
+                let desc = s
+                    .get("description")
+                    .and_then(|d| d.as_str())
+                    .unwrap_or("")
+                    .to_ascii_lowercase();
+                !desc.contains("disambiguation") && music_desc().is_match(&desc)
+            })
+        })
+        .and_then(|s| s.get("id"))
+        .and_then(|id| id.as_str())
+        .map(str::to_string)
+    else {
+        return Ok(None);
+    };
 
     let claims: Value = http
         .get("https://www.wikidata.org/w/api.php")
@@ -98,48 +103,53 @@ async fn wikidata_logo(name: &str) -> Option<String> {
         ])
         .header("user-agent", UA)
         .send()
-        .await
-        .ok()?
+        .await?
+        .error_for_status()?
         .json()
-        .await
-        .ok()?;
+        .await?;
 
-    let file = claims
-        .get("claims")?
-        .get("P154")?
-        .as_array()?
-        .first()?
-        .get("mainsnak")?
-        .get("datavalue")?
-        .get("value")?
-        .as_str()?;
+    let Some(file) = claims
+        .get("claims")
+        .and_then(|c| c.get("P154"))
+        .and_then(|p| p.as_array())
+        .and_then(|a| a.first())
+        .and_then(|x| x.get("mainsnak"))
+        .and_then(|x| x.get("datavalue"))
+        .and_then(|x| x.get("value"))
+        .and_then(|x| x.as_str())
+    else {
+        return Ok(None);
+    };
 
     if file.is_empty() {
-        return None;
+        return Ok(None);
     }
-    Some(commons_thumb(file))
+    Ok(Some(commons_thumb(file)))
 }
 
 /// Logo dari TheAudioDB (API publik, kunci tier gratis `123`).
-async fn tadb_logo(name: &str) -> Option<String> {
+async fn tadb_logo(name: &str) -> anyhow::Result<Option<String>> {
     let data: Value = global()
         .http()
         .get("https://www.theaudiodb.com/api/v1/json/123/search.php")
         .query(&[("s", name)])
         .header("user-agent", UA)
         .send()
-        .await
-        .ok()?
+        .await?
+        .error_for_status()?
         .json()
-        .await
-        .ok()?;
+        .await?;
 
-    data.get("artists")?
-        .as_array()?
-        .iter()
-        .find_map(|a| a.get("strArtistLogo").and_then(|v| v.as_str()))
+    let found = data
+        .get("artists")
+        .and_then(|v| v.as_array())
+        .and_then(|arr| {
+            arr.iter()
+                .find_map(|a| a.get("strArtistLogo").and_then(|v| v.as_str()))
+        })
         .filter(|s| !s.is_empty())
-        .map(str::to_string)
+        .map(str::to_string);
+    Ok(found)
 }
 
 /// Cari wordmark artis. `Ok(None)` kalau tidak ada di kedua sumber.
@@ -162,11 +172,24 @@ pub async fn artist_logo_candidates(name: &str) -> anyhow::Result<Vec<String>> {
     let joined = cache()
         .get_or_try(&key, async {
             let mut out: Vec<String> = Vec::new();
-            if let Some(u) = wikidata_logo(name).await {
-                out.push(u);
+            let mut last_err: Option<anyhow::Error> = None;
+
+            match wikidata_logo(name).await {
+                Ok(Some(u)) => out.push(u),
+                Ok(None) => {}
+                Err(e) => last_err = Some(e),
             }
-            if let Some(u) = tadb_logo(name).await {
-                out.push(u);
+            match tadb_logo(name).await {
+                Ok(Some(u)) => out.push(u),
+                Ok(None) => {}
+                Err(e) => last_err = Some(e),
+            }
+
+            // Jangan cache hasil kosong 24 jam jika sumber gagal karena error jaringan/429.
+            if out.is_empty() {
+                if let Some(e) = last_err {
+                    return Err(e);
+                }
             }
             Ok(out.join("\n"))
         })
@@ -177,4 +200,19 @@ pub async fn artist_logo_candidates(name: &str) -> anyhow::Result<Vec<String>> {
         .filter(|s| !s.is_empty())
         .map(str::to_string)
         .collect())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn commons_thumb_encode_karakter_khusus() {
+        let u = commons_thumb("P!nk & 100% #1? logo.svg");
+        assert!(u.starts_with("https://commons.wikimedia.org/wiki/Special:FilePath/"));
+        assert!(u.ends_with("?width=500"));
+        assert!(u.contains("%25"));
+        assert!(u.contains("%23"));
+        assert!(u.contains("%3F"));
+    }
 }

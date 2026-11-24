@@ -22,9 +22,15 @@ use musiku_core::apple::apple_artwork;
 use musiku_core::artist_logo::{artist_logo, artist_logo_candidates};
 use musiku_core::cache::BytesCache;
 use musiku_core::music::{global, FILTERS, UA};
-use musiku_core::stream::{resolve_audio, resolve_video, valid_video_id};
+use musiku_core::stream::{
+    invalidate_audio, invalidate_video, resolve_audio, resolve_video, valid_video_id,
+};
+use sha2::{Digest, Sha256};
 
 mod update;
+
+/// Batas ukuran gambar yang boleh di-buffer ke memori pada endpoint proxy (10 MB).
+const MAX_IMAGE_BYTES: usize = 10 * 1024 * 1024;
 
 /// Cache byte gambar sampul (24 jam). Mencegah hit berulang ke CDN Google.
 fn artwork_cache() -> &'static BytesCache {
@@ -196,25 +202,40 @@ async fn stream_handler(
     }
 
     let is_video = p.video.as_deref() == Some("1");
-    let url = if is_video {
-        resolve_video(&id).await
-    } else {
-        resolve_audio(&id).await
-    }
-    .map_err(|_| err(StatusCode::BAD_GATEWAY, "resolve failed"))?;
+    let range_hdr = req_headers
+        .get(header::RANGE)
+        .and_then(|r| r.to_str().ok())
+        .map(str::to_string);
 
-    // Teruskan Range supaya <audio>/<video> bisa seek. Ini yang membedakan
-    // proxy sederhana dengan proxy yang benar.
-    let mut fetch_headers = vec![("user-agent", "Mozilla/5.0".to_string())];
-    if let Some(range) = req_headers.get(header::RANGE).and_then(|r| r.to_str().ok()) {
-        fetch_headers.push(("range", range.to_string()));
-    }
+    // Maksimal 2 percobaan: jika URL googlevideo di cache kedaluwarsa atau
+    // ditolak karena IP berubah (401/403/410), invalidasi cache lalu resolve ulang.
+    let mut up = None;
+    for attempt in 0..2 {
+        let url = if is_video {
+            resolve_video(&id).await
+        } else {
+            resolve_audio(&id).await
+        }
+        .map_err(|_| err(StatusCode::BAD_GATEWAY, "resolve failed"))?;
 
-    let mut req = global().http().get(&url);
-    for (k, v) in &fetch_headers {
-        req = req.header(*k, v);
+        let mut req = global().http().get(&url).header("user-agent", "Mozilla/5.0");
+        if let Some(range) = &range_hdr {
+            req = req.header("range", range);
+        }
+        let resp = req.send().await.map_err(upstream)?;
+        let code = resp.status().as_u16();
+        if attempt == 0 && matches!(code, 401 | 403 | 410) {
+            if is_video {
+                invalidate_video(&id).await;
+            } else {
+                invalidate_audio(&id).await;
+            }
+            continue;
+        }
+        up = Some(resp);
+        break;
     }
-    let up = req.send().await.map_err(upstream)?;
+    let up = up.ok_or_else(|| err(StatusCode::BAD_GATEWAY, "resolve failed"))?;
 
     let status = StatusCode::from_u16(up.status().as_u16())
         .unwrap_or(StatusCode::BAD_GATEWAY);
@@ -268,6 +289,40 @@ fn single_content_type<'a>(headers: &'a HeaderMap, default: &'a str) -> &'a str 
         .unwrap_or(default)
 }
 
+/// Hanya izinkan MIME gambar raster aman pada proxy same-origin (tolak
+/// `image/svg+xml` yang bisa memuat `<script>` atau `text/html`).
+fn safe_image_content_type(raw: Option<&str>, fallback: &str) -> anyhow::Result<String> {
+    let mime = raw
+        .and_then(|v| v.split(';').next())
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .unwrap_or(fallback)
+        .to_ascii_lowercase();
+    match mime.as_str() {
+        "image/png" | "image/jpeg" | "image/jpg" | "image/webp" | "image/gif" | "image/avif" => {
+            Ok(mime)
+        }
+        other => anyhow::bail!("content-type gambar tidak diizinkan: {other}"),
+    }
+}
+
+/// Baca body gambar upstream dengan batas maksimal `MAX_IMAGE_BYTES`.
+async fn read_capped_image(mut resp: reqwest::Response) -> anyhow::Result<Vec<u8>> {
+    if let Some(len) = resp.content_length() {
+        if len > MAX_IMAGE_BYTES as u64 {
+            anyhow::bail!("ukuran gambar melebihi batas ({len} byte)");
+        }
+    }
+    let mut buf = Vec::new();
+    while let Some(chunk) = resp.chunk().await? {
+        if buf.len().saturating_add(chunk.len()) > MAX_IMAGE_BYTES {
+            anyhow::bail!("ukuran gambar melebihi batas ({MAX_IMAGE_BYTES} byte)");
+        }
+        buf.extend_from_slice(&chunk);
+    }
+    Ok(buf)
+}
+
 async fn artwork_proxy(Query(p): Query<ArtworkParams>) -> Result<Response, ApiError> {
     let raw = p.url.unwrap_or_default();
     let parsed = reqwest::Url::parse(&raw)
@@ -291,13 +346,13 @@ async fn artwork_proxy(Query(p): Query<ArtworkParams>) -> Result<Response, ApiEr
             if !r.status().is_success() {
                 anyhow::bail!("upstream {}", r.status());
             }
-            let ctype = r
-                .headers()
-                .get(header::CONTENT_TYPE)
-                .and_then(|v| v.to_str().ok())
-                .unwrap_or("image/jpeg")
-                .to_string();
-            let bytes = r.bytes().await?.to_vec();
+            let ctype = safe_image_content_type(
+                r.headers()
+                    .get(header::CONTENT_TYPE)
+                    .and_then(|v| v.to_str().ok()),
+                "image/jpeg",
+            )?;
+            let bytes = read_capped_image(r).await?;
             Ok((ctype, bytes))
         })
         .await
@@ -307,6 +362,8 @@ async fn artwork_proxy(Query(p): Query<ArtworkParams>) -> Result<Response, ApiEr
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, ctype)
         .header(header::CACHE_CONTROL, "public, max-age=86400")
+        .header(header::X_CONTENT_TYPE_OPTIONS, "nosniff")
+        .header(header::CONTENT_SECURITY_POLICY, "default-src 'none'")
         .body(Body::from(bytes))
         .map_err(|e| err(StatusCode::BAD_GATEWAY, e.to_string()))
 }
@@ -362,13 +419,13 @@ async fn artist_logo_file(Query(p): Query<NameParams>) -> Result<Response, ApiEr
                 if !r.status().is_success() {
                     anyhow::bail!("upstream {}", r.status());
                 }
-                let ctype = r
-                    .headers()
-                    .get(header::CONTENT_TYPE)
-                    .and_then(|v| v.to_str().ok())
-                    .unwrap_or("image/png")
-                    .to_string();
-                let bytes = r.bytes().await?.to_vec();
+                let ctype = safe_image_content_type(
+                    r.headers()
+                        .get(header::CONTENT_TYPE)
+                        .and_then(|v| v.to_str().ok()),
+                    "image/png",
+                )?;
+                let bytes = read_capped_image(r).await?;
                 Ok((ctype, bytes))
             })
             .await;
@@ -379,6 +436,8 @@ async fn artist_logo_file(Query(p): Query<NameParams>) -> Result<Response, ApiEr
                     .status(StatusCode::OK)
                     .header(header::CONTENT_TYPE, ctype)
                     .header(header::CACHE_CONTROL, "public, max-age=604800")
+                    .header(header::X_CONTENT_TYPE_OPTIONS, "nosniff")
+                    .header(header::CONTENT_SECURITY_POLICY, "default-src 'none'")
                     .body(Body::from(bytes))
                     .map_err(|e| err(StatusCode::BAD_GATEWAY, e.to_string()));
             }
@@ -391,8 +450,55 @@ async fn artist_logo_file(Query(p): Query<NameParams>) -> Result<Response, ApiEr
 
 // ── UI ───────────────────────────────────────────────────────────────────
 
-async fn index() -> Html<&'static str> {
-    Html(INDEX_HTML)
+fn asset_hash(bytes: &[u8]) -> String {
+    let hash = Sha256::digest(bytes);
+    let mut hex = String::with_capacity(16);
+    for b in &hash[..8] {
+        use std::fmt::Write;
+        let _ = write!(&mut hex, "{b:02x}");
+    }
+    hex
+}
+
+fn app_css_hash() -> &'static str {
+    static H: OnceLock<String> = OnceLock::new();
+    H.get_or_init(|| asset_hash(APP_CSS)).as_str()
+}
+
+fn app_js_hash() -> &'static str {
+    static H: OnceLock<String> = OnceLock::new();
+    H.get_or_init(|| asset_hash(APP_JS)).as_str()
+}
+
+/// Suntikkan `?v=<hash>` pada URL `/assets/app.{css,js}` di `index.html` supaya
+/// WebView/browser yang pernah menyimpan cache `immutable` langsung mengambil
+/// bundel terbaru saat binary di-rebuild atau di-upgrade.
+fn rendered_index_html() -> &'static str {
+    static HTML: OnceLock<String> = OnceLock::new();
+    HTML.get_or_init(|| {
+        INDEX_HTML
+            .replace(
+                "href=\"/assets/app.css\"",
+                &format!("href=\"/assets/app.css?v={}\"", app_css_hash()),
+            )
+            .replace(
+                "src=\"/assets/app.js\"",
+                &format!("src=\"/assets/app.js?v={}\"", app_js_hash()),
+            )
+    })
+    .as_str()
+}
+
+fn html_no_store() -> Response {
+    (
+        [(header::CACHE_CONTROL, "no-store")],
+        Html(rendered_index_html()),
+    )
+        .into_response()
+}
+
+async fn index() -> Response {
+    html_no_store()
 }
 
 /// `/api` atau di bawahnya — dipakai membedakan fallback UI dan fallback API.
@@ -406,7 +512,7 @@ async fn spa_fallback(uri: axum::http::Uri) -> Response {
     if is_api_path(&uri) {
         return err(StatusCode::NOT_FOUND, "not found").into_response();
     }
-    Html(INDEX_HTML).into_response()
+    html_no_store()
 }
 
 // Aset UI (CSS/JS/font) di-embed ke binary supaya `.exe` benar-benar mandiri.
@@ -438,7 +544,17 @@ fn font_bytes(name: &str) -> Option<&'static [u8]> {
     )
 }
 
-fn asset(bytes: &'static [u8], ctype: &'static str) -> Response {
+fn app_css_etag() -> &'static str {
+    static TAG: OnceLock<String> = OnceLock::new();
+    TAG.get_or_init(|| format!("\"{}\"", app_css_hash())).as_str()
+}
+
+fn app_js_etag() -> &'static str {
+    static TAG: OnceLock<String> = OnceLock::new();
+    TAG.get_or_init(|| format!("\"{}\"", app_js_hash())).as_str()
+}
+
+fn immutable_asset(bytes: &'static [u8], ctype: &'static str) -> Response {
     (
         [
             (header::CONTENT_TYPE, ctype),
@@ -449,22 +565,83 @@ fn asset(bytes: &'static [u8], ctype: &'static str) -> Response {
         .into_response()
 }
 
-async fn asset_css() -> Response {
-    asset(APP_CSS, "text/css; charset=utf-8")
+/// Aset bundle tanpa hash di URL (`/assets/app.css`, `/assets/app.js`):
+/// pakai `no-cache` + `ETag` supaya browser/WebView selalu memvalidasi ulang
+/// saat binary di-upgrade, tapi tetap cepat (304 Not Modified) saat sama.
+fn revalidated_asset(
+    bytes: &'static [u8],
+    ctype: &'static str,
+    etag: &'static str,
+    req_headers: &HeaderMap,
+) -> Response {
+    if req_headers
+        .get(header::IF_NONE_MATCH)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|v| v.trim() == etag)
+    {
+        return (
+            StatusCode::NOT_MODIFIED,
+            [
+                (header::ETAG, etag),
+                (header::CACHE_CONTROL, "no-cache"),
+            ],
+        )
+            .into_response();
+    }
+    (
+        [
+            (header::CONTENT_TYPE, ctype),
+            (header::CACHE_CONTROL, "no-cache"),
+            (header::ETAG, etag),
+        ],
+        Body::from(bytes),
+    )
+        .into_response()
 }
 
-async fn asset_js() -> Response {
-    asset(APP_JS, "text/javascript; charset=utf-8")
+async fn asset_css(headers: HeaderMap) -> Response {
+    revalidated_asset(APP_CSS, "text/css; charset=utf-8", app_css_etag(), &headers)
+}
+
+async fn asset_js(headers: HeaderMap) -> Response {
+    revalidated_asset(
+        APP_JS,
+        "text/javascript; charset=utf-8",
+        app_js_etag(),
+        &headers,
+    )
 }
 
 async fn asset_font(Path(name): Path<String>) -> Response {
     match font_bytes(&name) {
-        Some(b) => asset(b, "font/woff2"),
+        Some(b) => immutable_asset(b, "font/woff2"),
         None => StatusCode::NOT_FOUND.into_response(),
     }
 }
 
 // ── /api/update/* ────────────────────────────────────────────────────────
+
+/// Validasi same-origin untuk POST sensitif (`/api/update/install`) agar situs
+/// web lain di browser tidak dapat memicu unduh/eksekusi installer via CSRF.
+fn is_same_origin_post(headers: &HeaderMap) -> bool {
+    let Some(host) = headers.get(header::HOST).and_then(|v| v.to_str().ok()) else {
+        return false;
+    };
+    let Some(origin) = headers.get(header::ORIGIN).and_then(|v| v.to_str().ok()) else {
+        return false;
+    };
+    let expected_http = format!("http://{host}");
+    let expected_https = format!("https://{host}");
+    if origin != expected_http && origin != expected_https {
+        return false;
+    }
+    if let Some(site) = headers.get("sec-fetch-site").and_then(|v| v.to_str().ok()) {
+        if site != "same-origin" {
+            return false;
+        }
+    }
+    true
+}
 
 async fn update_check() -> std::result::Result<Json<Value>, ApiError> {
     update::check()
@@ -473,13 +650,27 @@ async fn update_check() -> std::result::Result<Json<Value>, ApiError> {
         .map_err(upstream)
 }
 
-async fn update_install() -> std::result::Result<Json<Value>, ApiError> {
+async fn update_install_desktop(
+    headers: HeaderMap,
+) -> std::result::Result<Json<Value>, ApiError> {
+    if !is_same_origin_post(&headers) {
+        return Err(err(
+            StatusCode::FORBIDDEN,
+            "permintaan lintas origin ditolak",
+        ));
+    }
     update::install().await.map(Json).map_err(upstream)
 }
 
-/// Router lengkap: API + UI.
-pub fn app() -> Router {
-    Router::new()
+async fn update_install_disabled() -> ApiError {
+    err(
+        StatusCode::FORBIDDEN,
+        "pembaruan otomatis hanya tersedia pada aplikasi desktop",
+    )
+}
+
+fn build_router(allow_update_install: bool) -> Router {
+    let r = Router::new()
         .route("/", get(index))
         .route("/assets/app.css", get(asset_css))
         .route("/assets/app.js", get(asset_js))
@@ -500,10 +691,26 @@ pub fn app() -> Router {
         .route("/api/artwork-proxy", get(artwork_proxy))
         .route("/api/artist-logo", get(artist_logo_json))
         .route("/api/artist-logo/file", get(artist_logo_file))
-        .route("/api/update/check", get(update_check))
-        .route("/api/update/install", post(update_install))
-        // SPA fallback: rute tak dikenal balikin UI, /api/* → 404 JSON.
-        .fallback(spa_fallback)
+        .route("/api/update/check", get(update_check));
+
+    let r = if allow_update_install {
+        r.route("/api/update/install", post(update_install_desktop))
+    } else {
+        r.route("/api/update/install", post(update_install_disabled))
+    };
+
+    // SPA fallback: rute tak dikenal balikin UI, /api/* → 404 JSON.
+    r.fallback(spa_fallback)
+}
+
+/// Router lengkap untuk server web standalone (`/api/update/install` dinonaktifkan).
+pub fn app() -> Router {
+    build_router(false)
+}
+
+/// Router untuk shell desktop Tauri (`/api/update/install` aktif dengan guard same-origin).
+fn desktop_app() -> Router {
+    build_router(true)
 }
 
 /// Jalan-larang di listener yang sudah ada (dipakai `main.rs`).
@@ -511,11 +718,46 @@ pub async fn serve(listener: tokio::net::TcpListener) -> std::io::Result<()> {
     axum::serve(listener, app()).await
 }
 
-/// Jalankan server di thread terpisah, di port acak yang bebas.
+/// Port bawaan tetap untuk aplikasi desktop agar Origin WebView
+/// (`http://127.0.0.1:<port>`) konsisten antar-sesi dan `localStorage`
+/// (playlist, lagu disukai, riwayat, pengaturan) tetap terjaga saat restart.
+/// Dipilih di luar rentang ephemeral OS (Linux 32768-60999, Windows/macOS
+/// 49152-65535) dan berbeda dari port server manual (`8787`).
+pub const DEFAULT_DESKTOP_PORT: u16 = 28787;
+
+async fn bind_preferred_or_ephemeral(
+    preferred: u16,
+) -> std::io::Result<tokio::net::TcpListener> {
+    if preferred != 0 {
+        match tokio::net::TcpListener::bind(("127.0.0.1", preferred)).await {
+            Ok(listener) => return Ok(listener),
+            Err(e) if e.kind() == std::io::ErrorKind::AddrInUse => {
+                tracing::warn!(
+                    "port {preferred} sedang dipakai; jatuh ke port acak (origin localStorage berbeda dari sesi utama)"
+                );
+            }
+            Err(e) => return Err(e),
+        }
+    }
+    tokio::net::TcpListener::bind(("127.0.0.1", 0)).await
+}
+
+/// Jalankan server di thread terpisah dengan port tetap (`DEFAULT_DESKTOP_PORT`,
+/// dapat ditimpa via env `MUSIKU_DESKTOP_PORT`), jatuh ke port acak hanya jika
+/// port tersebut sedang dipakai proses lain.
 ///
 /// Kembalikan nomor port begitu server siap — dipakai oleh shell desktop
 /// supaya jendela Tauri tahu harus membuka URL mana.
 pub fn spawn_background() -> std::io::Result<u16> {
+    let preferred = std::env::var("MUSIKU_DESKTOP_PORT")
+        .ok()
+        .and_then(|v| v.parse::<u16>().ok())
+        .unwrap_or(DEFAULT_DESKTOP_PORT);
+    spawn_background_on(preferred)
+}
+
+/// Varian `spawn_background` dengan port pilihan eksplisit (memudahkan pengujian).
+pub fn spawn_background_on(preferred_port: u16) -> std::io::Result<u16> {
     let (tx, rx) = std::sync::mpsc::channel();
 
     std::thread::spawn(move || {
@@ -527,7 +769,7 @@ pub fn spawn_background() -> std::io::Result<u16> {
             .build()
             .expect("tokio runtime");
         rt.block_on(async move {
-            let listener = match tokio::net::TcpListener::bind(("127.0.0.1", 0)).await {
+            let listener = match bind_preferred_or_ephemeral(preferred_port).await {
                 Ok(l) => l,
                 Err(e) => {
                     let _ = tx.send(Err(e));
@@ -538,7 +780,7 @@ pub fn spawn_background() -> std::io::Result<u16> {
             if tx.send(Ok(port)).is_err() {
                 return; // penerima sudah hilang
             }
-            axum::serve(listener, app()).await.expect("serve");
+            axum::serve(listener, desktop_app()).await.expect("serve");
         });
     });
 
@@ -600,5 +842,83 @@ mod tests {
             n += 1;
         }
         assert!(n >= 11, "hanya {n} referensi font ditemukan");
+    }
+
+    #[tokio::test]
+    async fn bind_memakai_port_tetap_saat_bebas() {
+        let probe = tokio::net::TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+        let port = probe.local_addr().unwrap().port();
+        drop(probe);
+
+        let first = bind_preferred_or_ephemeral(port).await.unwrap();
+        assert_eq!(first.local_addr().unwrap().port(), port);
+        drop(first);
+
+        let second = bind_preferred_or_ephemeral(port).await.unwrap();
+        assert_eq!(second.local_addr().unwrap().port(), port);
+    }
+
+    #[tokio::test]
+    async fn bind_jatuh_ke_port_acak_saat_terpakai() {
+        let occupied = tokio::net::TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+        let port = occupied.local_addr().unwrap().port();
+
+        let fallback = bind_preferred_or_ephemeral(port).await.unwrap();
+        let fallback_port = fallback.local_addr().unwrap().port();
+        assert_ne!(fallback_port, 0);
+        assert_ne!(fallback_port, port);
+    }
+
+    #[test]
+    fn same_origin_post_tolak_csrf() {
+        let mut ok = HeaderMap::new();
+        ok.insert(header::HOST, "127.0.0.1:28787".parse().unwrap());
+        ok.insert(header::ORIGIN, "http://127.0.0.1:28787".parse().unwrap());
+        ok.insert("sec-fetch-site", "same-origin".parse().unwrap());
+        assert!(is_same_origin_post(&ok));
+
+        let mut evil = HeaderMap::new();
+        evil.insert(header::HOST, "127.0.0.1:28787".parse().unwrap());
+        evil.insert(header::ORIGIN, "https://evil.example".parse().unwrap());
+        assert!(!is_same_origin_post(&evil));
+
+        let mut cross = ok.clone();
+        cross.insert("sec-fetch-site", "cross-site".parse().unwrap());
+        assert!(!is_same_origin_post(&cross));
+
+        let no_origin = HeaderMap::new();
+        assert!(!is_same_origin_post(&no_origin));
+    }
+
+    #[test]
+    fn proxy_gambar_tolak_svg_dan_html() {
+        assert_eq!(
+            safe_image_content_type(Some("image/png; charset=binary"), "image/png").unwrap(),
+            "image/png"
+        );
+        assert!(safe_image_content_type(Some("image/svg+xml"), "image/png").is_err());
+        assert!(safe_image_content_type(Some("text/html"), "image/jpeg").is_err());
+    }
+
+    #[test]
+    fn bundle_aset_pakai_no_cache_dan_etag_304() {
+        let resp = revalidated_asset(APP_JS, "text/javascript; charset=utf-8", app_js_etag(), &HeaderMap::new());
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.headers().get(header::CACHE_CONTROL).unwrap(), "no-cache");
+        let etag = resp.headers().get(header::ETAG).unwrap().to_str().unwrap().to_string();
+
+        let mut req = HeaderMap::new();
+        req.insert(header::IF_NONE_MATCH, etag.parse().unwrap());
+        let cached = revalidated_asset(APP_JS, "text/javascript; charset=utf-8", app_js_etag(), &req);
+        assert_eq!(cached.status(), StatusCode::NOT_MODIFIED);
+    }
+
+    #[test]
+    fn index_html_menyisipkan_hash_aset() {
+        let html = rendered_index_html();
+        assert!(html.contains(&format!("/assets/app.css?v={}", app_css_hash())));
+        assert!(html.contains(&format!("/assets/app.js?v={}", app_js_hash())));
+        let resp = html_no_store();
+        assert_eq!(resp.headers().get(header::CACHE_CONTROL).unwrap(), "no-store");
     }
 }

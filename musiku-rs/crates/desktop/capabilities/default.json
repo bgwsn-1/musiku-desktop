@@ -3,8 +3,7 @@
   "identifier": "default",
   "description": "Izin dasar untuk jendela Musiku.",
   "windows": [
-    "main",
-    "lyrics-overlay"
+    "main"
   ],
   "remote": {
     "urls": [

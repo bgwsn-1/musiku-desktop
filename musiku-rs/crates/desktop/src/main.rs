@@ -15,12 +15,7 @@
 
 mod discord;
 
-use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindowBuilder};
-
-/// Alamat server lokal dipakai ulang saat membuat jendela lirik mengambang.
-struct BaseUrl(String);
-
-const LYRICS_OVERLAY_LABEL: &str = "lyrics-overlay";
+use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 
 /// Buka halaman release di browser sistem. URL di-whitelist supaya command
 /// ini nggak bisa dipakai untuk menjalankan program sembarangan.
@@ -35,7 +30,9 @@ fn open_external(url: String) -> std::result::Result<(), String> {
     let result = std::process::Command::new("rundll32")
         .args(["url.dll,FileProtocolHandler", &url])
         .spawn();
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
+    let result = std::process::Command::new("open").arg(&url).spawn();
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
     let result = std::process::Command::new("xdg-open").arg(&url).spawn();
     result.map(|_| ()).map_err(|e| e.to_string())
 }
@@ -44,59 +41,6 @@ fn open_external(url: String) -> std::result::Result<(), String> {
 #[tauri::command]
 fn quit_app(app: AppHandle) {
     app.exit(0);
-}
-
-/// Buka (atau fokuskan) jendela lirik mengambang. Jendela utama tetap menjadi
-/// pemilik audio; overlay hanya memuat UI lirik lewat query `?overlay=lyrics`.
-#[tauri::command]
-fn open_lyrics_overlay(app: AppHandle, base: State<'_, BaseUrl>) -> Result<(), String> {
-    eprintln!("[lyrics-overlay] command dipanggil");
-    if let Some(win) = app.get_webview_window(LYRICS_OVERLAY_LABEL) {
-        eprintln!("[lyrics-overlay] jendela sudah ada, menampilkan ulang");
-        win.show().map_err(|e| e.to_string())?;
-        win.set_focus().map_err(|e| e.to_string())?;
-        return Ok(());
-    }
-
-    let mut target = tauri::Url::parse(&base.0).map_err(|e| e.to_string())?;
-    target.set_path("/");
-    target.set_query(Some("overlay=lyrics"));
-    eprintln!("[lyrics-overlay] membuka {}", target);
-
-    // Jendela biasa yang berdecorasi dipakai di SEMUA platform. Frameless +
-    // transparent + always-on-top sering bikin jendela tak terlihat (Wayland,
-    // WebView2), jadi untuk sekarang prioritaskan jendela yang benar-benar
-    // muncul dan bisa dipindahkan seperti jendela lain.
-    // Ukuran dikunci supaya layout lirik tetap presisi (semuanya pakai cqw).
-    let win = WebviewWindowBuilder::new(&app, LYRICS_OVERLAY_LABEL, WebviewUrl::External(target))
-        .title("Lirik — Musiku")
-        .inner_size(360.0, 360.0)
-        .resizable(false)
-        .decorations(true)
-        .visible(true)
-        .build()
-        .map_err(|e| {
-            eprintln!("[lyrics-overlay] gagal membuat jendela: {e}");
-            e.to_string()
-        })?;
-    eprintln!("[lyrics-overlay] jendela berhasil dibuat");
-    win.show().map_err(|e| {
-        eprintln!("[lyrics-overlay] gagal show: {e}");
-        e.to_string()
-    })?;
-    win.set_focus().map_err(|e| {
-        eprintln!("[lyrics-overlay] gagal focus: {e}");
-        e.to_string()
-    })?;
-    Ok(())
-}
-
-#[tauri::command]
-fn close_lyrics_overlay(app: AppHandle) -> Result<(), String> {
-    if let Some(win) = app.get_webview_window(LYRICS_OVERLAY_LABEL) {
-        win.close().map_err(|e| e.to_string())?;
-    }
-    Ok(())
 }
 
 fn main() {
@@ -109,14 +53,11 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             open_external,
             quit_app,
-            open_lyrics_overlay,
-            close_lyrics_overlay,
             discord::discord_set_activity,
             discord::discord_clear_activity
         ])
         .setup(move |app| {
             app.manage(discord.clone());
-            app.manage(BaseUrl(url.clone()));
             let target: tauri::Url = url.parse().expect("url server tidak valid");
             WebviewWindowBuilder::new(app, "main", WebviewUrl::External(target))
                 .title("Musiku")

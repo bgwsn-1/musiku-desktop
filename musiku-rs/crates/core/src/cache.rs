@@ -79,6 +79,14 @@ impl StrCache {
             .await
             .map_err(|e| anyhow::anyhow!("{e}"))
     }
+
+    pub async fn get(&self, key: &str) -> Option<String> {
+        self.inner.get(key).await
+    }
+
+    pub async fn invalidate(&self, key: &str) {
+        self.inner.invalidate(key).await;
+    }
 }
 
 /// Isi berkas gambar: tipe konten + byte.
@@ -113,5 +121,38 @@ impl BytesCache {
             .try_get_with(key, compute)
             .await
             .map_err(|e| anyhow::anyhow!("{e}"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+
+    #[tokio::test]
+    async fn error_sementara_tidak_masuk_cache() {
+        let jc = JsonCache::new(Duration::from_secs(60));
+        let calls = Arc::new(AtomicUsize::new(0));
+
+        let c1 = calls.clone();
+        let first = jc
+            .get_or_try("home", async move {
+                c1.fetch_add(1, Ordering::SeqCst);
+                Err(anyhow::anyhow!("jaringan putus"))
+            })
+            .await;
+        assert!(first.is_err());
+
+        let c2 = calls.clone();
+        let second = jc
+            .get_or_try("home", async move {
+                c2.fetch_add(1, Ordering::SeqCst);
+                Ok(serde_json::json!(["ok"]))
+            })
+            .await
+            .unwrap();
+        assert_eq!(second, serde_json::json!(["ok"]));
+        assert_eq!(calls.load(Ordering::SeqCst), 2);
     }
 }

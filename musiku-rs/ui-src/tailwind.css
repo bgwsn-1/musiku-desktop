@@ -11,6 +11,14 @@
 /* 2. Design system web app (Tailwind v4 CSS-first) */
 @import "../../src/app/globals.css";
 
+/* 2b. Gaya mode imersif khusus desktop */
+@import "./desktop/immersive.css";
+
+/* 2c. Gaya shell 3-kolom + player bar 2-baris + halaman artis desktop */
+@import "./desktop/desktop-shell.css";
+
 /* 3. Pindai komponen web + shell desktop untuk semua utility terpakai */
 @source "../../src";
+@source "./desktop";
+@source "./components";
 @source "../crates/server/ui";

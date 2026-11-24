@@ -5,27 +5,27 @@
 // komponen klien yang memanggil `/api/*` — bentuk data & tampilan tetap sama
 // karena komponen presentasinya diimpor langsung dari web app.
 import { createRoot } from "react-dom/client";
-import { StrictMode, Suspense, useEffect, useState } from "react";
+import { Component, StrictMode, Suspense, useCallback, useEffect, useState } from "react";
 
 import { PlayerProvider, usePlayer } from "@/lib/player";
-import { MobileTabs, Sidebar } from "@/components/Sidebar";
-import { TopBar } from "@/components/TopBar";
-import { PlayerBar } from "@/components/PlayerBar";
-import { RightPanel } from "@/components/RightPanel";
 import { PageFade } from "@/components/PageFade";
 import { Toaster } from "@/components/Toast";
 import { EdgeSwipeBack } from "@/components/EdgeSwipeBack";
 import { GridCard, Shelf } from "@/components/GridCard";
-import { FeaturedCarousel, SongColumns } from "@/components/HomeFeatured";
-import { RecentShelf } from "@/components/RecentShelf";
+import { FeaturedCarousel } from "@/components/HomeFeatured";
 import { HomeFeed } from "@/components/HomeFeed";
 import { RadioStations } from "@/components/RadioStations";
-import { TrackRow } from "@/components/TrackRow";
-import { PlayAllButton, ShuffleButton } from "@/components/PlayAllButton";
-import { MediaArt, MediaHeader } from "@/components/MediaHeader";
-import { ArtistHeader } from "@/components/ArtistHeader";
-import { IconSearch } from "@/components/Icons";
-import { usePathname, useSearchParams } from "next/navigation";
+import {
+  IconBack,
+  IconDisc,
+  IconExpand,
+  IconForward,
+  IconLyrics,
+  IconQueue,
+  IconSidebar,
+} from "@/components/Icons";
+import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import SearchPage from "@/app/search/page";
 import LikedPage from "@/app/liked/page";
@@ -33,6 +33,18 @@ import { PustakaSection } from "@/components/PustakaSection";
 import { PlaylistView } from "@/components/PlaylistView";
 import { YtmPlaylistView } from "@/components/YtmPlaylistView";
 import DiscordPresence from "./desktop/DiscordPresence.jsx";
+import { DesktopSidebar } from "./desktop/DesktopSidebar.jsx";
+import { DesktopRightPanel } from "./desktop/DesktopRightPanel.jsx";
+import { DesktopPlayerBar } from "./desktop/DesktopPlayerBar.jsx";
+import { DesktopAlbumPage } from "./desktop/DesktopAlbumPage.jsx";
+import { DesktopArtistPage } from "./desktop/DesktopArtistPage.jsx";
+import {
+  CloudAccountProvider,
+  CloudSyncBridge,
+  useAccount,
+} from "./desktop/CloudAccountContext.jsx";
+import { ImmersiveLyrics } from "./desktop/ImmersiveLyrics.jsx";
+import { CoverFlow } from "./desktop/CoverFlow.jsx";
 import { initElasticScroll } from "./elastic-scroll.js";
 
 // ── helper kecil ─────────────────────────────────────────────────────────
@@ -48,7 +60,18 @@ const bootFetch = new Map();
 function cachedGet(url) {
   let p = bootFetch.get(url);
   if (!p) {
-    p = jget(url).catch(() => null);
+    p = jget(url)
+      .then((data) => {
+        if (data == null || (Array.isArray(data) && data.length === 0)) {
+          bootFetch.delete(url);
+        }
+        return data;
+      })
+      .catch(() => {
+        // Jangan cache kegagalan jaringan secara permanen sepanjang sesi.
+        bootFetch.delete(url);
+        return null;
+      });
     bootFetch.set(url, p);
   }
   return p;
@@ -114,165 +137,14 @@ function HomePage() {
   return <HomeFeed shelves={shelves} />;
 }
 
-// ── Halaman album (port dari src/app/album/[id]/page.tsx) ────────────────
+// ── Halaman album desktop full-bleed ─────────────────────────────────────
 function AlbumPage({ id }) {
-  const [album, setAlbum] = useState(null);
-  const [missing, setMissing] = useState(false);
-  useEffect(() => {
-    let live = true;
-    setAlbum(null);
-    setMissing(false);
-    jget(`/api/album/${encodeURIComponent(id)}`)
-      .then((a) => live && setAlbum(a))
-      .catch(() => live && setMissing(true));
-    return () => {
-      live = false;
-    };
-  }, [id]);
-
-  if (missing) return <Centered title="Album tidak ditemukan" sub="Mungkin sudah dihapus atau tautannya salah." />;
-  if (!album) {
-    return (
-      <div className="animate-pulse space-y-2 py-4">
-        {[...Array(8)].map((_, i) => (
-          <div key={i} className="h-14 rounded-xl bg-fill1" />
-        ))}
-      </div>
-    );
-  }
-  if (!album.title) return <Centered title="Album tidak ditemukan" sub="Mungkin sudah dihapus atau tautannya salah." />;
-
-  const artistName = Array.isArray(album.artist) ? album.artist[0] : album.artist;
-  const facts = [album.year, album.duration, album.tracks.length ? `${album.tracks.length} lagu` : null].filter(Boolean);
-
-  return (
-    <div>
-      <MediaHeader
-        kind="Album"
-        title={album.title}
-        backdrop={album.thumbs}
-        art={<MediaArt src={album.thumbs} alt={`Sampul ${album.title}`} />}
-        meta={
-          <>
-            {artistName &&
-              (album.artistId ? (
-                <a href={`/artist/${album.artistId}`} className="font-semibold text-label1 hover:underline">
-                  {artistName}
-                </a>
-              ) : (
-                <span className="font-semibold text-label1">{artistName}</span>
-              ))}
-            {artistName && facts.length > 0 && " · "}
-            {facts.join(" · ")}
-          </>
-        }
-        actions={
-          <>
-            <PlayAllButton tracks={album.tracks} />
-            <ShuffleButton tracks={album.tracks} />
-          </>
-        }
-      />
-      <section className="mt-10" aria-label="Daftar lagu">
-        {album.tracks.map((t, i) => (
-          <TrackRow
-            key={`${t.videoId}-${i}`}
-            track={{ ...t, album: t.album || album.title, albumId: album.browseId }}
-            queue={album.tracks}
-            index={i}
-          />
-        ))}
-      </section>
-    </div>
-  );
+  return <DesktopAlbumPage id={id} />;
 }
 
-// ── Halaman artis (port dari src/app/artist/[id]/page.tsx) ───────────────
-function descSnippet(d) {
-  return d.length > 700 ? d.slice(0, 700).trimEnd() + "…" : d;
-}
-
+// ── Halaman artis desktop full-bleed ─────────────────────────────────────
 function ArtistPage({ id }) {
-  const [artist, setArtist] = useState(null);
-  const [missing, setMissing] = useState(false);
-  useEffect(() => {
-    let live = true;
-    setArtist(null);
-    setMissing(false);
-    jget(`/api/artist/${encodeURIComponent(id)}`)
-      .then((a) => live && setArtist(a))
-      .catch(() => live && setMissing(true));
-    return () => {
-      live = false;
-    };
-  }, [id]);
-
-  if (missing) return <Centered title="Artis tidak ditemukan" sub="Mungkin sudah dihapus atau tautannya salah." />;
-  if (!artist) {
-    return (
-      <div className="animate-pulse space-y-2 py-4">
-        {[...Array(8)].map((_, i) => (
-          <div key={i} className="h-14 rounded-xl bg-fill1" />
-        ))}
-      </div>
-    );
-  }
-  if (!artist.name) return <Centered title="Artis tidak ditemukan" sub="Mungkin sudah dihapus atau tautannya salah." />;
-
-  return (
-    <div>
-      <ArtistHeader
-        name={artist.name}
-        image={artist.banner ?? artist.thumbs}
-        avatar={artist.avatar ?? artist.thumbs}
-        videoId={artist.topVideoId}
-        followers={artist.subscribers}
-        monthly={artist.monthlyListeners}
-        actions={
-          <>
-            <PlayAllButton tracks={artist.topSongs} />
-            <ShuffleButton tracks={artist.topSongs} />
-          </>
-        }
-      />
-
-      {artist.topSongs.length > 0 && (
-        <section className="mt-10" aria-label="Populer">
-          <h2 className="t-title mb-2 text-label1">Populer</h2>
-          {artist.topSongs.map((t, i) => (
-            <TrackRow key={`${t.videoId}-${i}`} track={t} queue={artist.topSongs} index={i} showAlbum={false} />
-          ))}
-        </section>
-      )}
-
-      {artist.albums.length > 0 && (
-        <div className="mt-12">
-          <Shelf title="Album">
-            {artist.albums.map((a, i) => (
-              <GridCard key={`a${i}-${a.browseId}`} i={i} title={a.title} subtitle={a.year ?? undefined} href={a.browseId ? `/album/${a.browseId}` : undefined} img={a.thumbs} />
-            ))}
-          </Shelf>
-        </div>
-      )}
-
-      {artist.singles.length > 0 && (
-        <Shelf title="Single & EP">
-          {artist.singles.map((a, i) => (
-            <GridCard key={`s${i}-${a.browseId}`} i={i} title={a.title} subtitle={a.year ?? undefined} href={a.browseId ? `/album/${a.browseId}` : undefined} img={a.thumbs} />
-          ))}
-        </Shelf>
-      )}
-
-      {artist.desc && (
-        <section className="mt-2" aria-label="Tentang">
-          <h2 className="t-title mb-2 text-label1">Tentang</h2>
-          <p className="max-w-2xl whitespace-pre-line text-[15px] leading-relaxed text-label2">
-            {descSnippet(artist.desc)}
-          </p>
-        </section>
-      )}
-    </div>
-  );
+  return <DesktopArtistPage id={id} />;
 }
 
 // ── Explore (port dari src/app/explore/page.tsx) ─────────────────────────
@@ -418,64 +290,275 @@ function useRoute() {
   }, [pathname]);
 
   let m;
-  if (pathname === "/" || pathname === "") return { page: <HomePage /> };
-  if (pathname.startsWith("/search")) return { page: <SearchPage /> };
-  if (pathname.startsWith("/liked")) return { page: <LikedPage /> };
+  if (pathname === "/" || pathname === "") return { page: <HomePage />, hasHero: false };
+  if (pathname.startsWith("/search")) return { page: <SearchPage />, hasHero: false };
+  if (pathname.startsWith("/liked")) return { page: <LikedPage />, hasHero: false };
   if ((m = pathname.match(/^\/pustaka(?:\/([^/]+))?$/))) {
-    return m[1]
-      ? { page: <PustakaSection section={decodeURIComponent(m[1])} /> }
-      : { page: <LikedPage /> };
+    return {
+      page: m[1] ? <PustakaSection section={decodeURIComponent(m[1])} /> : <LikedPage />,
+      hasHero: false,
+    };
   }
-  if (pathname.startsWith("/explore")) return { page: <ExplorePage /> };
-  if (pathname.startsWith("/radio")) return { page: <RadioPage /> };
-  if ((m = pathname.match(/^\/album\/(.+)$/))) return { page: <AlbumPage id={decodeURIComponent(m[1])} /> };
-  if ((m = pathname.match(/^\/artist\/(.+)$/))) return { page: <ArtistPage id={decodeURIComponent(m[1])} /> };
-  if ((m = pathname.match(/^\/playlist\/(.+)$/))) return { page: <PlaylistView id={decodeURIComponent(m[1])} /> };
-  if ((m = pathname.match(/^\/ytm-playlist\/(.+)$/))) return { page: <YtmPlaylistView id={decodeURIComponent(m[1])} /> };
+  if (pathname.startsWith("/explore")) return { page: <ExplorePage />, hasHero: false };
+  if (pathname.startsWith("/radio")) return { page: <RadioPage />, hasHero: false };
+  if ((m = pathname.match(/^\/album\/(.+)$/))) {
+    return { page: <AlbumPage id={decodeURIComponent(m[1])} />, hasHero: true };
+  }
+  if ((m = pathname.match(/^\/artist\/(.+)$/))) {
+    return { page: <ArtistPage id={decodeURIComponent(m[1])} />, hasHero: true };
+  }
+  if ((m = pathname.match(/^\/playlist\/(.+)$/))) {
+    return { page: <PlaylistView id={decodeURIComponent(m[1])} />, hasHero: false };
+  }
+  if ((m = pathname.match(/^\/ytm-playlist\/(.+)$/))) {
+    return { page: <YtmPlaylistView id={decodeURIComponent(m[1])} />, hasHero: false };
+  }
   void searchParams;
-  return { page: <Centered title="Halaman tidak ditemukan" sub="Tautan mungkin salah." /> };
+  return {
+    page: <Centered title="Halaman tidak ditemukan" sub="Tautan mungkin salah." />,
+    hasHero: false,
+  };
+}
+
+function readSidebarCollapsed() {
+  try {
+    return window.localStorage.getItem("musiku:sidebar-collapsed") === "1";
+  } catch {
+    return false;
+  }
 }
 
 function Shell() {
-  const { page } = useRoute();
+  const { page, hasHero } = useRoute();
+  const router = useRouter();
+  const player = usePlayer();
+
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(readSidebarCollapsed);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(
+    () => typeof window === "undefined" || window.matchMedia("(min-width: 1024px)").matches,
+  );
+  const [rightOpen, setRightOpen] = useState(
+    () => typeof window === "undefined" || window.matchMedia("(min-width: 1180px)").matches,
+  );
+  const [rightMode, setRightMode] = useState("queue");
+  const [immersiveOpen, setImmersiveOpen] = useState(false);
+  const [coverFlowOpen, setCoverFlowOpen] = useState(false);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("musiku:sidebar-collapsed", sidebarCollapsed ? "1" : "0");
+    } catch {}
+  }, [sidebarCollapsed]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const sync = () => {
+      setIsDesktop(mq.matches);
+      if (mq.matches) setMobileNavOpen(false);
+    };
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
+  // Sinkronkan toggleUi("queue" | "lyrics") dari komponen web ke panel kanan desktop.
+  useEffect(() => {
+    if (player.ui === "queue" || player.ui === "lyrics") {
+      setRightMode(player.ui);
+      setRightOpen(true);
+    }
+  }, [player.ui]);
+
+  const handleToggleRight = useCallback(
+    (targetMode) => {
+      if (!targetMode) {
+        setRightOpen((o) => !o);
+        return;
+      }
+      if (rightOpen && rightMode === targetMode) {
+        setRightOpen(false);
+      } else {
+        setRightMode(targetMode);
+        setRightOpen(true);
+      }
+    },
+    [rightOpen, rightMode],
+  );
+
+  const handleToggleSidebar = useCallback(() => {
+    if (isDesktop) {
+      setSidebarCollapsed((v) => !v);
+    } else {
+      setMobileNavOpen((v) => !v);
+    }
+  }, [isDesktop]);
+
   return (
-    <div className="shell relative h-dvh overflow-hidden">
+    <div className="ds-shell force-dark">
       <a
         href="#main"
-        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-full focus:bg-surface focus:px-4 focus:py-2 focus:text-[14px] focus:font-semibold focus:text-label1"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-full focus:bg-[#f6efe9] focus:px-4 focus:py-2 focus:text-[14px] focus:font-semibold focus:text-[#111011]"
       >
         Lompat ke konten
       </a>
-      <main id="main" tabIndex={-1} className="page-scroll absolute inset-0 z-10 overflow-y-auto outline-none">
-        <Suspense
-          fallback={
-            <div className="px-5 py-24 text-center text-[15px] text-label2">Memuat…</div>
-          }
+
+      <DesktopSidebar
+        collapsed={sidebarCollapsed}
+        onExpandForSearch={() => setSidebarCollapsed(false)}
+        mobileOpen={mobileNavOpen}
+        onCloseMobile={() => setMobileNavOpen(false)}
+      />
+
+      <div className="ds-center">
+        <header className="ds-top-bar" aria-label="Kontrol navigasi kanvas">
+          <div className="ds-top-group">
+            <button
+              type="button"
+              className="ds-top-btn"
+              onClick={handleToggleSidebar}
+              aria-expanded={isDesktop ? !sidebarCollapsed : mobileNavOpen}
+              aria-label={isDesktop ? "Ciutkan atau lebarkan sidebar" : "Buka navigasi"}
+              title="Toggle sidebar"
+            >
+              <IconSidebar
+                className={`h-4 w-4 transition-transform ${sidebarCollapsed && isDesktop ? "rotate-180" : ""}`}
+              />
+            </button>
+            <button
+              type="button"
+              className="ds-top-btn"
+              onClick={() => router.back()}
+              aria-label="Halaman sebelumnya"
+              title="Kembali"
+            >
+              <IconBack className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              className="ds-top-btn"
+              onClick={() => router.forward()}
+              aria-label="Halaman berikutnya"
+              title="Maju"
+            >
+              <IconForward className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div className="ds-top-group">
+            {player.current && (
+              <>
+                <button
+                  type="button"
+                  className="ds-top-btn hidden lg:inline-flex"
+                  onClick={() => setCoverFlowOpen(true)}
+                  aria-label="Buka Cover Flow"
+                  title="Cover Flow"
+                >
+                  <IconDisc className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  className="ds-top-btn hidden lg:inline-flex"
+                  onClick={() => setImmersiveOpen(true)}
+                  aria-label="Buka mode lirik imersif"
+                  title="Mode Imersif (F)"
+                >
+                  <IconExpand className="h-4 w-4" />
+                </button>
+              </>
+            )}
+            <button
+              type="button"
+              className="ds-top-btn"
+              onClick={() => handleToggleRight("lyrics")}
+              data-active={rightOpen && rightMode === "lyrics" ? "1" : undefined}
+              aria-pressed={rightOpen && rightMode === "lyrics"}
+              aria-label="Panel lirik"
+              title="Lirik (Y)"
+            >
+              <IconLyrics className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              className="ds-top-btn"
+              onClick={() => handleToggleRight("queue")}
+              data-active={rightOpen && rightMode === "queue" ? "1" : undefined}
+              aria-pressed={rightOpen && rightMode === "queue"}
+              aria-label="Panel antrean"
+              title="Antrean (Q)"
+            >
+              <IconQueue className="h-4 w-4" />
+            </button>
+          </div>
+        </header>
+
+        <main
+          id="main"
+          tabIndex={-1}
+          className="page-scroll ds-scroll"
+          data-hero={hasHero ? "1" : undefined}
+          data-has-player={player.current ? "1" : "0"}
         >
-          <PageFade>{page}</PageFade>
-        </Suspense>
-      </main>
-      <div className="scroll-edge scroll-edge-top" aria-hidden="true" />
-      <div className="scroll-edge scroll-edge-bottom" aria-hidden="true" />
-      <TopBar />
-      <Sidebar />
-      <PlayerBar />
-      <RightPanel />
-      <MobileTabs />
+          <Suspense
+            fallback={
+              <div className="px-5 py-24 text-center text-[15px] text-label2">Memuat…</div>
+            }
+          >
+            <PageFade>{page}</PageFade>
+          </Suspense>
+        </main>
+
+        <DesktopPlayerBar
+          rightOpen={rightOpen}
+          onToggleRight={handleToggleRight}
+          onOpenImmersive={() => setImmersiveOpen(true)}
+          onOpenCoverFlow={() => setCoverFlowOpen(true)}
+          overlaysOpen={immersiveOpen || coverFlowOpen}
+        />
+      </div>
+
+      <DesktopRightPanel
+        open={rightOpen}
+        mode={rightMode}
+        onChangeMode={setRightMode}
+        onClose={() => setRightOpen(false)}
+        onOpenImmersive={() => setImmersiveOpen(true)}
+        isMobile={!isDesktop}
+      />
+
+      {immersiveOpen && player.current && (
+        <ImmersiveLyrics onExit={() => setImmersiveOpen(false)} />
+      )}
+      {coverFlowOpen && player.current && (
+        <CoverFlow onExit={() => setCoverFlowOpen(false)} />
+      )}
+
       <Toaster />
       <EdgeSwipeBack />
     </div>
   );
 }
 
-function App() {
+function PlayerWithCloud() {
+  const { playerEpoch } = useAccount();
   // Overscroll "rubber band" ala Apple untuk semua container scroll.
   useEffect(() => initElasticScroll(), []);
   return (
-    <PlayerProvider>
+    <PlayerProvider key={playerEpoch}>
+      <CloudSyncBridge />
       <DiscordPresence />
       <Shell />
     </PlayerProvider>
+  );
+}
+
+function App() {
+  return (
+    <CloudAccountProvider>
+      <PlayerWithCloud />
+    </CloudAccountProvider>
   );
 }
 
@@ -486,11 +569,45 @@ void cachedGet("/api/home");
 void cachedGet("/api/moods");
 void cachedGet("/api/artists/charts");
 
+class AppErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="flex min-h-screen items-center justify-center bg-[#0b0a0b] p-6 text-[#f6efe9]">
+          <div className="w-full max-w-md rounded-2xl border border-white/15 bg-[#1a1819] p-6 shadow-2xl">
+            <h1 className="text-[17px] font-bold">Terjadi kesalahan antarmuka</h1>
+            <p className="mt-2 break-words text-[13px] text-[#b5aeaa]">
+              {String(this.state.error?.message || this.state.error)}
+            </p>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="mt-4 cursor-pointer rounded-xl bg-[#e3a28c] px-4 py-2 text-[13px] font-bold text-[#151010] hover:bg-[#edb39f]"
+            >
+              Muat Ulang
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 const el = document.getElementById("root");
 // Lirik mengambang (jendela `?overlay=lyrics` + LyricsBridge) dinonaktifkan:
 // masih ada bug, dan jendelanya tidak lagi dibuat sama sekali.
 createRoot(el).render(
   <StrictMode>
-    <App />
+    <AppErrorBoundary>
+      <App />
+    </AppErrorBoundary>
   </StrictMode>,
 );

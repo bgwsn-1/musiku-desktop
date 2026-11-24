@@ -42,6 +42,10 @@ const options = {
     "@/components/ImmersiveLyrics": path.join(__dirname, "desktop/ImmersiveLyrics.jsx"),
     "@/components/CoverFlow": path.join(__dirname, "desktop/CoverFlow.jsx"),
     "@/components/Icons": path.join(__dirname, "icons/Icons.ios.jsx"),
+    "@/components/ui/apple-tahoe-liquid-glass-button": path.join(
+      __dirname,
+      "components/ui/apple-tahoe-liquid-glass-button.tsx",
+    ),
     "@": WEB_SRC,
     "next/link": path.join(__dirname, "shims/next-link.jsx"),
     "next/navigation": path.join(__dirname, "shims/next-navigation.js"),

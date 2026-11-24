@@ -165,10 +165,31 @@ export function CoverFlow({ onExit }) {
   }, []);
   const menuTrack = menu ? queue[menu.index] || p.current : null;
 
+  // Tutup otomatis jika lebar jendela turun di bawah breakpoint `lg` (1024px)
+  // agar overlay yang tersembunyi (`hidden lg:flex`) tidak tetap ter-mount.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const syncViewport = () => {
+      if (!mq.matches) exit();
+    };
+    syncViewport();
+    mq.addEventListener("change", syncViewport);
+    return () => mq.removeEventListener("change", syncViewport);
+  }, [exit]);
+
   // ── Keyboard ──────────────────────────────────────────────────────────
   useEffect(() => {
+    const isEditable = (el) =>
+      !!el?.closest?.("input, textarea, select, [contenteditable=''], [contenteditable='true']") ||
+      !!el?.isContentEditable;
+
     const onKey = (e) => {
       if (e.defaultPrevented) return;
+      if (typeof window !== "undefined" && !window.matchMedia("(min-width: 1024px)").matches) {
+        return;
+      }
+      if (isEditable(e.target) || isEditable(document.activeElement)) return;
       if (e.key === "Escape") {
         if (document.querySelector("[role=menu]")) return; // bentrok dengan TrackMenu
         e.preventDefault();

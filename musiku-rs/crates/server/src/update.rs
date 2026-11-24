@@ -15,6 +15,7 @@ use tokio::sync::Mutex;
 
 const API: &str = "https://api.github.com/repos/bgwsn-1/musiku-desktop/releases/latest";
 const RELEASE_PAGE: &str = "https://github.com/bgwsn-1/musiku-desktop/releases/latest";
+const DOWNLOAD_PREFIX: &str = "https://github.com/bgwsn-1/musiku-desktop/releases/download/";
 const TTL: Duration = Duration::from_secs(30 * 60);
 
 #[derive(Clone)]
@@ -194,12 +195,40 @@ pub async fn check() -> Result<UpdateInfo> {
     })
 }
 
-/// Pilih aset berdasarkan sufiks nama berkas (huruf besar/kecil diabaikan).
-fn pick_asset<'a>(assets: &'a [UpdateAsset], suffixes: &[&str]) -> Option<&'a UpdateAsset> {
+/// Cek apakah nama aset cocok dengan arsitektur CPU target.
+fn arch_matches(name_lower: &str, arch: &str) -> bool {
+    let is_arm64 = name_lower.contains("arm64") || name_lower.contains("aarch64");
+    let is_x64 = name_lower.contains("x86_64")
+        || name_lower.contains("amd64")
+        || name_lower.contains("x64");
+    let is_x86 = name_lower.contains("i686")
+        || name_lower.contains("i386")
+        || (name_lower.contains("x86") && !name_lower.contains("x86_64"));
+    let is_arm32 = name_lower.contains("armv7") || name_lower.contains("armhf");
+
+    match arch {
+        "aarch64" => is_arm64,
+        "x86_64" => is_x64 || (!is_arm64 && !is_x86 && !is_arm32),
+        "x86" => is_x86,
+        other => name_lower.contains(other) || (!is_arm64 && !is_x64 && !is_x86 && !is_arm32),
+    }
+}
+
+/// Pilih aset berdasarkan sufiks nama berkas + arsitektur CPU target.
+fn pick_asset_for_arch<'a>(
+    assets: &'a [UpdateAsset],
+    suffixes: &[&str],
+    arch: &str,
+) -> Option<&'a UpdateAsset> {
     assets.iter().find(|a| {
         let n = a.name.to_ascii_lowercase();
-        suffixes.iter().any(|s| n.ends_with(s))
+        suffixes.iter().any(|s| n.ends_with(s)) && arch_matches(&n, arch)
     })
+}
+
+/// Pilih aset berdasarkan sufiks nama berkas untuk arsitektur proses saat ini.
+fn pick_asset<'a>(assets: &'a [UpdateAsset], suffixes: &[&str]) -> Option<&'a UpdateAsset> {
+    pick_asset_for_arch(assets, suffixes, std::env::consts::ARCH)
 }
 
 /// Keluarga Debian/Ubuntu menandakan dirinya dengan `/etc/debian_version`;
@@ -256,15 +285,19 @@ async fn write_installer(path: &Path, bytes: &[u8]) -> Result<()> {
 
 /// Unduh aset, verifikasi SHA-256 dari GitHub, lalu jalankan.
 /// Windows: installer NSIS `/S` (silent, per-user). macOS: `.dmg` dibuka lewat
-/// `open`. Linux: `.deb`/`.AppImage` dibuka lewat xdg-open agar package manager
-/// yang meminta konfirmasi ke user.
+/// `open`. Linux: `.AppImage` diberi izin eksekusi `0755` dan dijalankan
+/// langsung; `.deb` dibuka lewat `xdg-open` agar package manager meminta
+/// konfirmasi ke user.
 pub async fn install() -> Result<serde_json::Value> {
     let info = check().await?;
+    if !info.update_available {
+        bail!("sudah memakai versi terbaru ({})", info.current);
+    }
     let asset = platform_asset(&info)
         .ok_or_else(|| anyhow!("release terbaru belum punya aset untuk platform ini"))?;
 
-    if !asset.url.starts_with("https://github.com/") {
-        bail!("URL aset bukan github.com");
+    if !asset.url.starts_with(DOWNLOAD_PREFIX) {
+        bail!("URL aset bukan dari rilis resmi musiku-desktop");
     }
     let file_name = Path::new(&asset.name)
         .file_name()
@@ -295,6 +328,13 @@ pub async fn install() -> Result<serde_json::Value> {
     }
     write_installer(&path, &bytes).await?;
 
+    let is_appimage = asset.name.to_ascii_lowercase().ends_with(".appimage");
+    #[cfg(unix)]
+    if is_appimage {
+        use std::os::unix::fs::PermissionsExt;
+        tokio::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).await?;
+    }
+
     let mut cmd = if cfg!(target_os = "windows") {
         let mut c = Command::new(&path);
         c.arg("/S");
@@ -303,6 +343,8 @@ pub async fn install() -> Result<serde_json::Value> {
         let mut c = Command::new("open");
         c.arg(&path);
         c
+    } else if is_appimage {
+        Command::new(&path)
     } else {
         let mut c = Command::new("xdg-open");
         c.arg(&path);
@@ -357,6 +399,32 @@ mod tests {
             "Musiku_0.1.6_x64.dmg"
         );
         assert!(pick_asset(&a, &[".msi"]).is_none());
+    }
+
+    #[test]
+    fn pilih_aset_sesuai_arsitektur() {
+        let a = vec![
+            asset("Musiku_0.1.8_aarch64.dmg"),
+            asset("Musiku_0.1.8_x64.dmg"),
+            asset("Musiku_0.1.8_arm64.deb"),
+            asset("Musiku_0.1.8_amd64.deb"),
+        ];
+        assert_eq!(
+            pick_asset_for_arch(&a, &[".dmg"], "x86_64").unwrap().name,
+            "Musiku_0.1.8_x64.dmg"
+        );
+        assert_eq!(
+            pick_asset_for_arch(&a, &[".dmg"], "aarch64").unwrap().name,
+            "Musiku_0.1.8_aarch64.dmg"
+        );
+        assert_eq!(
+            pick_asset_for_arch(&a, &[".deb"], "x86_64").unwrap().name,
+            "Musiku_0.1.8_amd64.deb"
+        );
+        assert_eq!(
+            pick_asset_for_arch(&a, &[".deb"], "aarch64").unwrap().name,
+            "Musiku_0.1.8_arm64.deb"
+        );
     }
 
     #[test]

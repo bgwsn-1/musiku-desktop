@@ -16,7 +16,7 @@
 use std::sync::OnceLock;
 use std::time::Duration;
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -86,8 +86,18 @@ async fn fetch(title: &str, artist: Option<&str>) -> Result<AppleArtwork> {
         fields(song)
     } else {
         let albums = search("album", &term, 10).await?;
-        let album = pick(&albums, "collectionName", title, artist)
-            .ok_or_else(|| anyhow!("itunes: album tidak ditemukan"))?;
+        let Some(album) = pick(&albums, "collectionName", title, artist) else {
+            // Tidak ditemukan di katalog iTunes (bukan error jaringan):
+            // kembalikan struct kosong agar masuk negative cache 6 jam dan
+            // tidak memukul iTunes berulang kali untuk lagu yang sama.
+            return Ok(AppleArtwork {
+                motion: None,
+                still: None,
+                album: None,
+                artist: None,
+                url: None,
+            });
+        };
         fields(album)
     };
 
@@ -229,21 +239,84 @@ async fn fetch_motion(page: &str) -> Result<(Option<String>, Option<String>)> {
     Ok(parse_motion(&html))
 }
 
+/// Mundurkan indeks byte ke batas karakter UTF-8 terdekat agar slicing `&str`
+/// tidak pernah panic.
+fn floor_char_boundary(s: &str, idx: usize) -> usize {
+    let mut end = idx.min(s.len());
+    while end > 0 && !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    end
+}
+
+/// Ekstrak potongan objek JSON `{ ... }` di awal `s` (setelah whitespace),
+/// menghormati string literal & escape, dengan batas maksimal `max_bytes`.
+fn json_object_slice(s: &str, max_bytes: usize) -> Option<&str> {
+    let trimmed = s.trim_start();
+    if !trimmed.starts_with('{') {
+        return None;
+    }
+    let limit = floor_char_boundary(trimmed, max_bytes);
+    let capped = &trimmed[..limit];
+
+    let mut depth: usize = 0;
+    let mut in_str = false;
+    let mut escaped = false;
+
+    for (idx, ch) in capped.char_indices() {
+        if in_str {
+            if escaped {
+                escaped = false;
+            } else if ch == '\\' {
+                escaped = true;
+            } else if ch == '"' {
+                in_str = false;
+            }
+            continue;
+        }
+        match ch {
+            '"' => in_str = true,
+            '{' => depth += 1,
+            '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(&capped[..idx + ch.len_utf8()]);
+                }
+            }
+            _ => {}
+        }
+    }
+    Some(capped)
+}
+
 /// Ambil `motionDetailSquare` (Motion Art versi kotak) dari snapshot halaman.
 fn parse_motion(html: &str) -> (Option<String>, Option<String>) {
-    let Some(i) = html.find("\"motionDetailSquare\"") else {
-        return (None, None);
-    };
-    let end = (i + 12_000).min(html.len());
-    let tail = &html[i..end];
+    const MARKER: &str = "\"motionDetailSquare\"";
+    let mut rest = html;
 
-    let motion = json_string_after(tail, "\"video\":\"")
-        .filter(|u| u.starts_with("https://") && u.contains(".m3u8"));
-    let still = json_string_after(tail, "\"url\":\"")
-        .map(|u| fill_image_template(&u))
-        .filter(|u| u.starts_with("https://") && u.contains("mzstatic.com"));
+    while let Some(i) = rest.find(MARKER) {
+        let after_key = &rest[i + MARKER.len()..];
+        rest = after_key;
 
-    (motion, still)
+        let Some(after_colon) = after_key.trim_start().strip_prefix(':') else {
+            continue;
+        };
+        let Some(obj) = json_object_slice(after_colon, 12_000) else {
+            continue;
+        };
+
+        let motion = json_string_after(obj, "\"video\":\"")
+            .filter(|u| u.starts_with("https://") && u.contains(".m3u8"));
+        let still = json_string_after(obj, "\"url\":\"")
+            .map(|u| fill_image_template(&u))
+            .filter(|u| u.starts_with("https://") && u.contains("mzstatic.com"));
+
+        if motion.is_some() || still.is_some() {
+            return (motion, still);
+        }
+    }
+
+    (None, None)
 }
 
 fn fill_image_template(url: &str) -> String {
@@ -348,5 +421,29 @@ mod tests {
         ];
         let best = pick(&results, "collectionName", "LIVING THINGS", Some("LINKIN PARK")).unwrap();
         assert_eq!(best["collectionName"].as_str(), Some("LIVING THINGS"));
+    }
+
+    #[test]
+    fn parse_motion_utf8_di_batas_12kb_tidak_panic() {
+        // Karakter 3-byte ('あ') ditempatkan tepat melintasi batas 12_000 byte
+        // di dalam objek yang tidak tertutup — dulu memicu panic UTF-8 boundary.
+        let prefix = r#""motionDetailSquare":{"video":"https:\/\/mvod.itunes.apple.com\/x\/P1.m3u8","pad":""#;
+        let pad_len = 11_999usize.saturating_sub(prefix.len());
+        let html = format!("{prefix}{}あ trailing", "a".repeat(pad_len));
+        let (motion, still) = parse_motion(&html);
+        assert_eq!(
+            motion.as_deref(),
+            Some("https://mvod.itunes.apple.com/x/P1.m3u8")
+        );
+        assert!(still.is_none());
+    }
+
+    #[test]
+    fn parse_motion_null_atau_kosong_tidak_bocor_ke_objek_lain() {
+        let null_case = r#""motionDetailSquare":null,"editorialVideo":{"previewFrame":{"url":"https:\/\/is1-ssl.mzstatic.com\/image\/thumb\/x.png\/{w}x{h}bb.{f}"},"video":"https:\/\/mvod.itunes.apple.com\/other.m3u8"}"#;
+        assert_eq!(parse_motion(null_case), (None, None));
+
+        let empty_case = r#""motionDetailSquare":{},"editorialVideo":{"previewFrame":{"url":"https:\/\/is1-ssl.mzstatic.com\/image\/thumb\/x.png\/{w}x{h}bb.{f}"},"video":"https:\/\/mvod.itunes.apple.com\/other.m3u8"}"#;
+        assert_eq!(parse_motion(empty_case), (None, None));
     }
 }

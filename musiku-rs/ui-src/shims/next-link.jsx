@@ -4,11 +4,40 @@
 import { forwardRef } from "react";
 import { navigate } from "./router.js";
 
+function resolveHref(href) {
+  if (typeof href === "string") return href;
+  if (!href || typeof href !== "object") return "/";
+  const pathname = href.pathname ?? "/";
+  let search = "";
+  if (typeof href.search === "string" && href.search) {
+    search = href.search.startsWith("?") ? href.search : `?${href.search}`;
+  } else if (href.query && typeof href.query === "object") {
+    const params = new URLSearchParams();
+    for (const [k, v] of Object.entries(href.query)) {
+      if (v == null) continue;
+      if (Array.isArray(v)) {
+        for (const item of v) params.append(k, String(item));
+      } else {
+        params.set(k, String(v));
+      }
+    }
+    const qs = params.toString();
+    if (qs) search = `?${qs}`;
+  }
+  const hash =
+    typeof href.hash === "string" && href.hash
+      ? href.hash.startsWith("#")
+        ? href.hash
+        : `#${href.hash}`
+      : "";
+  return `${pathname}${search}${hash}`;
+}
+
 const Link = forwardRef(function Link(
   { href, replace = false, scroll = true, prefetch, onClick, children, ...rest },
   ref,
 ) {
-  const url = typeof href === "string" ? href : (href?.pathname ?? "/");
+  const url = resolveHref(href);
   const handle = (e) => {
     onClick?.(e);
     if (e.defaultPrevented) return;

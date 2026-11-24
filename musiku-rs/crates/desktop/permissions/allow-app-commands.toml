@@ -6,8 +6,6 @@ description = "Izinkan command kustom Musiku (window, update, Discord)"
 allow = [
     "open_external",
     "quit_app",
-    "open_lyrics_overlay",
-    "close_lyrics_overlay",
     "discord_set_activity",
     "discord_clear_activity",
 ]

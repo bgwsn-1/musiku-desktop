@@ -25,33 +25,22 @@ export function ImmersiveProgressBar({ smoothReset = false, resetMs = 350 }) {
   const raf = useRef(0);
   const lastRatio = useRef(0);
   const reset = useRef({ active: false, from: 0, start: 0, ms: 0, lastId: null });
+  const hiddenRef = useRef(
+    typeof document !== "undefined" && document.visibilityState === "hidden",
+  );
   const seekRef = useRef(seek);
   seekRef.current = seek;
 
-  // Ganti lagu: mulai easing dari rasio terakhir ke 0, bukan loncat.
-  useEffect(() => {
-    if (!smoothReset) return;
-    const id = current?.videoId ?? "";
-    const r = reset.current;
-    if (r.lastId === null) {
-      r.lastId = id;
-      return;
-    }
-    if (r.lastId === id) return;
-    r.lastId = id;
-    r.from = lastRatio.current;
-    r.start = performance.now();
-    r.ms = Math.max(1, resetMs);
-    r.active = true;
-  }, [current?.videoId, smoothReset, resetMs]);
-
-  // timeupdate datang ~4x/detik; interpolasi antar event bikin bar tetap mulus.
-  useEffect(() => {
-    anchor.current = { pos: p.position, ts: performance.now(), playing };
-  }, [p.position, playing]);
+  const shouldAnimate = useCallback(
+    () =>
+      !hiddenRef.current &&
+      (anchor.current.playing || drag.current.on || (smoothReset && reset.current.active)),
+    [smoothReset],
+  );
 
   const paint = useCallback(
     (now) => {
+      raf.current = 0;
       const d = duration > 0 ? duration : 0;
       const a = anchor.current;
       let pos = a.playing ? a.pos + (now - a.ts) / 1000 : a.pos;
@@ -76,15 +65,63 @@ export function ImmersiveProgressBar({ smoothReset = false, resetMs = 350 }) {
         if (curRef.current) curRef.current.textContent = fmt(sec);
         if (remRef.current) remRef.current.textContent = d ? `-${fmt(Math.max(0, Math.ceil(d - pos)))}` : "0:00";
       }
-      raf.current = requestAnimationFrame(paint);
+      if (shouldAnimate()) {
+        raf.current = requestAnimationFrame(paint);
+      }
     },
-    [duration, smoothReset],
+    [duration, smoothReset, shouldAnimate],
   );
 
-  useEffect(() => {
-    raf.current = requestAnimationFrame(paint);
-    return () => cancelAnimationFrame(raf.current);
+  const kick = useCallback(() => {
+    if (!raf.current) {
+      raf.current = requestAnimationFrame(paint);
+    }
   }, [paint]);
+
+  // Ganti lagu: mulai easing dari rasio terakhir ke 0, bukan loncat.
+  useEffect(() => {
+    if (!smoothReset) return;
+    const id = current?.videoId ?? "";
+    const r = reset.current;
+    if (r.lastId === null) {
+      r.lastId = id;
+      return;
+    }
+    if (r.lastId === id) return;
+    r.lastId = id;
+    r.from = lastRatio.current;
+    r.start = performance.now();
+    r.ms = Math.max(1, resetMs);
+    r.active = true;
+    kick();
+  }, [current?.videoId, smoothReset, resetMs, kick]);
+
+  // timeupdate datang ~4x/detik; interpolasi antar event bikin bar tetap mulus.
+  // Saat dijeda, cukup lukis satu frame terakhir lalu hentikan loop rAF.
+  useEffect(() => {
+    anchor.current = { pos: p.position, ts: performance.now(), playing };
+    kick();
+  }, [p.position, playing, duration, kick]);
+
+  useEffect(() => {
+    const onVis = () => {
+      hiddenRef.current = document.visibilityState === "hidden";
+      if (hiddenRef.current && raf.current) {
+        cancelAnimationFrame(raf.current);
+        raf.current = 0;
+      } else if (!hiddenRef.current) {
+        kick();
+      }
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      document.removeEventListener("visibilitychange", onVis);
+      if (raf.current) {
+        cancelAnimationFrame(raf.current);
+        raf.current = 0;
+      }
+    };
+  }, [kick]);
 
   const ratioAt = (clientX) => {
     const r = trackRef.current?.getBoundingClientRect();
@@ -97,9 +134,13 @@ export function ImmersiveProgressBar({ smoothReset = false, resetMs = 350 }) {
     drag.current.ratio = ratioAt(e.clientX);
     e.currentTarget.setPointerCapture?.(e.pointerId);
     if (rootRef.current) rootRef.current.dataset.dragging = "1";
+    kick();
   };
   const onMove = (e) => {
-    if (drag.current.on) drag.current.ratio = ratioAt(e.clientX);
+    if (drag.current.on) {
+      drag.current.ratio = ratioAt(e.clientX);
+      kick();
+    }
   };
   const onUp = () => {
     if (!drag.current.on) return;
@@ -108,6 +149,7 @@ export function ImmersiveProgressBar({ smoothReset = false, resetMs = 350 }) {
     if (rootRef.current) delete rootRef.current.dataset.dragging;
     seekRef.current(next);
     anchor.current = { pos: next, ts: performance.now(), playing };
+    kick();
   };
   const onKey = (e) => {
     if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
@@ -115,6 +157,7 @@ export function ImmersiveProgressBar({ smoothReset = false, resetMs = 350 }) {
     const next = Math.min(duration || Infinity, Math.max(0, p.position + (e.key === "ArrowRight" ? 5 : -5)));
     seekRef.current(next);
     anchor.current = { pos: next, ts: performance.now(), playing };
+    kick();
   };
 
   return (

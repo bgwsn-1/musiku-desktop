@@ -39,25 +39,42 @@ export function navigate(url, { replace = false, scroll = false } = {}) {
     return;
   }
   current = next;
+  const full = u.pathname + u.search + u.hash;
   if (replace) {
-    window.history.replaceState(null, "", u.pathname + u.search + u.hash);
     if (historyIndex >= 0) historyStack[historyIndex] = current;
+    try {
+      window.history.replaceState(
+        { ...(window.history.state && typeof window.history.state === "object" ? window.history.state : {}), __musikuIdx: historyIndex },
+        "",
+        full,
+      );
+    } catch {
+      window.history.replaceState(null, "", full);
+    }
   } else {
     historyStack.splice(historyIndex + 1);
     historyStack.push(current);
     historyIndex = historyStack.length - 1;
-    window.history.pushState(null, "", u.pathname + u.search + u.hash);
+    window.history.pushState({ __musikuIdx: historyIndex }, "", full);
   }
-  if (scroll) window.scrollTo(0, 0);
+  if (scroll) {
+    window.scrollTo(0, 0);
+    document.getElementById("main")?.scrollTo(0, 0);
+  }
   emit();
 }
 
-function refreshFromLocation() {
+function refreshFromLocation(e) {
   current = {
     pathname: window.location.pathname || "/",
     search: window.location.search || "",
     hash: window.location.hash || "",
   };
+  const idx = e?.state?.__musikuIdx ?? window.history.state?.__musikuIdx;
+  if (typeof idx === "number" && idx >= 0) {
+    historyIndex = idx;
+    historyStack[idx] = current;
+  }
   emit();
 }
 
@@ -66,29 +83,20 @@ window.addEventListener("popstate", refreshFromLocation);
 // seed initial history entry
 historyStack.push(current);
 historyIndex = 0;
+try {
+  window.history.replaceState(
+    { ...(window.history.state && typeof window.history.state === "object" ? window.history.state : {}), __musikuIdx: 0 },
+    "",
+    window.location.pathname + window.location.search + window.location.hash,
+  );
+} catch {}
 
 export function back() {
-  if (historyIndex > 0) {
-    historyIndex -= 1;
-    current = historyStack[historyIndex];
-    window.history.back();
-    window.setTimeout(refreshFromLocation, 0);
-    emit();
-  } else {
-    window.history.back();
-  }
+  window.history.back();
 }
 
 export function forward() {
-  if (historyIndex < historyStack.length - 1) {
-    historyIndex += 1;
-    current = historyStack[historyIndex];
-    window.history.forward();
-    window.setTimeout(refreshFromLocation, 0);
-    emit();
-  } else {
-    window.history.forward();
-  }
+  window.history.forward();
 }
 
 export function useRouter() {

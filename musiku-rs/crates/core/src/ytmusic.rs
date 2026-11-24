@@ -172,14 +172,28 @@ async fn browse_once(cfg: &Cfg, browse_id: &str) -> Result<Value> {
 
 /// Respons `browse` mentah untuk sebuah id (artis/album/playlist).
 ///
-/// Coba nilai bawaan dulu (satu POST, cepat). Kalau header artis tidak ada di
-/// respons, kemungkinan key/versi sudah berganti → muat ytcfg lalu ulangi.
+/// Pakai `ytcfg` yang sudah hangat di cache bila tersedia, kalau tidak pakai
+/// nilai bawaan (satu POST, cepat). Jika permintaan gagal (mis. HTTP 400/403
+/// karena key/versi berganti) atau header artis tidak ada, segarkan `ytcfg`
+/// lalu coba sekali lagi.
 pub async fn browse(browse_id: &str) -> Result<Value> {
-    let raw = browse_once(&Cfg::builtin(), browse_id).await?;
-    if raw.pointer("/header/musicImmersiveHeaderRenderer").is_some() {
-        return Ok(raw);
+    let cached = cfg_cache()
+        .get("ytcfg")
+        .await
+        .and_then(|raw| serde_json::from_str::<Value>(&raw).ok())
+        .map(|v| Cfg::from_json(&v));
+    let used_cached = cached.is_some();
+    let initial = cached.unwrap_or_else(Cfg::builtin);
+
+    if let Ok(raw) = browse_once(&initial, browse_id).await {
+        if raw.pointer("/header/musicImmersiveHeaderRenderer").is_some() {
+            return Ok(raw);
+        }
     }
 
+    if used_cached {
+        cfg_cache().invalidate("ytcfg").await;
+    }
     let fresh = cfg().await?;
     let raw = browse_once(&fresh, browse_id).await?;
     if raw.pointer("/header/musicImmersiveHeaderRenderer").is_some() {
