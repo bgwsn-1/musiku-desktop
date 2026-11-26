@@ -1,16 +1,44 @@
-// Jembatan Discord Rich Presence — hanya dipasang di bundle desktop.
-// Web/Android tidak mengimpor file ini, jadi perilaku pemutarnya tetap sama.
-import { useEffect, useRef } from "react";
+// Jembatan Discord Rich Presence hanya untuk bundle desktop.
+// Mendukung toggle aktif/nonaktif dari Halaman Pengaturan (localStorage).
+import { useEffect, useRef, useState } from "react";
 import { usePlayer } from "@/lib/player";
 
 const invoke = (cmd, args) => window.__TAURI_INTERNALS__?.invoke?.(cmd, args);
+export const LS_DISCORD_RPC = "musiku.discord.rpc";
+export const DISCORD_RPC_EVENT = "musiku:discord-rpc-change";
+
+export function readDiscordRpcEnabled() {
+  if (typeof window === "undefined") return true;
+  try {
+    return window.localStorage.getItem(LS_DISCORD_RPC) !== "0";
+  } catch {
+    return true;
+  }
+}
+
+export function setDiscordRpcEnabled(enabled) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(LS_DISCORD_RPC, enabled ? "1" : "0");
+    window.dispatchEvent(new CustomEvent(DISCORD_RPC_EVENT, { detail: enabled }));
+  } catch {
+    // Abaikan storage terkunci
+  }
+}
 
 export default function DiscordPresence() {
   const player = usePlayer();
-  // Baca posisi terbaru tanpa memasukkan `position` ke dependency effect —
-  // nilainya berubah tiap frame dan akan memicu IPC terus-menerus.
+  const [enabled, setEnabled] = useState(() => readDiscordRpcEnabled());
   const latest = useRef(player);
   latest.current = player;
+
+  useEffect(() => {
+    const onChange = (e) => {
+      setEnabled(Boolean(e?.detail ?? readDiscordRpcEnabled()));
+    };
+    window.addEventListener(DISCORD_RPC_EVENT, onChange);
+    return () => window.removeEventListener(DISCORD_RPC_EVENT, onChange);
+  }, []);
 
   useEffect(() => {
     if (!window.__TAURI_INTERNALS__?.invoke) return;
@@ -19,7 +47,7 @@ export default function DiscordPresence() {
     const send = async () => {
       const p = latest.current;
       const track = p.current;
-      if (!track || !p.playing) {
+      if (!enabled || !track || !p.playing) {
         if (timer) {
           clearInterval(timer);
           timer = null;
@@ -44,18 +72,15 @@ export default function DiscordPresence() {
     };
 
     void send();
-    // 10 detik sudah cukup menjaga timestamp Discord akurat, sekaligus
-    // memotong frekuensi IPC jadi separuh (dulu 5 detik).
-    timer = setInterval(() => void send(), 10000);
+    if (enabled) {
+      timer = setInterval(() => void send(), 10000);
+    }
 
-    // Saat ganti lagu effect ini di-re-run. JANGAN clear di sini: clear lalu
-    // set berdempetan dua-duanya menyentuh socket Discord persis di momen
-    // ganti lagu. Cukup matikan timer lama; effect baru langsung kirim lagu
-    // baru.
     return () => {
       if (timer) clearInterval(timer);
     };
   }, [
+    enabled,
     player.current?.videoId,
     player.current?.title,
     player.current?.artist,

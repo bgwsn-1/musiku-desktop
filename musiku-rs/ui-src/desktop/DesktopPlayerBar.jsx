@@ -1,15 +1,11 @@
-// Floating 2-Row Player Bar di bagian bawah kanvas tengah shell desktop.
-// Baris 1: waktu berjalan + scrub bar penuh + sisa waktu (-mm:ss)
-// Baris 2: kontrol kiri, kotak trek inset tengah, volume & mode layar penuh di kanan.
+// Floating Segmented MiniPlayer di bagian bawah kanvas (gaya YesPlayMusic).
+// Segmen terpisah: Info Lagu + Heart | Scrubber Progress | Shuffle | Prev/Play/Next | Repeat | Volume | Queue.
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { usePlayer } from "@/lib/player";
-import { LiquidGlass } from "@/components/ui/apple-tahoe-liquid-glass-button";
 import { TrackMenu } from "@/components/TrackMenu";
 import { AddToPlaylistMenu } from "@/components/TrackRow";
 import {
   IconDisc,
-  IconEllipsis,
-  IconExpand,
   IconHeart,
   IconMusic,
   IconNext,
@@ -29,6 +25,23 @@ const fmt = (s) => {
   return `${Math.floor(n / 60)}:${String(n % 60).padStart(2, "0")}`;
 };
 
+function IconChevronUp({ className = "h-5 w-5" }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M18 15l-6-6-6 6" />
+    </svg>
+  );
+}
+
 export const DesktopPlayerBar = memo(function DesktopPlayerBar({
   rightOpen,
   onToggleRight,
@@ -43,7 +56,6 @@ export const DesktopPlayerBar = memo(function DesktopPlayerBar({
     duration,
     shuffle,
     repeat,
-    autoplay,
     volume,
     muted,
     toggle,
@@ -52,7 +64,6 @@ export const DesktopPlayerBar = memo(function DesktopPlayerBar({
     seek,
     toggleShuffle,
     cycleRepeat,
-    toggleAutoplay,
     toggleMute,
     setVolume,
     isLiked,
@@ -61,9 +72,13 @@ export const DesktopPlayerBar = memo(function DesktopPlayerBar({
 
   const [menuAnchor, setMenuAnchor] = useState(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [volOpen, setVolOpen] = useState(false);
 
+  const volRef = useRef(null);
   const scrubRef = useRef(null);
   const fillRef = useRef(null);
+  const hoverFillRef = useRef(null);
+  const hoverLineRef = useRef(null);
   const curRef = useRef(null);
   const remRef = useRef(null);
   const anchor = useRef({ pos: p.position, ts: performance.now(), playing });
@@ -130,7 +145,7 @@ export const DesktopPlayerBar = memo(function DesktopPlayerBar({
         lastSec.current = sec;
         if (curRef.current) curRef.current.textContent = fmt(sec);
         if (remRef.current) {
-          remRef.current.textContent = d ? `-${fmt(Math.max(0, Math.ceil(d - pos)))}` : "-0:00";
+          remRef.current.textContent = d ? fmt(d) : "0:00";
         }
       }
       if (shouldAnimate()) {
@@ -171,6 +186,16 @@ export const DesktopPlayerBar = memo(function DesktopPlayerBar({
     };
   }, [kick]);
 
+  // Tutup popover volume saat klik di luar.
+  useEffect(() => {
+    if (!volOpen) return;
+    const onDown = (e) => {
+      if (!volRef.current?.contains(e.target)) setVolOpen(false);
+    };
+    document.addEventListener("pointerdown", onDown);
+    return () => document.removeEventListener("pointerdown", onDown);
+  }, [volOpen]);
+
   // Pintasan keyboard global (ketika tidak sedang mengetik di input dan tidak ada overlay aktif).
   useEffect(() => {
     const isEditable = (el) =>
@@ -180,14 +205,6 @@ export const DesktopPlayerBar = memo(function DesktopPlayerBar({
     const onKey = (e) => {
       if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
       if (isEditable(e.target) || isEditable(document.activeElement)) return;
-      if (e.key === "/") {
-        const searchEl = document.getElementById("ds-search-input");
-        if (searchEl) {
-          e.preventDefault();
-          searchEl.focus();
-        }
-        return;
-      }
       const r = refs.current;
       if (r.overlaysOpen || !r.current) return;
       if (e.key === " " && !document.activeElement?.closest?.("button, a, [role=slider]")) {
@@ -207,7 +224,10 @@ export const DesktopPlayerBar = memo(function DesktopPlayerBar({
         r.toggleLike(r.current);
       } else if (e.key === "f" || e.key === "F") {
         r.onOpenImmersive?.();
-      } else if ((e.key === "ArrowLeft" || e.key === "ArrowRight") && !document.activeElement?.closest?.("[role=slider]")) {
+      } else if (
+        (e.key === "ArrowLeft" || e.key === "ArrowRight") &&
+        !document.activeElement?.closest?.("[role=slider]")
+      ) {
         const nextPos = Math.min(
           r.duration || Infinity,
           Math.max(0, r.position + (e.key === "ArrowRight" ? 5 : -5)),
@@ -227,19 +247,37 @@ export const DesktopPlayerBar = memo(function DesktopPlayerBar({
     return Math.min(1, Math.max(0, (clientX - r.left) / r.width));
   };
 
+  const paintHover = (ratio) => {
+    if (hoverFillRef.current) {
+      hoverFillRef.current.style.transform = `scaleX(${ratio ?? 0})`;
+      hoverFillRef.current.style.opacity = ratio == null ? "0" : "1";
+    }
+    if (hoverLineRef.current) {
+      hoverLineRef.current.style.left = `${(ratio ?? 0) * 100}%`;
+      hoverLineRef.current.style.opacity = ratio == null ? "0" : "1";
+    }
+  };
+
   const onScrubDown = (e) => {
     if (!duration) return;
     drag.current.on = true;
     drag.current.ratio = ratioAt(e.clientX);
     e.currentTarget.setPointerCapture?.(e.pointerId);
     if (scrubRef.current) scrubRef.current.dataset.dragging = "1";
+    paintHover(drag.current.ratio);
     kick();
   };
 
   const onScrubMove = (e) => {
+    const r = ratioAt(e.clientX);
+    paintHover(r);
     if (!drag.current.on) return;
-    drag.current.ratio = ratioAt(e.clientX);
+    drag.current.ratio = r;
     kick();
+  };
+
+  const onScrubLeave = () => {
+    if (!drag.current.on) paintHover(null);
   };
 
   const onScrubUp = () => {
@@ -264,251 +302,233 @@ export const DesktopPlayerBar = memo(function DesktopPlayerBar({
     kick();
   };
 
-  const artistText = current.artist || current.artists?.[0] || "";
-  const sub = [current.album, artistText].filter(Boolean).join(" · ");
+  const artistText = current.artist || current.artists?.[0] || "Artis tidak diketahui";
   const liked = isLiked?.(current.videoId) ?? false;
   const volVal = muted ? 0 : volume ?? 1;
 
   return (
     <>
-      <div className="ds-player-wrap">
-        <LiquidGlass
-          material="regular"
-          appearance="dark"
-          refraction={18}
-          bezel={20}
-          blur={1.5}
-          fallbackBlur={22}
-          saturation={1.35}
-          brightness={1.02}
-          interactive={false}
-          role="region"
-          aria-label="Kontrol pemutar musik"
-          className="ds-player"
-        >
-          <div className="ds-player-timeline">
-            <span ref={curRef} className="ds-time" aria-hidden="true">
-              0:00
-            </span>
-            <div
-              ref={scrubRef}
-              className="ds-scrub"
-              role="slider"
-              tabIndex={0}
-              aria-label="Posisi lagu"
-              aria-valuemin={0}
-              aria-valuemax={Math.round(duration || 0)}
-              aria-valuenow={Math.round(p.position || 0)}
-              aria-valuetext={`${fmt(p.position)} dari ${fmt(duration)}`}
-              onPointerDown={onScrubDown}
-              onPointerMove={onScrubMove}
-              onPointerUp={onScrubUp}
-              onPointerCancel={onScrubUp}
-              onKeyDown={onScrubKey}
+      <div className="ypm-player-wrap" role="region" aria-label="Kontrol pemutar musik">
+        <div className="ypm-player-fade" aria-hidden="true" />
+
+        <div className="ypm-player-row">
+          {/* Segmen 1: Cover + Info Lagu + Heart */}
+          <div
+            className="ypm-seg ypm-seg-now"
+            onContextMenu={(e) => {
+              e.preventDefault();
+              setMenuAnchor({ x: e.clientX, y: e.clientY - 8, end: false });
+            }}
+          >
+            <button
+              type="button"
+              className="ypm-now-open"
+              onClick={onOpenImmersive}
+              aria-label="Buka layar Now Playing"
+              title="Buka Now Playing (F)"
             >
-              <div className="ds-scrub-rail">
-                <div ref={fillRef} className="ds-scrub-fill" />
-              </div>
-            </div>
-            <span ref={remRef} className="ds-time ds-time-rem" aria-hidden="true">
-              -0:00
-            </span>
-          </div>
-
-          <div className="ds-player-row">
-            <div className="ds-player-left">
-              <button
-                type="button"
-                className="ds-pbtn"
-                onClick={toggleShuffle}
-                data-active={shuffle ? "1" : undefined}
-                aria-pressed={!!shuffle}
-                aria-label={shuffle ? "Matikan acak" : "Aktifkan acak"}
-                title="Acak (S)"
-              >
-                <IconShuffle className="h-4 w-4" />
-              </button>
-
-              <button
-                type="button"
-                className="ds-pbtn"
-                onClick={prev}
-                aria-label="Lagu sebelumnya"
-                title="Sebelumnya"
-              >
-                <IconPrev className="h-[17px] w-[17px]" />
-              </button>
-
-              <button
-                type="button"
-                className="ds-pbtn ds-pbtn-play"
-                onClick={toggle}
-                aria-label={playing ? "Jeda" : "Putar"}
-                title={playing ? "Jeda (Space)" : "Putar (Space)"}
-              >
-                {playing ? (
-                  <IconPause className="h-[19px] w-[19px]" />
-                ) : (
-                  <IconPlay className="h-[19px] w-[19px]" />
-                )}
-              </button>
-
-              <button
-                type="button"
-                className="ds-pbtn"
-                onClick={next}
-                aria-label="Lagu berikutnya"
-                title="Berikutnya"
-              >
-                <IconNext className="h-[17px] w-[17px]" />
-              </button>
-
-              <button
-                type="button"
-                className="ds-pbtn"
-                onClick={cycleRepeat}
-                data-active={repeat && repeat !== "off" ? "1" : undefined}
-                aria-pressed={!!(repeat && repeat !== "off")}
-                aria-label="Ubah mode ulangi"
-                title="Ulangi (R)"
-              >
-                {repeat === "one" ? (
-                  <IconRepeatOne className="h-4 w-4" />
-                ) : (
-                  <IconRepeat className="h-4 w-4" />
-                )}
-              </button>
-
-              <button
-                type="button"
-                className="ds-pbtn"
-                onClick={() => toggleLike?.(current)}
-                data-active={liked ? "1" : undefined}
-                aria-pressed={liked}
-                aria-label={liked ? "Hapus dari disukai" : "Sukai lagu"}
-                title="Sukai (L)"
-              >
-                <IconHeart filled={liked} className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="ds-player-track">
-              <button
-                type="button"
-                className="ds-player-art-btn"
-                onClick={onOpenImmersive}
-                aria-label="Buka mode lirik imersif"
-                title="Mode imersif (F)"
-              >
+              <span className="ypm-now-art-wrap">
                 {current.thumbs ? (
                   <img
                     src={current.thumbs}
                     alt=""
-                    width="36"
-                    height="36"
-                    className="ds-player-art"
+                    width="48"
+                    height="48"
+                    className="ypm-now-art"
                   />
                 ) : (
-                  <span className="flex h-full w-full items-center justify-center">
-                    <IconMusic className="h-4 w-4 text-white/50" />
+                  <span className="flex h-full w-full items-center justify-center bg-[#242428]">
+                    <IconMusic className="h-5 w-5 text-[#85858f]" />
                   </span>
                 )}
-              </button>
+                <span className="ypm-now-art-hover" aria-hidden="true">
+                  <IconChevronUp className="h-5 w-5" />
+                </span>
+              </span>
+              <span className="ypm-now-meta">
+                <span className="ypm-now-title">{current.title || "Lagu tanpa judul"}</span>
+                <span className="ypm-now-sub">{artistText}</span>
+              </span>
+            </button>
 
-              <div className="ds-player-meta">
-                <p className="ds-player-title">{current.title || "Lagu tanpa judul"}</p>
-                {sub && <p className="ds-player-sub">{sub}</p>}
-              </div>
+            <button
+              type="button"
+              className="ypm-heart-btn"
+              onClick={() => toggleLike?.(current)}
+              data-liked={liked ? "1" : undefined}
+              aria-pressed={liked}
+              aria-label={liked ? "Hapus dari disukai" : "Sukai lagu"}
+              title="Sukai (L)"
+            >
+              <IconHeart filled={liked} className="h-5 w-5" />
+            </button>
+          </div>
 
-              <button
-                type="button"
-                className="ds-pbtn"
-                onClick={onOpenImmersive}
-                aria-label="Perluas ke mode imersif"
-                title="Mode imersif (F)"
-              >
-                <IconExpand className="h-4 w-4" />
-              </button>
-
-              <button
-                type="button"
-                className="ds-pbtn"
-                onClick={(e) => {
-                  const r = e.currentTarget.getBoundingClientRect();
-                  setMenuAnchor({ x: r.right, y: r.top - 8, end: true });
-                }}
-                aria-haspopup="menu"
-                aria-label="Opsi lagu lainnya"
-                title="Opsi lainnya"
-              >
-                <IconEllipsis className="h-4 w-4" />
-              </button>
+          {/* Segmen 2: Scrubber Progress Full-Height */}
+          <div
+            ref={scrubRef}
+            className="ypm-seg ypm-seg-lyric"
+            role="slider"
+            tabIndex={0}
+            aria-label="Posisi lagu"
+            aria-valuemin={0}
+            aria-valuemax={Math.round(duration || 0)}
+            aria-valuenow={Math.round(p.position || 0)}
+            aria-valuetext={`${fmt(p.position)} dari ${fmt(duration)}`}
+            onPointerDown={onScrubDown}
+            onPointerMove={onScrubMove}
+            onPointerLeave={onScrubLeave}
+            onPointerUp={onScrubUp}
+            onPointerCancel={onScrubUp}
+            onKeyDown={onScrubKey}
+          >
+            <div ref={fillRef} className="ypm-scrub-fill" aria-hidden="true" />
+            <div ref={hoverFillRef} className="ypm-scrub-hover" aria-hidden="true" />
+            <div ref={hoverLineRef} className="ypm-scrub-cursor" aria-hidden="true" />
+            <div className="ypm-scrub-times" aria-hidden="true">
+              <span ref={curRef} className="ypm-scrub-t">
+                0:00
+              </span>
+              <span ref={remRef} className="ypm-scrub-t ypm-scrub-t-dur">
+                0:00
+              </span>
             </div>
+          </div>
 
-            <div className="ds-player-right">
-              <div className="ds-player-vol">
-                <button
-                  type="button"
-                  className="ds-pbtn"
-                  onClick={toggleMute}
-                  aria-label={muted || volVal === 0 ? "Bunyikan suara" : "Bisukan suara"}
-                  title="Bisukan (M)"
-                >
-                  {muted || volVal === 0 ? (
-                    <IconVolumeMute className="h-4 w-4" />
-                  ) : (
-                    <IconVolume className="h-4 w-4" />
-                  )}
-                </button>
-                <label htmlFor="ds-player-vol-range" className="sr-only">
-                  Volume
-                </label>
+          {/* Segmen 3: Shuffle */}
+          <button
+            type="button"
+            className="ypm-seg ypm-seg-icon hidden md:inline-flex"
+            onClick={toggleShuffle}
+            data-active={shuffle ? "1" : undefined}
+            aria-pressed={!!shuffle}
+            aria-label={shuffle ? "Matikan acak" : "Aktifkan acak"}
+            title="Acak (S)"
+          >
+            <IconShuffle className="h-5 w-5" />
+            {shuffle && <span className="ypm-seg-dot" aria-hidden="true" />}
+          </button>
+
+          {/* Segmen 4: Prev / Play / Next */}
+          <div className="ypm-seg ypm-seg-ctrl">
+            <button
+              type="button"
+              className="ypm-ctrl-btn"
+              onClick={prev}
+              aria-label="Lagu sebelumnya"
+              title="Sebelumnya"
+            >
+              <IconPrev className="h-5 w-5" />
+            </button>
+            <button
+              type="button"
+              className="ypm-ctrl-btn"
+              onClick={toggle}
+              aria-label={playing ? "Jeda" : "Putar"}
+              title={playing ? "Jeda (Space)" : "Putar (Space)"}
+            >
+              {playing ? (
+                <IconPause className="h-6 w-6" />
+              ) : (
+                <IconPlay className="h-6 w-6" />
+              )}
+            </button>
+            <button
+              type="button"
+              className="ypm-ctrl-btn"
+              onClick={next}
+              aria-label="Lagu berikutnya"
+              title="Berikutnya"
+            >
+              <IconNext className="h-5 w-5" />
+            </button>
+          </div>
+
+          {/* Segmen 5: Repeat */}
+          <button
+            type="button"
+            className="ypm-seg ypm-seg-icon hidden md:inline-flex"
+            onClick={cycleRepeat}
+            data-active={repeat && repeat !== "off" ? "1" : undefined}
+            aria-pressed={!!(repeat && repeat !== "off")}
+            aria-label="Ubah mode ulangi"
+            title="Ulangi (R)"
+          >
+            {repeat === "one" ? (
+              <IconRepeatOne className="h-5 w-5" />
+            ) : (
+              <IconRepeat className="h-5 w-5" />
+            )}
+            {repeat && repeat !== "off" && <span className="ypm-seg-dot" aria-hidden="true" />}
+          </button>
+
+          {/* Segmen 6: Volume dengan bar vertikal */}
+          <div
+            ref={volRef}
+            className="ypm-vol-wrap hidden sm:block"
+            onWheel={(e) => {
+              e.preventDefault();
+              const nextV = Math.min(1, Math.max(0, volVal - e.deltaY / 1000));
+              setVolume?.(nextV);
+            }}
+          >
+            {volOpen && (
+              <div className="ypm-vol-pop" role="dialog" aria-label="Pengaturan volume">
+                <span className="ypm-vol-pct">{Math.round(volVal * 100)}%</span>
                 <input
-                  id="ds-player-vol-range"
                   type="range"
                   min={0}
                   max={1}
                   step={0.01}
                   value={volVal}
                   onChange={(e) => setVolume?.(Number(e.target.value))}
-                  className="ds-vol-slider"
+                  aria-label="Volume"
+                  className="ypm-vol-vrange"
                 />
               </div>
-
-              <button
-                type="button"
-                className="ds-pbtn hidden lg:inline-flex"
-                onClick={onOpenCoverFlow}
-                aria-label="Buka Cover Flow"
-                title="Cover Flow"
-              >
-                <IconDisc className="h-4 w-4" />
-              </button>
-
-              <button
-                type="button"
-                className="ds-pbtn lg:hidden"
-                onClick={() => onToggleRight?.("queue")}
-                data-active={rightOpen ? "1" : undefined}
-                aria-label="Tampilkan antrean"
-              >
-                <IconQueue className="h-4 w-4" />
-              </button>
-
-              <button
-                type="button"
-                className="ds-pbtn"
-                onClick={toggleAutoplay}
-                data-active={autoplay ? "1" : undefined}
-                aria-pressed={!!autoplay}
-                aria-label={autoplay ? "Matikan AutoPlay" : "Aktifkan AutoPlay"}
-                title="AutoPlay"
-              >
-                <span className="text-[11px] font-bold tracking-tight">∞</span>
-              </button>
-            </div>
+            )}
+            <button
+              type="button"
+              className="ypm-seg ypm-seg-icon"
+              onClick={() => setVolOpen((v) => !v)}
+              onDoubleClick={toggleMute}
+              data-active={volOpen ? "1" : undefined}
+              aria-expanded={volOpen}
+              aria-label={muted || volVal === 0 ? "Volume senyap" : `Volume ${Math.round(volVal * 100)}%`}
+              title="Volume (gulir atau klik)"
+            >
+              {muted || volVal === 0 ? (
+                <IconVolumeMute className="h-5 w-5" />
+              ) : (
+                <IconVolume className="h-5 w-5" />
+              )}
+            </button>
           </div>
-        </LiquidGlass>
+
+          {/* Segmen 7: Queue Drawer & CoverFlow */}
+          <button
+            type="button"
+            className="ypm-seg ypm-seg-icon"
+            onClick={() => onToggleRight?.("queue")}
+            data-active={rightOpen ? "1" : undefined}
+            aria-pressed={!!rightOpen}
+            aria-label="Panel antrean"
+            title="Antrean (Q)"
+          >
+            <IconQueue className="h-5 w-5" />
+            {rightOpen && <span className="ypm-seg-dot" aria-hidden="true" />}
+          </button>
+
+          <button
+            type="button"
+            className="ypm-seg ypm-seg-icon hidden xl:inline-flex"
+            onClick={onOpenCoverFlow}
+            aria-label="Buka Cover Flow"
+            title="Cover Flow"
+          >
+            <IconDisc className="h-5 w-5" />
+          </button>
+        </div>
       </div>
 
       {menuAnchor && (

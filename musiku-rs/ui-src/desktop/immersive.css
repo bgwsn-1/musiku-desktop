@@ -638,3 +638,1251 @@
     -webkit-backdrop-filter: none;
   }
 }
+
+/* =========================================================================
+   Phase 4: YesPlayMusic NowPlayingPage 1:1 (.ypm-np-*)
+   ========================================================================= */
+
+.ypm-np {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  overflow: hidden;
+  background: #0b0b0d;
+  color: #ffffff;
+  isolation: isolate;
+  will-change: transform, opacity;
+}
+
+.ypm-np.is-opening {
+  animation: ypm-np-in 380ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.ypm-np.is-closing {
+  pointer-events: none;
+  animation: ypm-np-out 340ms cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+.ypm-np.is-closing .ypm-np-art-card {
+  transform: rotate(9deg) translate3d(0, 36px, 0) scale(0.92);
+  opacity: 0;
+  transition: transform 280ms cubic-bezier(0.32, 0.72, 0, 1), opacity 220ms ease;
+}
+
+.ypm-np.is-closing .ypm-np-left-col,
+.ypm-np.is-closing .ypm-np-topbar {
+  opacity: 0;
+  transform: translate3d(0, 18px, 0);
+  transition: transform 240ms ease, opacity 200ms ease;
+}
+
+@keyframes ypm-np-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 72px, 0) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes ypm-np-out {
+  0% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+    border-radius: 0;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(0, 100%, 0) scale(0.96);
+    border-radius: 28px;
+  }
+}
+
+.ypm-np-bg {
+  position: absolute;
+  inset: -16%;
+  width: 132%;
+  height: 132%;
+  object-fit: cover;
+  filter: blur(80px) saturate(1.45) brightness(0.55);
+  opacity: 0.78;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.ypm-np-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 75% 48%, rgba(11, 11, 13, 0.1) 0%, rgba(11, 11, 13, 0.48) 72%),
+    linear-gradient(180deg, rgba(11, 11, 13, 0.28) 0%, rgba(11, 11, 13, 0.56) 100%);
+}
+
+/* ── Topbar Terpusat (YesPlayMusic _TopBar, top: 32px) ─────────────────── */
+.ypm-np-topbar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 28px;
+  z-index: 12;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.ypm-np-pills {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: auto;
+}
+
+.ypm-np-pill {
+  height: 38px;
+  padding: 0 18px;
+  border-radius: 999px;
+  border: 0;
+  background: rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  color: rgba(255, 255, 255, 0.72);
+  font-family: "ArchivoSemi", "Archivo", var(--font-sans), sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease, transform 120ms ease;
+}
+
+.ypm-np-pill:hover {
+  background: rgba(0, 0, 0, 0.36);
+  color: #ffffff;
+}
+
+.ypm-np-pill.is-active {
+  background: #ffffff;
+  color: #0b0b0d;
+}
+
+/* ── Artwork Miring 6 Derajat di Kanan (YesPlayMusic _Art) ─────────────── */
+.ypm-np-art-layer {
+  position: absolute;
+  top: 80px;
+  bottom: 118px;
+  right: -36px;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  pointer-events: none;
+}
+
+.ypm-np-art-scale {
+  pointer-events: auto;
+  transition: transform 700ms cubic-bezier(0.22, 1.15, 0.36, 1);
+}
+
+.ypm-np-art-scale.is-playing {
+  transform: scale(1);
+}
+
+.ypm-np-art-scale.is-paused {
+  transform: scale(0.94);
+}
+
+.ypm-np-art-card {
+  position: relative;
+  width: clamp(260px, min(42vw, 66vh), 620px);
+  aspect-ratio: 1 / 1;
+  border-radius: 28px;
+  overflow: hidden;
+  transform: rotate(6deg);
+  box-shadow: 0 30px 60px -10px rgba(0, 0, 0, 0.55);
+  background: #18181b;
+}
+
+.ypm-np-art-media {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.ypm-np-art-fb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.ypm-np-art-play {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 72px;
+  height: 72px;
+  border-radius: 999px;
+  border: 0;
+  background: rgba(0, 0, 0, 0.38);
+  backdrop-filter: blur(12px);
+  color: #ffffff;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 180ms ease, transform 140ms ease;
+}
+
+.ypm-np-art-card:hover .ypm-np-art-play,
+.ypm-np-art-play.is-paused {
+  opacity: 1;
+}
+
+.ypm-np-art-play:hover {
+  transform: scale(1.06);
+}
+
+/* ── Kolom Kiri: _TrackInfo + _BigInfo + _Lyrics / _NpList ─────────────── */
+.ypm-np-left-col {
+  position: absolute;
+  left: 40px;
+  top: 0;
+  bottom: 118px;
+  width: min(760px, calc(100vw - 44vw - 40px));
+  min-width: 340px;
+  z-index: 6;
+}
+
+.ypm-np-trackinfo {
+  position: absolute;
+  left: 0;
+  top: 96px;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  transition: opacity 200ms ease;
+}
+
+.ypm-np-trackinfo.is-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.ypm-np-from {
+  font-family: "ArchivoSemi", "Archivo", var(--font-sans), sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.6);
+  text-decoration: none;
+  margin-bottom: 4px;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ypm-np-from:hover {
+  color: #ffffff;
+  text-decoration: underline;
+}
+
+.ypm-np-ti-title {
+  margin: 0;
+  font-family: "ArchivoWide", "Archivo", var(--font-sans), sans-serif;
+  font-size: 22px;
+  font-weight: 900;
+  line-height: 1.15;
+  color: #ffffff;
+  text-decoration: none;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+a.ypm-np-ti-title:hover {
+  text-decoration: underline;
+}
+
+.ypm-np-ti-artist {
+  margin: 6px 0 0;
+  font-family: "Archivo", var(--font-sans), sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.65);
+  text-decoration: none;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+a.ypm-np-ti-artist:hover {
+  color: #ffffff;
+  text-decoration: underline;
+}
+
+.ypm-np-ti-bar {
+  margin-top: 20px;
+  width: 48px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.35);
+}
+
+/* _BigInfo saat tanpa lirik */
+.ypm-np-biginfo {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  padding-right: 24px;
+}
+
+.ypm-np-big-from {
+  font-family: "ArchivoSemi", "Archivo", var(--font-sans), sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 6px;
+}
+
+.ypm-np-big-title {
+  margin: 0;
+  font-family: "ArchivoWide", "Archivo", var(--font-sans), sans-serif;
+  font-size: clamp(44px, 5.2vw, 80px);
+  font-weight: 900;
+  line-height: 1.05;
+  letter-spacing: -0.025em;
+  color: #ffffff;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.ypm-np-big-artist {
+  margin: 14px 0 0;
+  font-family: "ArchivoSemi", "Archivo", var(--font-sans), sans-serif;
+  font-size: 24px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+/* Area Lirik & Antrean dimulai di top: 208px (persis YesPlayMusic padding top ~220-232) */
+.ypm-np-body {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 208px;
+  bottom: 0;
+  overflow: hidden;
+}
+
+.ypm-np-body.is-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ── Lirik ArchivoWide 40px -> scale(0.55) ─────────────────────────────── */
+.ypm-np-lyrics-loading {
+  padding-top: 32px;
+  font-family: "ArchivoSemi", "Archivo", var(--font-sans), sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.ypm-np-lyrics-scroll {
+  position: relative;
+  height: 100%;
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    #000 8%,
+    #000 86%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    #000 8%,
+    #000 86%,
+    transparent 100%
+  );
+}
+
+.ypm-np-lyrics-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.ypm-np-lyrics-pad-top {
+  height: 36px;
+}
+
+.ypm-np-lyrics-pad-bottom {
+  height: 45%;
+}
+
+.ypm-np-lyrics-col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  max-width: 740px;
+}
+
+.ypm-np-lrc-row {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  font-family: "ArchivoWide", "Archivo", var(--font-sans), sans-serif;
+  font-size: clamp(28px, 2.8vw, 40px);
+  font-weight: 900;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+  cursor: pointer;
+  transform-origin: left top;
+  transform: scale(var(--lrc-scale, 0.55));
+  opacity: var(--lrc-op, 0.3);
+  transition:
+    transform 520ms cubic-bezier(0.22, 1, 0.36, 1),
+    margin-bottom 520ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 260ms ease;
+}
+
+.ypm-np-lrc-row:hover {
+  opacity: max(var(--lrc-op, 0.3), 0.78);
+}
+
+.ypm-np-lrc-plain {
+  margin: 0 0 18px;
+  font-family: "ArchivoWide", "Archivo", var(--font-sans), sans-serif;
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.3;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* ── Antrean (_NpList / _NpRow) ────────────────────────────────────────── */
+.ypm-np-q {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.ypm-np-q-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.ypm-np-q-label {
+  font-family: "ArchivoSemi", "Archivo", var(--font-sans), sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.ypm-np-q-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.ypm-np-q-empty {
+  margin: 12px 0 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.ypm-np-q-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin-left: -10px;
+  padding-bottom: 40px;
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 85%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 85%, transparent 100%);
+}
+
+.ypm-np-q-list::-webkit-scrollbar {
+  display: none;
+}
+
+.ypm-np-q-row {
+  display: flex;
+  align-items: center;
+  height: 65px;
+  padding: 0 10px;
+  border-radius: 14px;
+  transition: background 140ms ease;
+}
+
+.ypm-np-q-row:hover {
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.ypm-np-q-row.is-cur {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.ypm-np-q-btn {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  text-align: left;
+  cursor: pointer;
+  color: #ffffff;
+}
+
+.ypm-np-q-art-wrap {
+  position: relative;
+  width: 45px;
+  height: 45px;
+  flex-shrink: 0;
+}
+
+.ypm-np-q-art {
+  width: 45px;
+  height: 45px;
+  border-radius: 8px;
+  object-fit: cover;
+  display: block;
+}
+
+.ypm-np-q-art-fb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.ypm-np-q-play {
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.42);
+  color: #ffffff;
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  transition: opacity 140ms ease;
+}
+
+.ypm-np-q-row:hover .ypm-np-q-play {
+  opacity: 1;
+}
+
+.ypm-np-q-meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ypm-np-q-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ypm-np-q-row.is-cur .ypm-np-q-name {
+  color: #d6b0fa;
+}
+
+.ypm-np-q-sub {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.6);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ypm-np-q-dur {
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.55);
+  margin-left: 12px;
+  flex-shrink: 0;
+}
+
+.ypm-np-q-rm {
+  width: 32px;
+  height: 32px;
+  margin-left: 6px;
+  border-radius: 999px;
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.45);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 140ms ease, background 140ms ease, color 140ms ease;
+}
+
+.ypm-np-q-row:hover .ypm-np-q-rm {
+  opacity: 1;
+}
+
+.ypm-np-q-rm:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+}
+
+/* ── Bottom Segmented Bar (72px tinggi, radius 24px, gap 8px) ─────────── */
+.ypm-np-bottom {
+  position: absolute;
+  left: 40px;
+  right: 40px;
+  bottom: 28px;
+  height: 72px;
+  z-index: 12;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.ypm-np-seg {
+  position: relative;
+  width: 58px;
+  height: 72px;
+  border-radius: 24px;
+  border: 0;
+  background: rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  color: #ffffff;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: background 140ms ease, transform 120ms ease, color 140ms ease;
+}
+
+.ypm-np-seg:hover {
+  background: rgba(0, 0, 0, 0.42);
+}
+
+.ypm-np-seg:active {
+  transform: scale(0.95);
+}
+
+.ypm-np-seg.is-dim {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.ypm-np-seg.is-accent {
+  color: #d6b0fa;
+}
+
+.ypm-np-seg.is-heart {
+  color: #ff5c7a;
+}
+
+.ypm-np-dot {
+  position: absolute;
+  bottom: 13px;
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: currentColor;
+  transform: scale(0);
+  transition: transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.ypm-np-dot.is-on {
+  transform: scale(1);
+}
+
+/* Full-height 72px Scrubber dengan Dual-Layer Timestamp Putih/Hitam */
+.ypm-np-progress {
+  position: relative;
+  flex: 1;
+  min-width: 120px;
+  height: 72px;
+  border-radius: 24px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  cursor: pointer;
+  user-select: none;
+  touch-action: none;
+}
+
+.ypm-np-progress-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 0%;
+  background: #ffffff;
+  pointer-events: none;
+}
+
+.ypm-np-progress-hover {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.24);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.ypm-np-progress-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: #ffffff;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.ypm-np-progress-labels {
+  position: absolute;
+  inset: 0;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: "Archivo", var(--font-sans), sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.ypm-np-progress-labels.is-light {
+  color: #ffffff;
+}
+
+.ypm-np-progress-labels.is-dark {
+  color: #0b0b0d;
+  clip-path: inset(0 100% 0 0);
+}
+
+/* _WhiteControls: 174x72 solid putih dengan 3 tombol gelap */
+.ypm-np-white-ctrl {
+  width: 174px;
+  height: 72px;
+  border-radius: 24px;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.ypm-np-wbtn {
+  width: 58px;
+  height: 72px;
+  border-radius: 24px;
+  border: 0;
+  background: transparent;
+  color: #0b0b0d;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: background 140ms ease, transform 120ms ease;
+}
+
+.ypm-np-wbtn:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.ypm-np-wbtn:active:not(:disabled) {
+  transform: scale(0.9);
+}
+
+.ypm-np-wbtn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* VolumeSeg pop-up vertikal */
+.ypm-np-vol-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.ypm-np-vol-pop {
+  position: absolute;
+  left: 0;
+  bottom: 80px;
+  width: 58px;
+  height: 150px;
+  padding: 12px 0;
+  border-radius: 24px;
+  background: rgba(0, 0, 0, 0.36);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.ypm-np-vol-rail {
+  width: 10px;
+  height: 100%;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  overflow: hidden;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.ypm-np-vol-fill {
+  width: 100%;
+  background: #ffffff;
+  border-radius: 999px;
+}
+
+/* Focus rings */
+.ypm-np-pill:focus-visible,
+.ypm-np-seg:focus-visible,
+.ypm-np-wbtn:focus-visible,
+.ypm-np-progress:focus-visible,
+.ypm-np-lrc-row:focus-visible,
+.ypm-np-q-btn:focus-visible,
+.ypm-np-q-rm:focus-visible,
+.ypm-np-vol-rail:focus-visible {
+  outline: 2px solid #d6b0fa;
+  outline-offset: 2px;
+}
+
+@media (max-width: 980px) {
+  .ypm-np-art-layer {
+    display: none;
+  }
+
+  .ypm-np-left-col {
+    width: auto;
+    right: 24px;
+    left: 24px;
+    min-width: 0;
+  }
+
+  .ypm-np-bottom {
+    left: 20px;
+    right: 20px;
+    bottom: 20px;
+  }
+
+  .ypm-np-seg,
+  .ypm-np-vol-wrap {
+    width: 48px;
+  }
+
+  .ypm-np-white-ctrl {
+    width: 144px;
+  }
+
+  .ypm-np-wbtn {
+    width: 48px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ypm-np-art-scale,
+  .ypm-np-lrc-row,
+  .ypm-np-seg,
+  .ypm-np-wbtn,
+  .ypm-np-pill,
+  .ypm-cf-bg,
+  .ypm-cf-meta {
+    transition: none;
+    animation: none;
+  }
+}
+
+/* =========================================================================
+   YesPlayMusic 3D Cover Flow 1:1 (.ypm-cf-*)
+   ========================================================================= */
+
+.ypm-cf {
+  position: fixed;
+  inset: 0;
+  z-index: 75;
+  background: #000000;
+  color: #ffffff;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  user-select: none;
+}
+
+.ypm-cf-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    var(--cf-tone, #232028) 0%,
+    rgba(0, 0, 0, 0.55) 42%,
+    #000000 66%,
+    #000000 100%
+  );
+  transition: background 900ms ease;
+}
+
+.ypm-cf-top {
+  position: relative;
+  z-index: 20;
+  padding: 28px 32px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ypm-cf-pills {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.ypm-cf-pill {
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 0;
+  background: rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  color: rgba(255, 255, 255, 0.72);
+  font-family: "ArchivoSemi", "Archivo", var(--font-sans), sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease;
+}
+
+.ypm-cf-pill:hover {
+  background: rgba(0, 0, 0, 0.45);
+  color: #ffffff;
+}
+
+.ypm-cf-pill.is-active {
+  background: #ffffff;
+  color: #0b0b0d;
+}
+
+.ypm-cf-pill-count {
+  margin-left: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  opacity: 0.65;
+  vertical-align: super;
+}
+
+.ypm-cf-close {
+  position: absolute;
+  right: 32px;
+  top: 28px;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  border: 0;
+  background: rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  color: #ffffff;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: background 140ms ease;
+}
+
+.ypm-cf-close:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.ypm-cf-stage {
+  position: relative;
+  z-index: 5;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform-style: preserve-3d;
+  cursor: grab;
+  touch-action: none;
+}
+
+.ypm-cf-stage:active {
+  cursor: grabbing;
+}
+
+.ypm-cf-card {
+  position: absolute;
+  transform-style: preserve-3d;
+  will-change: transform;
+  cursor: pointer;
+}
+
+.ypm-cf-art-box {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #1c1c1e;
+  box-shadow: 0 28px 60px rgba(0, 0, 0, 0.65);
+}
+
+.ypm-cf-card.is-round .ypm-cf-art-box,
+.ypm-cf-card.is-round .ypm-cf-refl {
+  border-radius: 999px;
+}
+
+.ypm-cf-art-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.ypm-cf-art-fb {
+  width: 100%;
+  height: 100%;
+  background: #1c1c1e;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ypm-cf-shade {
+  position: absolute;
+  inset: 0;
+  background: #000000;
+  pointer-events: none;
+}
+
+.ypm-cf-hover {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.25);
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+
+.ypm-cf-card.is-front:hover .ypm-cf-hover {
+  opacity: 1;
+}
+
+.ypm-cf-play-btn {
+  width: 80px;
+  height: 80px;
+  border-radius: 999px;
+  border: 0;
+  background: #ffffff;
+  color: #0b0b0d;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.45);
+  transform: scale(0.9);
+  transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.ypm-cf-card.is-front:hover .ypm-cf-play-btn {
+  transform: scale(1);
+}
+
+.ypm-cf-play-btn:hover {
+  transform: scale(1.07);
+}
+
+/* Refleksi 42% di bawah sampul */
+.ypm-cf-refl {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  width: 100%;
+  overflow: hidden;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.9) 0%, transparent 95%);
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.9) 0%, transparent 95%);
+}
+
+.ypm-cf-refl-img {
+  object-fit: cover;
+  display: block;
+  transform: scaleY(-1);
+}
+
+.ypm-cf-floor-fade {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 110px;
+  background: linear-gradient(180deg, transparent 0%, #000000 100%);
+  pointer-events: none;
+  z-index: 1500;
+}
+
+/* Footer Judul & Kontrol */
+.ypm-cf-footer {
+  position: relative;
+  z-index: 20;
+  padding: 0 40px 30px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+
+.ypm-cf-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  max-width: 720px;
+  animation: ypm-cf-in 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes ypm-cf-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ypm-cf-title-btn {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font-family: "ArchivoWide", "Archivo", var(--font-sans), sans-serif;
+  font-size: clamp(22px, 2.5vw, 30px);
+  font-weight: 900;
+  line-height: 1.15;
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.ypm-cf-title-btn:hover {
+  text-decoration: underline;
+}
+
+.ypm-cf-sub {
+  margin: 6px 0 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.ypm-cf-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.ypm-cf-ctrl {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  border: 0;
+  background: transparent;
+  color: #ffffff;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: background 140ms ease, transform 120ms ease;
+}
+
+.ypm-cf-ctrl:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.ypm-cf-ctrl.is-main {
+  width: 48px;
+  height: 48px;
+  background: #ffffff;
+  color: #0b0b0d;
+}
+
+.ypm-cf-ctrl.is-main:hover {
+  background: #d6b0fa;
+  transform: scale(1.05);
+}
+
+.ypm-cf-empty {
+  text-align: center;
+  padding: 24px;
+}
+
+.ypm-cf-empty-title {
+  margin: 0;
+  font-family: "ArchivoWide", "Archivo", var(--font-sans), sans-serif;
+  font-size: 20px;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.ypm-cf-empty-sub {
+  margin: 8px 0 0;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.ypm-cf-pill:focus-visible,
+.ypm-cf-close:focus-visible,
+.ypm-cf-play-btn:focus-visible,
+.ypm-cf-title-btn:focus-visible,
+.ypm-cf-ctrl:focus-visible {
+  outline: 2px solid #d6b0fa;
+  outline-offset: 2px;
+}
+
+
+

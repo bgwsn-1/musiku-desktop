@@ -1,6 +1,8 @@
-// Halaman album desktop: hero full-bleed bernuansa sampul album,
-// chip metadata, tombol aksi hangat, filter dan urutkan lagu, serta daftar trek bernomor.
+// Halaman album desktop bergaya YesPlayMusic (split 2 kolom):
+// Kiri: sampul squircle 360px sticky, jenis & tahun, judul ArchivoWide, artis, Putar/Acak/Simpan/Opsi.
+// Kanan: jumlah lagu & durasi, pencarian & pengurutan, daftar trek bernomor, serta footer metadata rilis.
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { usePlayer } from "@/lib/player";
@@ -9,7 +11,6 @@ import { TrackMenu } from "@/components/TrackMenu";
 import { AddToPlaylistMenu } from "@/components/TrackRow";
 import {
   IconClose,
-  IconDisc,
   IconEllipsis,
   IconHeart,
   IconMusic,
@@ -61,71 +62,6 @@ function normalizeTrack(t, album) {
   };
 }
 
-function IconClock({ className = "h-3 w-3" }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      aria-hidden="true"
-    >
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 7v5l3 2" />
-    </svg>
-  );
-}
-
-function IconSortLines({ className = "h-3.5 w-3.5" }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      aria-hidden="true"
-    >
-      <path d="M4 7h12M4 12h8M4 17h4" />
-      <path d="M17 10v9M14 16l3 3 3-3" />
-    </svg>
-  );
-}
-
-function IconCheckTiny({ className = "h-3 w-3" }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.6"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      aria-hidden="true"
-    >
-      <path d="M5 12.5l4.5 4.5L19 7.5" />
-    </svg>
-  );
-}
-
-const SORT_LABELS = {
-  default: "Urutan Asli",
-  title: "Judul A-Z",
-  duration: "Durasi",
-};
-
-const NEXT_SORT = {
-  default: "title",
-  title: "duration",
-  duration: "default",
-};
-
 export function DesktopAlbumPage({ id }) {
   const router = useRouter();
   const {
@@ -134,6 +70,7 @@ export function DesktopAlbumPage({ id }) {
     playlists,
     playTracks,
     enqueue,
+    toggle,
     isLiked,
     toggleLike,
     createPlaylist,
@@ -180,7 +117,6 @@ export function DesktopAlbumPage({ id }) {
     };
   }, [id]);
 
-  // Tutup dropdown menu album saat klik di luar atau tekan Escape.
   useEffect(() => {
     if (!albumMenuOpen) return;
     const onDown = (e) => {
@@ -202,7 +138,6 @@ export function DesktopAlbumPage({ id }) {
     };
   }, [albumMenuOpen]);
 
-  // Tutup modal tambah album ke playlist dengan Escape.
   useEffect(() => {
     if (!playlistModalOpen) return;
     const onKey = (e) => {
@@ -221,24 +156,36 @@ export function DesktopAlbumPage({ id }) {
   }, [album]);
 
   const visibleTracks = useMemo(() => {
-    const indexed = normalizedTracks.map((track, origIndex) => ({ track, origIndex }));
+    const indexed = normalizedTracks.map((track, origIndex) => ({
+      track,
+      origIndex,
+    }));
     const q = filter.trim().toLowerCase();
     const filtered = q
       ? indexed.filter(({ track }) => {
           const title = (track.title || "").toLowerCase();
-          const art = (track.artist || track.artists?.join(", ") || "").toLowerCase();
+          const art = (
+            track.artist ||
+            (Array.isArray(track.artists)
+              ? track.artists.join(", ")
+              : track.artists) ||
+            ""
+          ).toLowerCase();
           return title.includes(q) || art.includes(q);
         })
       : indexed;
 
     if (sortMode === "title") {
       return [...filtered].sort((a, b) =>
-        (a.track.title || "").localeCompare(b.track.title || "", "id", { sensitivity: "base" }),
+        (a.track.title || "").localeCompare(b.track.title || "", "id", {
+          sensitivity: "base",
+        })
       );
     }
     if (sortMode === "duration") {
       return [...filtered].sort(
-        (a, b) => durationToSecs(b.track.duration) - durationToSecs(a.track.duration),
+        (a, b) =>
+          durationToSecs(b.track.duration) - durationToSecs(a.track.duration)
       );
     }
     return filtered;
@@ -246,20 +193,23 @@ export function DesktopAlbumPage({ id }) {
 
   const artistName = useMemo(() => {
     if (!album?.artist) return "";
-    return Array.isArray(album.artist) ? album.artist.filter(Boolean).join(", ") : album.artist;
+    return Array.isArray(album.artist)
+      ? album.artist.filter(Boolean).join(", ")
+      : album.artist;
   }, [album?.artist]);
 
-  if (missing) {
+  if (missing || (album && !album.title)) {
     return (
-      <div className="px-7 py-24 text-center">
-        <p className="text-[17px] font-semibold text-[#f3efec]">Album tidak ditemukan</p>
-        <p className="mt-1 text-[14px] text-[#a9a3a0]">
+      <div className="ypm-artist-empty">
+        <p className="ypm-artist-empty-title">Album tidak ditemukan</p>
+        <p className="ypm-artist-empty-sub">
           Mungkin sudah dihapus atau tautannya salah.
         </p>
         <button
           type="button"
           onClick={() => router.back()}
-          className="ds-album-pill mt-5"
+          className="ypm-pill ypm-pill-ghost ypm-pill-sm"
+          style={{ marginTop: 18 }}
         >
           Kembali
         </button>
@@ -269,41 +219,17 @@ export function DesktopAlbumPage({ id }) {
 
   if (!album) {
     return (
-      <div className="ds-album-skeleton animate-pulse">
-        <div className="ds-album-hero">
-          <div className="ds-album-hero-inner">
-            <div className="ds-album-cover-wrap bg-white/10" />
-            <div className="ds-album-info">
-              <div className="h-9 w-64 rounded-lg bg-white/10" />
-              <div className="h-5 w-40 rounded-lg bg-white/10" />
-              <div className="flex gap-2">
-                <div className="h-6 w-20 rounded-full bg-white/10" />
-                <div className="h-6 w-20 rounded-full bg-white/10" />
-                <div className="h-6 w-24 rounded-full bg-white/10" />
-              </div>
-              <div className="mt-2 flex gap-2">
-                <div className="h-9 w-28 rounded-full bg-white/15" />
-                <div className="h-9 w-28 rounded-full bg-white/15" />
-              </div>
-            </div>
+      <div className="ypm-split" aria-busy="true">
+        <aside className="ypm-split-left">
+          <div className="ypm-skel ypm-skel-plcard" />
+        </aside>
+        <section className="ypm-split-right">
+          <div className="ypm-skel-rows">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="ypm-skel ypm-skel-row" />
+            ))}
           </div>
-        </div>
-        <div className="ds-album-body space-y-2 pt-3">
-          {[...Array(7)].map((_, i) => (
-            <div key={i} className="h-12 rounded-lg bg-white/5" />
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (!album.title) {
-    return (
-      <div className="px-7 py-24 text-center">
-        <p className="text-[17px] font-semibold text-[#f3efec]">Album tidak ditemukan</p>
-        <p className="mt-1 text-[14px] text-[#a9a3a0]">
-          Mungkin sudah dihapus atau tautannya salah.
-        </p>
+        </section>
       </div>
     );
   }
@@ -353,7 +279,7 @@ export function DesktopAlbumPage({ id }) {
     toast(
       added > 0
         ? `${added} lagu ditandai disukai`
-        : "Semua lagu di album ini sudah disukai",
+        : "Semua lagu di album ini sudah disukai"
     );
   };
 
@@ -366,426 +292,398 @@ export function DesktopAlbumPage({ id }) {
       .catch(() => toast("Gagal menyalin tautan"));
   };
 
+  const metaEyebrow = [album.kind || "Album", album.year]
+    .filter(Boolean)
+    .join(" · ");
   const footerFacts = [
-    album.year,
+    album.year ? `Dirilis ${album.year}` : null,
     normalizedTracks.length ? `${normalizedTracks.length} lagu` : null,
-    album.duration,
+    album.duration || null,
   ]
     .filter(Boolean)
     .join(" · ");
 
+  const washHost =
+    typeof document !== "undefined"
+      ? document.querySelector(".ds-shell")
+      : null;
+
   return (
-    <div>
-      <section className="ds-album-hero" aria-label={`Detail album ${album.title}`}>
-        {album.thumbs && (
-          <img
-            src={album.thumbs}
-            alt=""
-            aria-hidden="true"
-            className="ds-album-ambient"
-          />
+    <div className="ypm-album-page">
+      {album.thumbs &&
+        washHost &&
+        createPortal(
+          <div className="ypm-album-wash" aria-hidden="true">
+            <img src={album.thumbs} alt="" className="ypm-album-wash-img" />
+            <div className="ypm-album-wash-scrim" />
+          </div>,
+          washHost
         )}
-        <div className="ds-album-scrim" aria-hidden="true" />
 
-        <div className="ds-album-hero-inner">
-          <div className="ds-album-cover-wrap">
-            {album.thumbs ? (
-              <img
-                src={album.thumbs}
-                alt={`Sampul ${album.title}`}
-                width="220"
-                height="220"
-                fetchPriority="high"
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              <span className="flex h-full w-full items-center justify-center">
-                <IconMusic className="h-12 w-12 text-white/35" />
-              </span>
-            )}
-          </div>
+      <div className="ypm-split ypm-album-split">
+        {/* Kolom Kiri: Sampul 360px sticky + Info Album + Aksi */}
+        <aside className="ypm-split-left">
+          <div className="ypm-album-left-inner">
+            <div className="ypm-album-cover-box">
+              {album.thumbs ? (
+                <img
+                  src={album.thumbs}
+                  alt={`Sampul ${album.title}`}
+                  className="ypm-album-cover-img"
+                  fetchPriority="high"
+                />
+              ) : (
+                <div className="ypm-album-cover-img ypm-pl-cover-fb">
+                  <IconMusic size={56} />
+                </div>
+              )}
+            </div>
 
-          <div className="ds-album-info">
-            <h1 className="ds-album-title">{album.title}</h1>
+            <span className="ypm-album-eyebrow">{metaEyebrow}</span>
+            <h1 className="ypm-album-heading">{album.title}</h1>
 
             {artistName && (
-              <div className="ds-album-artist-row">
+              <div className="ypm-album-artist">
                 {album.thumbs && (
                   <img
                     src={album.thumbs}
                     alt=""
-                    width="22"
-                    height="22"
-                    className="ds-album-artist-avatar"
+                    className="ypm-album-artist-thumb"
                   />
                 )}
                 {album.artistId ? (
-                  <Link href={`/artist/${album.artistId}`} className="ds-album-artist-link">
+                  <Link
+                    href={`/artist/${encodeURIComponent(album.artistId)}`}
+                    className="ypm-album-artist-a"
+                  >
                     {artistName}
                   </Link>
                 ) : (
-                  <span>{artistName}</span>
+                  <span className="ypm-album-artist-text">{artistName}</span>
                 )}
               </div>
             )}
 
-            <div className="ds-album-chips">
-              <span className="ds-album-chip">
-                <IconDisc className="h-3.5 w-3.5" />
-                <span>ALBUM</span>
-              </span>
-              {album.year && (
-                <span className="ds-album-chip">
-                  <IconClock className="h-3 w-3" />
-                  <span>{album.year}</span>
-                </span>
-              )}
-              {normalizedTracks.length > 0 && (
-                <span className="ds-album-chip">
-                  <IconMusic className="h-3 w-3" />
-                  <span>{normalizedTracks.length} LAGU</span>
-                </span>
-              )}
-              {album.duration && (
-                <span className="ds-album-chip">
-                  <span>{String(album.duration).toUpperCase()}</span>
-                </span>
-              )}
-            </div>
+            <div className="ypm-album-acts">
+              <button
+                type="button"
+                onClick={() =>
+                  normalizedTracks.length > 0 && playTracks(normalizedTracks, 0)
+                }
+                disabled={normalizedTracks.length === 0}
+                className="ypm-pill ypm-pill-primary"
+              >
+                <IconPlay size={15} />
+                Putar
+              </button>
 
-            <div className="ds-album-actions">
-              <div className="ds-album-actions-left">
+              <button
+                type="button"
+                onClick={() =>
+                  normalizedTracks.length > 0 &&
+                  playTracks(shuffleTracks(normalizedTracks), 0)
+                }
+                disabled={normalizedTracks.length === 0}
+                aria-label="Putar acak"
+                title="Putar acak"
+                className="ypm-round-btn"
+              >
+                <IconShuffle size={16} />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setPlaylistModalOpen(true)}
+                disabled={normalizedTracks.length === 0}
+                aria-label="Tambahkan album ke playlist"
+                title="Tambahkan ke playlist"
+                className="ypm-round-btn"
+              >
+                <IconPlus size={16} />
+              </button>
+
+              <div className="ypm-artist-more-wrap" ref={albumMenuWrapRef}>
                 <button
                   type="button"
-                  className="ds-album-pill"
-                  disabled={normalizedTracks.length === 0}
-                  onClick={() => normalizedTracks.length && playTracks(normalizedTracks, 0)}
+                  onClick={() => setAlbumMenuOpen((v) => !v)}
+                  aria-label="Opsi album lainnya"
+                  aria-expanded={albumMenuOpen}
+                  className="ypm-round-btn"
                 >
-                  <IconPlay className="h-3.5 w-3.5" />
-                  <span>Putar</span>
-                </button>
-                <button
-                  type="button"
-                  className="ds-album-pill"
-                  disabled={normalizedTracks.length === 0}
-                  onClick={() =>
-                    normalizedTracks.length && playTracks(shuffleTracks(normalizedTracks), 0)
-                  }
-                >
-                  <IconShuffle className="h-4 w-4" />
-                  <span>Acak</span>
-                </button>
-              </div>
-
-              <div className="ds-album-actions-right">
-                <button
-                  type="button"
-                  className="ds-album-pill"
-                  disabled={normalizedTracks.length === 0}
-                  onClick={() => setPlaylistModalOpen(true)}
-                >
-                  <IconPlus className="h-4 w-4" />
-                  <span>Tambah</span>
+                  <IconEllipsis size={16} />
                 </button>
 
-                <div ref={albumMenuWrapRef} className="relative">
-                  <button
-                    type="button"
-                    className="ds-album-pill ds-album-pill-icon"
-                    onClick={() => setAlbumMenuOpen((v) => !v)}
-                    aria-haspopup="menu"
-                    aria-expanded={albumMenuOpen}
-                    aria-label="Opsi album lainnya"
-                    title="Opsi lainnya"
-                  >
-                    <IconEllipsis className="h-5 w-5" />
-                  </button>
-
-                  {albumMenuOpen && (
-                    <div className="ds-album-menu" role="menu" aria-label="Menu album">
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className="ds-album-menu-item"
-                        disabled={normalizedTracks.length === 0}
-                        onClick={handleEnqueueAll}
-                      >
-                        Tambahkan semua ke antrean
-                      </button>
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className="ds-album-menu-item"
-                        disabled={normalizedTracks.length === 0}
-                        onClick={handleLikeAll}
-                      >
-                        Sukai semua lagu
-                      </button>
-                      {album.artistId && (
-                        <button
-                          type="button"
-                          role="menuitem"
-                          className="ds-album-menu-item"
-                          onClick={() => {
-                            setAlbumMenuOpen(false);
-                            router.push(`/artist/${album.artistId}`);
-                          }}
-                        >
-                          Buka halaman artis
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className="ds-album-menu-item"
-                        onClick={handleCopyLink}
-                      >
-                        Salin tautan album
-                      </button>
-                    </div>
-                  )}
-                </div>
+                {albumMenuOpen && (
+                  <div className="ypm-dropdown" role="menu">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="ypm-dropdown-item"
+                      onClick={handleEnqueueAll}
+                    >
+                      Tambahkan ke antrean
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="ypm-dropdown-item"
+                      onClick={handleLikeAll}
+                    >
+                      Tandai semua lagu disukai
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="ypm-dropdown-item"
+                      onClick={handleCopyLink}
+                    >
+                      Salin tautan album
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
-        </div>
-      </section>
+        </aside>
 
-      <div className="ds-album-body">
-        <div className="ds-album-toolbar">
-          <div className="ds-album-filter">
-            <IconSearch className="h-3.5 w-3.5 shrink-0" />
-            <label htmlFor="ds-album-filter-input" className="sr-only">
-              Cari lagu di album
-            </label>
-            <input
-              id="ds-album-filter-input"
-              type="search"
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              placeholder="Cari lagu di album..."
-              className="ds-album-filter-input"
-            />
-            {filter && (
-              <button
-                type="button"
-                className="ds-album-filter-clear"
-                onClick={() => setFilter("")}
-                aria-label="Bersihkan pencarian"
-              >
-                <IconClose className="h-3.5 w-3.5" />
-              </button>
-            )}
+        {/* Kolom Kanan: Daftar Lagu + Filter + Sort + Footer */}
+        <section className="ypm-split-right" aria-label="Daftar lagu album">
+          <div className="ypm-album-right-head">
+            <h2 className="ypm-sec-title" style={{ margin: 0 }}>
+              Daftar Lagu
+            </h2>
+            <span className="ypm-album-right-meta">
+              {[
+                normalizedTracks.length ? `${normalizedTracks.length} lagu` : null,
+                album.duration || null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </span>
           </div>
 
-          <button
-            type="button"
-            className="ds-album-sort-btn"
-            onClick={() => setSortMode((s) => NEXT_SORT[s] || "default")}
-            aria-label={`Ubah urutan lagu, saat ini ${SORT_LABELS[sortMode]}`}
-            title="Ubah urutan daftar lagu"
-          >
-            <IconSortLines className="h-3.5 w-3.5" />
-            <span>{SORT_LABELS[sortMode]}</span>
-          </button>
-        </div>
-
-        {visibleTracks.length === 0 ? (
-          <div className="py-12 text-center">
-            <p className="text-[14px] font-medium text-[#d6ccc7]">
-              {filter
-                ? `Tidak ada lagu cocok dengan "${filter}".`
-                : "Daftar lagu belum tersedia untuk album ini."}
-            </p>
-            {filter && (
-              <button
-                type="button"
-                onClick={() => setFilter("")}
-                className="mt-3 cursor-pointer rounded-full border border-white/15 bg-white/10 px-4 py-1.5 text-[12.5px] font-semibold text-[#f3efec] hover:bg-white/15"
-              >
-                Reset pencarian
-              </button>
-            )}
-          </div>
-        ) : (
-          <div className="ds-album-list" role="list" aria-label="Daftar lagu">
-            {visibleTracks.map(({ track: t, origIndex }) => {
-              const isCurrent = current?.videoId === t.videoId;
-              const liked = isLiked?.(t.videoId) ?? false;
-              const durText = formatTrackDuration(t.duration);
-              const trackArtist = t.artist || t.artists?.filter(Boolean).join(", ") || "";
-              const showTrackArtist =
-                trackArtist && trackArtist.toLowerCase() !== artistName.toLowerCase();
-
-              return (
-                <div
-                  key={`${t.videoId}-${origIndex}`}
-                  role="listitem"
-                  className="ds-album-row"
-                  data-active={isCurrent ? "1" : undefined}
-                  data-liked={liked ? "1" : undefined}
+          <div className="ypm-split-toolbar">
+            <div className="ypm-filter-box">
+              <IconSearch size={15} className="ypm-filter-ico" />
+              <input
+                type="text"
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                placeholder="Cari lagu di album..."
+                aria-label="Cari lagu di album"
+                className="ypm-filter-input"
+              />
+              {filter && (
+                <button
+                  type="button"
+                  onClick={() => setFilter("")}
+                  aria-label="Bersihkan pencarian"
+                  className="ypm-filter-clear"
                 >
-                  <span className="ds-album-dot" aria-hidden="true" />
+                  <IconClose size={14} />
+                </button>
+              )}
+            </div>
 
-                  <button
-                    type="button"
-                    className="ds-album-row-hit"
-                    onClick={() => playTracks(normalizedTracks, origIndex)}
-                    aria-current={isCurrent ? "true" : undefined}
-                    aria-label={`Putar ${t.title}${showTrackArtist ? ` oleh ${trackArtist}` : ""}`}
+            <div className="ypm-sort-tabs" role="tablist" aria-label="Urutkan">
+              {[
+                { id: "default", label: "Asli" },
+                { id: "title", label: "Judul A-Z" },
+                { id: "duration", label: "Durasi" },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={sortMode === tab.id}
+                  onClick={() => setSortMode(tab.id)}
+                  className={`ypm-sort-tab ${sortMode === tab.id ? "is-active" : ""}`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="ypm-album-divider" />
+
+          {visibleTracks.length === 0 ? (
+            <div className="ypm-split-empty">
+              <p className="ypm-split-empty-title">
+                {filter
+                  ? `Tidak ada lagu untuk "${filter}"`
+                  : "Album ini belum memiliki lagu yang bisa dimuat"}
+              </p>
+            </div>
+          ) : (
+            <div className="ypm-pl-rows">
+              {visibleTracks.map(({ track: t, origIndex }) => {
+                const isActive = current?.videoId === t.videoId;
+                const isPlayingNow = isActive && playing;
+                const liked = isLiked?.(t.videoId);
+                const subArtist = Array.isArray(t.artists)
+                  ? t.artists.filter(Boolean).join(", ")
+                  : t.artists || t.artist || artistName;
+
+                return (
+                  <div
+                    key={`${t.videoId}-${origIndex}`}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => {
+                      if (isActive) toggle();
+                      else playTracks(normalizedTracks, origIndex);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        if (isActive) toggle();
+                        else playTracks(normalizedTracks, origIndex);
+                      }
+                    }}
+                    className={`ypm-album-row ${isActive ? "is-active" : ""}`}
                   >
-                    <span className="ds-album-num" aria-hidden="true">
-                      {isCurrent && playing ? (
-                        <IconPause className="mx-auto h-3.5 w-3.5" />
-                      ) : isCurrent ? (
-                        <IconPlay className="mx-auto h-3.5 w-3.5" />
+                    <span className="ypm-col-num" aria-hidden="true">
+                      {isPlayingNow ? (
+                        <span className="ypm-eq">
+                          <i />
+                          <i />
+                          <i />
+                        </span>
                       ) : (
                         origIndex + 1
                       )}
                     </span>
 
-                    <span className="ds-album-row-main">
-                      <span className="ds-album-row-title-line">
-                        <span className="ds-album-row-title">{t.title || "Lagu tanpa judul"}</span>
-                        {liked && (
-                          <span className="ds-album-liked-mark" aria-hidden="true" title="Disukai">
-                            <IconCheckTiny className="h-3 w-3" />
-                          </span>
-                        )}
-                        {t.isExplicit && (
-                          <span className="ds-album-explicit" aria-label="Eksplisit" title="Eksplisit">
-                            E
-                          </span>
-                        )}
-                      </span>
-                      {showTrackArtist && (
-                        <span className="ds-album-row-artist">{trackArtist}</span>
+                    <div className="ypm-hot-info">
+                      <p className="ypm-hot-title">{t.title}</p>
+                      {subArtist && subArtist !== artistName && (
+                        <p className="ypm-hot-sub">{subArtist}</p>
                       )}
-                    </span>
-                  </button>
+                    </div>
 
-                  <div className="ds-album-row-right">
-                    <button
-                      type="button"
-                      className="ds-album-row-like"
-                      data-liked={liked ? "1" : undefined}
-                      onClick={() => toggleLike?.(t)}
-                      aria-pressed={liked}
-                      aria-label={liked ? `Hapus ${t.title} dari disukai` : `Sukai ${t.title}`}
-                      title={liked ? "Hapus dari disukai" : "Sukai lagu"}
+                    <div
+                      className="ypm-pl-row-right"
+                      onClick={(e) => e.stopPropagation()}
                     >
-                      <IconHeart filled={liked} className="h-3.5 w-3.5" />
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => toggleLike?.(t)}
+                        aria-label={
+                          liked
+                            ? `Hapus ${t.title} dari disukai`
+                            : `Sukai ${t.title}`
+                        }
+                        aria-pressed={liked}
+                        className={`ypm-hot-like ${liked ? "is-liked" : ""}`}
+                      >
+                        <IconHeart size={15} filled={liked} />
+                      </button>
 
-                    {durText && <span className="ds-album-row-dur">{durText}</span>}
+                      <span className="ypm-pl-dur">
+                        {formatTrackDuration(t.duration)}
+                      </span>
 
-                    <button
-                      type="button"
-                      className="ds-album-row-more"
-                      onClick={(e) => {
-                        const r = e.currentTarget.getBoundingClientRect();
-                        setMenuState({
-                          track: t,
-                          anchor: { x: r.right, y: r.bottom + 4, end: true },
-                        });
-                      }}
-                      aria-haspopup="menu"
-                      aria-label={`Opsi untuk ${t.title}`}
-                      title="Opsi lainnya"
-                    >
-                      <IconEllipsis className="h-4 w-4" />
-                    </button>
+                      <div className="ypm-hot-acts">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setMenuState(
+                              menuState === `${t.videoId}-${origIndex}`
+                                ? null
+                                : `${t.videoId}-${origIndex}`
+                            )
+                          }
+                          aria-label={`Opsi untuk ${t.title}`}
+                          className="ypm-hot-more"
+                        >
+                          <IconEllipsis size={15} />
+                        </button>
+
+                        {menuState === `${t.videoId}-${origIndex}` && (
+                          <TrackMenu
+                            track={t}
+                            onClose={() => setMenuState(null)}
+                            onOpenPlaylistPicker={() => {
+                              setMenuState(null);
+                              setAddTrack(t);
+                            }}
+                          />
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+                );
+              })}
+            </div>
+          )}
 
-        {footerFacts && <p className="ds-album-foot">{footerFacts}</p>}
+          {footerFacts && <p className="ypm-album-footer">{footerFacts}</p>}
+        </section>
       </div>
 
+      {/* Modal Tambah Album ke Playlist */}
       {playlistModalOpen && (
         <div
-          className="ds-modal-wrap"
+          className="ypm-modal-backdrop"
           role="dialog"
           aria-modal="true"
-          aria-label="Tambah album ke playlist"
+          aria-label="Tambahkan album ke playlist"
           onClick={() => setPlaylistModalOpen(false)}
         >
-          <div className="ds-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between gap-2">
-              <h2 className="text-[16px] font-bold text-[#f3efec]">Tambah ke Playlist</h2>
+          <div className="ypm-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="ypm-modal-head">
+              <h3 className="ypm-modal-title">Tambahkan album ke playlist</h3>
               <button
                 type="button"
-                className="ds-sec-add"
                 onClick={() => setPlaylistModalOpen(false)}
-                aria-label="Tutup dialog playlist"
+                aria-label="Tutup"
+                className="ypm-modal-close"
               >
-                <IconClose className="h-4 w-4" />
+                <IconClose size={16} />
               </button>
             </div>
-            <p className="mt-1 text-[13px] text-[#b9b2ae]">
-              Masukkan semua {normalizedTracks.length} lagu dari album ini ke playlist lokal.
-            </p>
 
-            {Array.isArray(playlists) && playlists.length > 0 && (
-              <div className="mt-3 max-h-48 space-y-1.5 overflow-y-auto pr-1">
+            {playlists && playlists.length > 0 && (
+              <div className="ypm-modal-list">
                 {playlists.map((pl) => (
                   <button
                     key={pl.id}
                     type="button"
                     onClick={() => handleAddAlbumToPlaylist(pl)}
-                    className="flex w-full cursor-pointer items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left text-[13.5px] font-semibold text-[#f3efec] transition-colors hover:bg-white/12 focus-visible:outline-2 focus-visible:outline-white"
+                    className="ypm-modal-item"
                   >
-                    <span className="truncate">{pl.name}</span>
-                    <span className="ml-2 shrink-0 text-[11.5px] font-medium text-[#b5aeaa]">
-                      {Array.isArray(pl.tracks) ? `${pl.tracks.length} lagu` : "0 lagu"}
+                    <span>{pl.name}</span>
+                    <span className="ypm-modal-count">
+                      {pl.tracks?.length || 0} lagu
                     </span>
                   </button>
                 ))}
               </div>
             )}
 
-            <form onSubmit={handleCreateAndAdd} className="mt-4 border-t border-white/10 pt-3">
-              <label
-                htmlFor="ds-album-new-pl"
-                className="block text-[12px] font-semibold text-[#d6ccc7]"
-              >
-                Atau buat playlist baru
-              </label>
-              <div className="mt-1.5 flex gap-2">
-                <input
-                  id="ds-album-new-pl"
-                  type="text"
-                  maxLength={80}
-                  value={newPlName}
-                  onChange={(e) => setNewPlName(e.target.value)}
-                  placeholder="Nama playlist baru"
-                  className="h-9 min-w-0 flex-1 rounded-xl border border-white/15 bg-white/5 px-3 text-[13.5px] text-[#f3efec] outline-none focus:border-white/40"
-                />
-                <button
-                  type="submit"
-                  disabled={!newPlName.trim()}
-                  className="cursor-pointer rounded-xl bg-[#e3a28c] px-4 text-[13px] font-bold text-[#151010] hover:bg-[#edb39f] disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  Buat
-                </button>
-              </div>
+            <form onSubmit={handleCreateAndAdd} className="ypm-modal-form">
+              <input
+                type="text"
+                value={newPlName}
+                onChange={(e) => setNewPlName(e.target.value)}
+                placeholder="Nama playlist baru..."
+                className="ypm-modal-input"
+              />
+              <button type="submit" className="ypm-pill ypm-pill-primary ypm-pill-sm">
+                Buat & Tambah
+              </button>
             </form>
           </div>
         </div>
       )}
 
-      {menuState && (
-        <TrackMenu
-          track={menuState.track}
-          anchor={menuState.anchor}
-          onClose={() => setMenuState(null)}
-          onAddToPlaylist={() => setAddTrack(menuState.track)}
+      {addTrack && (
+        <AddToPlaylistMenu
+          track={addTrack}
+          onClose={() => setAddTrack(null)}
         />
       )}
-      {addTrack && <AddToPlaylistMenu track={addTrack} onClose={() => setAddTrack(null)} />}
     </div>
   );
 }

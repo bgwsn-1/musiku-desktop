@@ -184,16 +184,15 @@ export function DesktopRightPanel({
 
           <div className="flex items-center gap-1.5">
             <span className="ds-rpill">{list.length} item</span>
-            {isMobile && (
-              <button
-                type="button"
-                className="ds-pbtn"
-                onClick={onClose}
-                aria-label="Tutup panel kanan"
-              >
-                <IconClose className="h-4 w-4" />
-              </button>
-            )}
+            <button
+              type="button"
+              className="ds-pbtn"
+              onClick={onClose}
+              aria-label="Tutup panel kanan"
+              title="Tutup"
+            >
+              <IconClose className="h-4 w-4" />
+            </button>
           </div>
         </div>
 

@@ -13,7 +13,6 @@ import { Toaster } from "@/components/Toast";
 import { EdgeSwipeBack } from "@/components/EdgeSwipeBack";
 import { GridCard, Shelf } from "@/components/GridCard";
 import { FeaturedCarousel } from "@/components/HomeFeatured";
-import { HomeFeed } from "@/components/HomeFeed";
 import { RadioStations } from "@/components/RadioStations";
 import {
   IconBack,
@@ -36,8 +35,22 @@ import DiscordPresence from "./desktop/DiscordPresence.jsx";
 import { DesktopSidebar } from "./desktop/DesktopSidebar.jsx";
 import { DesktopRightPanel } from "./desktop/DesktopRightPanel.jsx";
 import { DesktopPlayerBar } from "./desktop/DesktopPlayerBar.jsx";
+import { DesktopHomePage } from "./desktop/DesktopHomePage.jsx";
 import { DesktopAlbumPage } from "./desktop/DesktopAlbumPage.jsx";
 import { DesktopArtistPage } from "./desktop/DesktopArtistPage.jsx";
+import { DesktopLibraryPage } from "./desktop/DesktopLibraryPage.jsx";
+import { DesktopSearchPage } from "./desktop/DesktopSearchPage.jsx";
+import { DesktopSettingsPage } from "./desktop/DesktopSettingsPage.jsx";
+import { DesktopProfilePage } from "./desktop/DesktopProfilePage.jsx";
+import {
+  DesktopExplorePage,
+  DesktopRadioPage,
+} from "./desktop/DesktopExploreRadio.jsx";
+import { initAccentTheme } from "./desktop/accentTheme.js";
+import {
+  DesktopPlaylistView,
+  DesktopYtmPlaylistView,
+} from "./desktop/DesktopPlaylistPage.jsx";
 import {
   CloudAccountProvider,
   CloudSyncBridge,
@@ -128,13 +141,27 @@ function LoadingPage({ title, sub }) {
   );
 }
 
-// ── Halaman beranda (port dari src/app/page.tsx) ─────────────────────────
+// ── Halaman beranda desktop (gaya YesPlayMusic) ──────────────────────────
 function HomePage() {
   const shelves = useHomeShelves();
 
-  if (shelves === null) return <LoadingPage title="Beranda" />;
+  if (shelves === null) {
+    return (
+      <div className="ypm-home animate-pulse">
+        <div className="ypm-hero-grid">
+          <div className="h-[200px] rounded-[20px] bg-white/5" />
+          <div className="h-[200px] rounded-[20px] bg-white/5" />
+        </div>
+        <div className="mt-9 ypm-card-grid">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="aspect-square rounded-[16px] bg-white/5" />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
-  return <HomeFeed shelves={shelves} />;
+  return <DesktopHomePage shelves={shelves} />;
 }
 
 // ── Halaman album desktop full-bleed ─────────────────────────────────────
@@ -147,123 +174,16 @@ function ArtistPage({ id }) {
   return <DesktopArtistPage id={id} />;
 }
 
-// ── Explore (port dari src/app/explore/page.tsx) ─────────────────────────
+// ── Explore (YesPlayMusic-aligned) ───────────────────────────────────────
 function ExplorePage() {
   const shelves = useHomeShelves();
-  if (shelves === null)
-    return <LoadingPage title="Explore" sub="Album dan lagu pilihan dari katalog Musiku." />;
-
-  const items = shelves.flatMap((s) => (s.items ? s.items : []));
-  const uniqueBy = (arr, key) => {
-    const seen = new Set();
-    return arr.filter((it) => {
-      const id = key(it);
-      if (!id || seen.has(id)) return false;
-      seen.add(id);
-      return true;
-    });
-  };
-  const artists = uniqueBy(items.filter((it) => it.kind === "artist"), (it) => it.browseId);
-  const albums = uniqueBy(items.filter((it) => it.kind === "album"), (it) => it.browseId);
-  const songs = uniqueBy(items.filter((it) => it.videoId), (it) => it.videoId).slice(0, 24);
-  const songTracks = songs.map(toTrack).filter(Boolean);
-  const lead = shelves[0];
-
-  return (
-    <div>
-      <header className="mb-5">
-        <h1 className="t-large">Explore</h1>
-        <p className="mt-1 text-[15px] text-label2">Album dan lagu pilihan dari katalog Musiku.</p>
-      </header>
-
-      {lead && lead.items.length > 0 && <FeaturedCarousel items={lead.items.slice(0, 6)} />}
-
-      {artists.length > 0 && (
-        <Shelf title="Artis populer" layout="grid">
-          {artists.slice(0, 24).map((it, i) => (
-            <GridCard
-              key={`ar-${i}-${it.browseId}`}
-              i={i}
-              title={it.title}
-              subtitle={it.artist}
-              href={`/artist/${it.browseId}`}
-              img={it.thumbs}
-              round
-            />
-          ))}
-        </Shelf>
-      )}
-
-      {albums.length > 0 && (
-        <Shelf title="Album pilihan" layout="grid">
-          {albums.slice(0, 24).map((it, i) => (
-            <GridCard
-              key={`al-${i}-${it.browseId}`}
-              i={i}
-              title={it.title}
-              subtitle={it.artist}
-              href={`/album/${it.browseId}`}
-              img={it.thumbs}
-            />
-          ))}
-        </Shelf>
-      )}
-
-      {songTracks.length > 0 && (
-        <Shelf title="Lagu untuk mulai" layout="grid">
-          {songs.map((it, i) => {
-            const track = toTrack(it);
-            if (!track) return null;
-            return (
-              <GridCard
-                key={`song-${i}-${track.videoId}`}
-                i={i}
-                title={track.title}
-                subtitle={track.artist}
-                img={track.thumbs}
-                track={track}
-                queue={songTracks}
-              />
-            );
-          })}
-        </Shelf>
-      )}
-
-      {!items.length && <Centered title="Explore belum bisa dimuat" sub="Cek koneksi, lalu muat ulang." />}
-    </div>
-  );
+  return <DesktopExplorePage shelves={shelves} />;
 }
 
-// ── Radio (port dari src/app/radio/page.tsx) ─────────────────────────────
+// ── Radio (YesPlayMusic-aligned) ─────────────────────────────────────────
 function RadioPage() {
   const shelves = useHomeShelves();
-  if (shelves === null)
-    return <LoadingPage title="Radio" sub="Stasiun mix dari katalog dan favorit lokalmu." />;
-
-  const seen = new Set();
-  const tracks = shelves
-    .flatMap((s) => (s.items ? s.items : []))
-    .map(toTrack)
-    .filter((t) => {
-      if (!t || seen.has(t.videoId)) return false;
-      seen.add(t.videoId);
-      return true;
-    });
-
-  return (
-    <div>
-      <header className="mb-5">
-        <h1 className="t-large">Radio</h1>
-        <p className="mt-1 text-[15px] text-label2">Stasiun mix dari katalog dan favorit lokalmu.</p>
-      </header>
-
-      <RadioStations tracks={tracks} />
-
-      <p className="mt-8 text-[13px] leading-relaxed text-label3">
-        Stasiun menyusun antrean lagu dari perangkat ini, bukan siaran internet.
-      </p>
-    </div>
-  );
+  return <DesktopRadioPage shelves={shelves} />;
 }
 
 // ── Router + shell ───────────────────────────────────────────────────────
@@ -282,7 +202,7 @@ function pageTitle(pathname) {
   return "Musiku";
 }
 
-function useRoute() {
+function useRoute(onOpenCoverFlow) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   useEffect(() => {
@@ -291,27 +211,53 @@ function useRoute() {
 
   let m;
   if (pathname === "/" || pathname === "") return { page: <HomePage />, hasHero: false };
-  if (pathname.startsWith("/search")) return { page: <SearchPage />, hasHero: false };
-  if (pathname.startsWith("/liked")) return { page: <LikedPage />, hasHero: false };
-  if ((m = pathname.match(/^\/pustaka(?:\/([^/]+))?$/))) {
+  if (pathname.startsWith("/search")) return { page: <DesktopSearchPage />, hasHero: false };
+  if (pathname.startsWith("/settings")) return { page: <DesktopSettingsPage />, hasHero: false };
+  if (pathname.startsWith("/profile")) return { page: <DesktopProfilePage />, hasHero: false };
+  if (pathname.startsWith("/liked")) {
     return {
-      page: m[1] ? <PustakaSection section={decodeURIComponent(m[1])} /> : <LikedPage />,
+      page: (
+        <DesktopLibraryPage
+          initialTab="albums"
+          onOpenCoverFlow={onOpenCoverFlow}
+        />
+      ),
+      hasHero: false,
+    };
+  }
+  if ((m = pathname.match(/^\/pustaka(?:\/([^/]+))?$/))) {
+    const raw = (m[1] || "").toLowerCase();
+    const mapped =
+      raw === "lagu" || raw === "songs"
+        ? "songs"
+        : raw === "playlist" || raw === "playlists"
+          ? "playlists"
+          : raw === "artis" || raw === "artists"
+            ? "artists"
+            : "albums";
+    return {
+      page: (
+        <DesktopLibraryPage
+          initialTab={mapped}
+          onOpenCoverFlow={onOpenCoverFlow}
+        />
+      ),
       hasHero: false,
     };
   }
   if (pathname.startsWith("/explore")) return { page: <ExplorePage />, hasHero: false };
   if (pathname.startsWith("/radio")) return { page: <RadioPage />, hasHero: false };
   if ((m = pathname.match(/^\/album\/(.+)$/))) {
-    return { page: <AlbumPage id={decodeURIComponent(m[1])} />, hasHero: true };
+    return { page: <AlbumPage id={decodeURIComponent(m[1])} />, hasHero: false };
   }
   if ((m = pathname.match(/^\/artist\/(.+)$/))) {
-    return { page: <ArtistPage id={decodeURIComponent(m[1])} />, hasHero: true };
+    return { page: <ArtistPage id={decodeURIComponent(m[1])} />, hasHero: false };
   }
   if ((m = pathname.match(/^\/playlist\/(.+)$/))) {
-    return { page: <PlaylistView id={decodeURIComponent(m[1])} />, hasHero: false };
+    return { page: <DesktopPlaylistView id={decodeURIComponent(m[1])} />, hasHero: false };
   }
   if ((m = pathname.match(/^\/ytm-playlist\/(.+)$/))) {
-    return { page: <YtmPlaylistView id={decodeURIComponent(m[1])} />, hasHero: false };
+    return { page: <DesktopYtmPlaylistView id={decodeURIComponent(m[1])} />, hasHero: false };
   }
   void searchParams;
   return {
@@ -320,36 +266,24 @@ function useRoute() {
   };
 }
 
-function readSidebarCollapsed() {
-  try {
-    return window.localStorage.getItem("musiku:sidebar-collapsed") === "1";
-  } catch {
-    return false;
-  }
-}
-
 function Shell() {
-  const { page, hasHero } = useRoute();
+  const [immersiveOpen, setImmersiveOpen] = useState(false);
+  const [coverFlowOpen, setCoverFlowOpen] = useState(false);
+  const openCoverFlow = useCallback(() => setCoverFlowOpen(true), []);
+  const pathname = usePathname() || "/";
+  const { page, hasHero } = useRoute(openCoverFlow);
   const router = useRouter();
   const player = usePlayer();
+  const isSubPage = /^\/(album|artist|playlist|ytm-playlist|settings|profile)(\/|$)/.test(
+    pathname,
+  );
 
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(readSidebarCollapsed);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [isDesktop, setIsDesktop] = useState(
     () => typeof window === "undefined" || window.matchMedia("(min-width: 1024px)").matches,
   );
-  const [rightOpen, setRightOpen] = useState(
-    () => typeof window === "undefined" || window.matchMedia("(min-width: 1180px)").matches,
-  );
+  const [rightOpen, setRightOpen] = useState(false);
   const [rightMode, setRightMode] = useState("queue");
-  const [immersiveOpen, setImmersiveOpen] = useState(false);
-  const [coverFlowOpen, setCoverFlowOpen] = useState(false);
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem("musiku:sidebar-collapsed", sidebarCollapsed ? "1" : "0");
-    } catch {}
-  }, [sidebarCollapsed]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -387,110 +321,120 @@ function Shell() {
     [rightOpen, rightMode],
   );
 
-  const handleToggleSidebar = useCallback(() => {
-    if (isDesktop) {
-      setSidebarCollapsed((v) => !v);
-    } else {
-      setMobileNavOpen((v) => !v);
-    }
-  }, [isDesktop]);
-
   return (
     <div className="ds-shell force-dark">
       <a
         href="#main"
-        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-full focus:bg-[#f6efe9] focus:px-4 focus:py-2 focus:text-[14px] focus:font-semibold focus:text-[#111011]"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-full focus:bg-[#f7f7f8] focus:px-4 focus:py-2 focus:text-[14px] focus:font-semibold focus:text-[#0b0b0d]"
       >
         Lompat ke konten
       </a>
 
       <DesktopSidebar
-        collapsed={sidebarCollapsed}
-        onExpandForSearch={() => setSidebarCollapsed(false)}
         mobileOpen={mobileNavOpen}
         onCloseMobile={() => setMobileNavOpen(false)}
       />
 
       <div className="ds-center">
-        <header className="ds-top-bar" aria-label="Kontrol navigasi kanvas">
-          <div className="ds-top-group">
+        <header className="ypm-topbar" aria-label="Kontrol navigasi kanvas">
+          <div className="ypm-topbar-left">
             <button
               type="button"
-              className="ds-top-btn"
-              onClick={handleToggleSidebar}
-              aria-expanded={isDesktop ? !sidebarCollapsed : mobileNavOpen}
-              aria-label={isDesktop ? "Ciutkan atau lebarkan sidebar" : "Buka navigasi"}
-              title="Toggle sidebar"
+              className="ypm-mobile-menu-btn"
+              onClick={() => setMobileNavOpen((v) => !v)}
+              aria-expanded={mobileNavOpen}
+              aria-label="Buka navigasi"
+              title="Menu"
             >
-              <IconSidebar
-                className={`h-4 w-4 transition-transform ${sidebarCollapsed && isDesktop ? "rotate-180" : ""}`}
-              />
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.1"
+                strokeLinecap="round"
+                className="h-[18px] w-[18px]"
+                aria-hidden="true"
+              >
+                <path d="M4 7h16M4 12h16M4 17h16" />
+              </svg>
             </button>
-            <button
-              type="button"
-              className="ds-top-btn"
-              onClick={() => router.back()}
-              aria-label="Halaman sebelumnya"
-              title="Kembali"
-            >
-              <IconBack className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              className="ds-top-btn"
-              onClick={() => router.forward()}
-              aria-label="Halaman berikutnya"
-              title="Maju"
-            >
-              <IconForward className="h-4 w-4" />
-            </button>
+
+            {isSubPage && (
+              <div className="ypm-nav-pair">
+                <button
+                  type="button"
+                  className="ypm-back-pill"
+                  onClick={() => router.back()}
+                  aria-label="Kembali ke halaman sebelumnya"
+                  title="Kembali"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="h-4 w-4"
+                    aria-hidden="true"
+                  >
+                    <path d="M19 12H5" />
+                    <path d="M12 19l-7-7 7-7" />
+                  </svg>
+                  <span>Kembali</span>
+                </button>
+                <button
+                  type="button"
+                  className="ypm-nav-circle"
+                  onClick={() => router.forward()}
+                  aria-label="Maju ke halaman berikutnya"
+                  title="Maju"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="h-4 w-4"
+                    aria-hidden="true"
+                  >
+                    <path d="M5 12h14" />
+                    <path d="M12 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+            )}
           </div>
 
-          <div className="ds-top-group">
-            {player.current && (
-              <>
-                <button
-                  type="button"
-                  className="ds-top-btn hidden lg:inline-flex"
-                  onClick={() => setCoverFlowOpen(true)}
-                  aria-label="Buka Cover Flow"
-                  title="Cover Flow"
-                >
-                  <IconDisc className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  className="ds-top-btn hidden lg:inline-flex"
-                  onClick={() => setImmersiveOpen(true)}
-                  aria-label="Buka mode lirik imersif"
-                  title="Mode Imersif (F)"
-                >
-                  <IconExpand className="h-4 w-4" />
-                </button>
-              </>
-            )}
-            <button
-              type="button"
-              className="ds-top-btn"
-              onClick={() => handleToggleRight("lyrics")}
-              data-active={rightOpen && rightMode === "lyrics" ? "1" : undefined}
-              aria-pressed={rightOpen && rightMode === "lyrics"}
-              aria-label="Panel lirik"
-              title="Lirik (Y)"
-            >
-              <IconLyrics className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              className="ds-top-btn"
-              onClick={() => handleToggleRight("queue")}
-              data-active={rightOpen && rightMode === "queue" ? "1" : undefined}
-              aria-pressed={rightOpen && rightMode === "queue"}
-              aria-label="Panel antrean"
-              title="Antrean (Q)"
-            >
-              <IconQueue className="h-4 w-4" />
-            </button>
+          <div className="ypm-topbar-right">
+            <div className="ypm-panel-seg" role="group" aria-label="Panel samping">
+              <button
+                type="button"
+                className="ypm-panel-seg-btn"
+                onClick={() => handleToggleRight("lyrics")}
+                data-active={rightOpen && rightMode === "lyrics" ? "1" : undefined}
+                aria-pressed={rightOpen && rightMode === "lyrics"}
+                aria-label="Panel lirik"
+                title="Lirik (Y)"
+              >
+                <IconLyrics className="h-[15px] w-[15px]" />
+                <span>Lirik</span>
+              </button>
+              <button
+                type="button"
+                className="ypm-panel-seg-btn"
+                onClick={() => handleToggleRight("queue")}
+                data-active={rightOpen && rightMode === "queue" ? "1" : undefined}
+                aria-pressed={rightOpen && rightMode === "queue"}
+                aria-label="Panel antrean"
+                title="Antrean (Q)"
+              >
+                <IconQueue className="h-[15px] w-[15px]" />
+                <span>Antrean</span>
+              </button>
+            </div>
           </div>
         </header>
 
@@ -531,7 +475,7 @@ function Shell() {
       {immersiveOpen && player.current && (
         <ImmersiveLyrics onExit={() => setImmersiveOpen(false)} />
       )}
-      {coverFlowOpen && player.current && (
+      {coverFlowOpen && (
         <CoverFlow onExit={() => setCoverFlowOpen(false)} />
       )}
 
@@ -544,7 +488,10 @@ function Shell() {
 function PlayerWithCloud() {
   const { playerEpoch } = useAccount();
   // Overscroll "rubber band" ala Apple untuk semua container scroll.
-  useEffect(() => initElasticScroll(), []);
+  useEffect(() => {
+    initAccentTheme();
+    return initElasticScroll();
+  }, []);
   return (
     <PlayerProvider key={playerEpoch}>
       <CloudSyncBridge />

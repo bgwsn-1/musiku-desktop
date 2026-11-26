@@ -1,4 +1,88 @@
 @font-face {
+  font-family: Archivo;
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/Archivo-400.ttf") format("truetype");
+}
+@font-face {
+  font-family: Archivo;
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("fonts/Archivo-500.ttf") format("truetype");
+}
+@font-face {
+  font-family: Archivo;
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("fonts/Archivo-600.ttf") format("truetype");
+}
+@font-face {
+  font-family: Archivo;
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("fonts/Archivo-700.ttf") format("truetype");
+}
+@font-face {
+  font-family: Archivo;
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url("fonts/Archivo-800.ttf") format("truetype");
+}
+@font-face {
+  font-family: Archivo;
+  font-style: normal;
+  font-weight: 900;
+  font-display: swap;
+  src: url("fonts/Archivo-900.ttf") format("truetype");
+}
+@font-face {
+  font-family: ArchivoSemi;
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("fonts/ArchivoSemiExpanded-600.ttf") format("truetype");
+}
+@font-face {
+  font-family: ArchivoSemi;
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("fonts/ArchivoSemiExpanded-700.ttf") format("truetype");
+}
+@font-face {
+  font-family: ArchivoSemi;
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url("fonts/ArchivoSemiExpanded-800.ttf") format("truetype");
+}
+@font-face {
+  font-family: ArchivoWide;
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("fonts/ArchivoExpanded-700.ttf") format("truetype");
+}
+@font-face {
+  font-family: ArchivoWide;
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url("fonts/ArchivoExpanded-800.ttf") format("truetype");
+}
+@font-face {
+  font-family: ArchivoWide;
+  font-style: normal;
+  font-weight: 900;
+  font-display: swap;
+  src: url("fonts/ArchivoExpanded-900.ttf") format("truetype");
+}
+@font-face {
   font-family: Geist;
   font-style: normal;
   font-weight: 100 900;

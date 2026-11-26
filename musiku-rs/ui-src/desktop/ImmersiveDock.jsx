@@ -1,19 +1,16 @@
-// Kapsul kontrol mengambang di bawah mode imersif:
-// Kiri: shuffle, prev, play/pause, next, repeat, timer (elapsed / -remaining)
-// Tengah: kotak info lagu + aksi suka/menu + scrub bar di tepi bawah
-// Kanan: volume popover, toggle antrean, toggle lirik, jeda motion art, keluar
+// Bottom bar Playing Screen 100% mengikuti YesPlayMusic (lib/pages/now_playing.dart _BottomBar):
+// Tinggi 72px, border-radius 24px, gap 8px:
+// [Collapse 58px] [Progress Penuh Putih + Timer Dual-Layer] [Shuffle 58px]
+// [WhiteControls 174px: Prev/Play/Next] [Repeat 58px] [Heart 58px] [Volume 58px] [More 58px]
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { usePlayer } from "@/lib/player";
-import { LiquidGlass } from "@/components/ui/apple-tahoe-liquid-glass-button";
 import {
   IconEllipsis,
   IconHeart,
-  IconLyrics,
   IconNext,
   IconPause,
   IconPlay,
   IconPrev,
-  IconQueue,
   IconRepeat,
   IconRepeatOne,
   IconShuffle,
@@ -26,50 +23,26 @@ const fmt = (s) => {
   return `${Math.floor(n / 60)}:${String(n % 60).padStart(2, "0")}`;
 };
 
-function IconCollapse({ className = "h-4 w-4" }) {
+function IconChevronDown({ className = "h-6 w-6" }) {
   return (
     <svg
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="2"
+      strokeWidth="2.2"
       strokeLinecap="round"
       strokeLinejoin="round"
       className={className}
       aria-hidden="true"
     >
-      <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7" />
-    </svg>
-  );
-}
-
-function IconMotion({ paused, className = "h-4 w-4" }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      aria-hidden="true"
-    >
-      <rect x="3" y="5" width="18" height="14" rx="3" />
-      {paused ? <path d="M10 9l5 3-5 3V9z" fill="currentColor" stroke="none" /> : <path d="M10 9v6M14 9v6" />}
+      <path d="M6 9l6 6 6-6" />
     </svg>
   );
 }
 
 export const ImmersiveDock = memo(function ImmersiveDock({
-  rightView,
-  onToggleLyrics,
-  onToggleQueue,
-  hasMotion,
-  motionPaused,
-  onToggleMotion,
-  onOpenMenu,
   onExit,
+  onOpenMenu,
 }) {
   const p = usePlayer();
   const {
@@ -93,24 +66,34 @@ export const ImmersiveDock = memo(function ImmersiveDock({
     toggleLike,
   } = p;
 
-  const [volOpen, setVolOpen] = useState(false);
-  const volWrapRef = useRef(null);
   const scrubRef = useRef(null);
   const fillRef = useRef(null);
-  const timeRef = useRef(null);
+  const darkLayerRef = useRef(null);
+  const hoverFillRef = useRef(null);
+  const hoverLineRef = useRef(null);
+  const elWhiteRef = useRef(null);
+  const elDarkRef = useRef(null);
+  const durWhiteRef = useRef(null);
+  const durDarkRef = useRef(null);
+  const volBarRef = useRef(null);
+
+  const [volOpen, setVolOpen] = useState(false);
+  const volDragging = useRef(false);
+
   const anchor = useRef({ pos: p.position, ts: performance.now(), playing });
   const drag = useRef({ on: false, ratio: 0 });
+  const hoverRatio = useRef(null);
   const raf = useRef(0);
   const lastSec = useRef(-1);
   const hiddenRef = useRef(
-    typeof document !== "undefined" && document.visibilityState === "hidden",
+    typeof document !== "undefined" && document.visibilityState === "hidden"
   );
   const seekRef = useRef(seek);
   seekRef.current = seek;
 
   const shouldAnimate = useCallback(
     () => !hiddenRef.current && (anchor.current.playing || drag.current.on),
-    [],
+    []
   );
 
   const paint = useCallback(
@@ -122,23 +105,46 @@ export const ImmersiveDock = memo(function ImmersiveDock({
       if (d) pos = Math.min(d, Math.max(0, pos));
       if (drag.current.on) pos = drag.current.ratio * d;
       const ratio = d ? pos / d : 0;
+      const pct = ratio * 100;
 
       if (fillRef.current) {
-        fillRef.current.style.transform = `scaleX(${ratio})`;
+        fillRef.current.style.width = `${pct}%`;
       }
+      if (darkLayerRef.current) {
+        darkLayerRef.current.style.clipPath = `inset(0 ${Math.max(0, 100 - pct)}% 0 0)`;
+      }
+
+      // Preview fill saat pointer melayang di atas scrubber
+      const hr = hoverRatio.current;
+      if (hoverFillRef.current && hoverLineRef.current) {
+        if (hr !== null && !drag.current.on) {
+          hoverLineRef.current.style.opacity = "1";
+          hoverLineRef.current.style.left = `${hr * 100}%`;
+          if (hr > ratio) {
+            hoverFillRef.current.style.opacity = "1";
+            hoverFillRef.current.style.left = `${pct}%`;
+            hoverFillRef.current.style.width = `${(hr - ratio) * 100}%`;
+          } else {
+            hoverFillRef.current.style.opacity = "0";
+          }
+        } else {
+          hoverFillRef.current.style.opacity = "0";
+          hoverLineRef.current.style.opacity = "0";
+        }
+      }
+
       const sec = Math.floor(pos);
       if (sec !== lastSec.current) {
         lastSec.current = sec;
-        if (timeRef.current) {
-          const rem = d ? `-${fmt(Math.max(0, Math.ceil(d - pos)))}` : "-0:00";
-          timeRef.current.textContent = `${fmt(sec)} / ${rem}`;
-        }
+        const txt = fmt(sec);
+        if (elWhiteRef.current) elWhiteRef.current.textContent = txt;
+        if (elDarkRef.current) elDarkRef.current.textContent = txt;
       }
       if (shouldAnimate()) {
         raf.current = requestAnimationFrame(paint);
       }
     },
-    [duration, shouldAnimate],
+    [duration, shouldAnimate]
   );
 
   const kick = useCallback(() => {
@@ -151,6 +157,12 @@ export const ImmersiveDock = memo(function ImmersiveDock({
     anchor.current = { pos: p.position, ts: performance.now(), playing };
     kick();
   }, [p.position, playing, duration, kick]);
+
+  useEffect(() => {
+    const durTxt = fmt(duration);
+    if (durWhiteRef.current) durWhiteRef.current.textContent = durTxt;
+    if (durDarkRef.current) durDarkRef.current.textContent = durTxt;
+  }, [duration]);
 
   useEffect(() => {
     const onVis = () => {
@@ -172,26 +184,6 @@ export const ImmersiveDock = memo(function ImmersiveDock({
     };
   }, [kick]);
 
-  // Tutup popover volume saat klik di luar atau tekan Escape.
-  useEffect(() => {
-    if (!volOpen) return;
-    const onDown = (e) => {
-      if (!volWrapRef.current?.contains(e.target)) setVolOpen(false);
-    };
-    const onKey = (e) => {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        setVolOpen(false);
-      }
-    };
-    document.addEventListener("pointerdown", onDown);
-    document.addEventListener("keydown", onKey, true);
-    return () => {
-      document.removeEventListener("pointerdown", onDown);
-      document.removeEventListener("keydown", onKey, true);
-    };
-  }, [volOpen]);
-
   if (!current) return null;
 
   const ratioAt = (clientX) => {
@@ -200,298 +192,251 @@ export const ImmersiveDock = memo(function ImmersiveDock({
     return Math.min(1, Math.max(0, (clientX - r.left) / r.width));
   };
 
-  const onScrubDown = (e) => {
+  const startScrub = (e) => {
     if (!duration) return;
-    drag.current.on = true;
-    drag.current.ratio = ratioAt(e.clientX);
-    e.currentTarget.setPointerCapture?.(e.pointerId);
-    if (scrubRef.current) scrubRef.current.dataset.dragging = "1";
+    e.currentTarget.setPointerCapture(e.pointerId);
+    drag.current = { on: true, ratio: ratioAt(e.clientX) };
     kick();
   };
 
-  const onScrubMove = (e) => {
-    if (!drag.current.on) return;
-    drag.current.ratio = ratioAt(e.clientX);
+  const moveScrub = (e) => {
+    const r = ratioAt(e.clientX);
+    hoverRatio.current = r;
+    if (drag.current.on) {
+      drag.current.ratio = r;
+    }
     kick();
   };
 
-  const onScrubUp = () => {
+  const endScrub = (e) => {
     if (!drag.current.on) return;
-    const nextPos = drag.current.ratio * duration;
     drag.current.on = false;
-    if (scrubRef.current) delete scrubRef.current.dataset.dragging;
-    seekRef.current(nextPos);
-    anchor.current = { pos: nextPos, ts: performance.now(), playing };
+    const t = ratioAt(e.clientX) * duration;
+    anchor.current = { pos: t, ts: performance.now(), playing };
+    seekRef.current(t);
     kick();
   };
 
-  const onScrubKey = (e) => {
-    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
-    e.preventDefault();
-    const nextPos = Math.min(
-      duration || Infinity,
-      Math.max(0, p.position + (e.key === "ArrowRight" ? 5 : -5)),
-    );
-    seekRef.current(nextPos);
-    anchor.current = { pos: nextPos, ts: performance.now(), playing };
-    kick();
+  const setVolFromPointer = (clientY) => {
+    const rect = volBarRef.current?.getBoundingClientRect();
+    if (!rect || !rect.height) return;
+    const v = 1 - Math.min(1, Math.max(0, (clientY - rect.top) / rect.height));
+    setVolume(v);
   };
 
-  const artistText = current.artist || current.artists?.[0] || "";
-  const subParts = [current.album, artistText].filter(Boolean);
-  const subtitle = subParts.join(" · ");
-  const liked = isLiked?.(current.videoId) ?? false;
-  const queueCount = Array.isArray(queue) ? queue.length : 0;
+  const vol = muted ? 0 : volume;
+  const liked = isLiked?.(current.videoId);
+  const repeatOn = repeat !== "off";
   const repeatLabel =
     repeat === "one"
       ? "Ulangi satu lagu"
       : repeat === "all"
-        ? "Ulangi semua"
-        : "Ulangi mati";
-  const volPct = Math.round((muted ? 0 : volume ?? 1) * 100);
+        ? "Ulangi semua lagu"
+        : "Mode ulang mati";
 
   return (
-    <div className="im-dock-wrap">
-      <LiquidGlass
-        material="regular"
-        appearance="dark"
-        refraction={18}
-        bezel={24}
-        blur={1.5}
-        fallbackBlur={24}
-        saturation={1.35}
-        brightness={1.02}
-        interactive={false}
-        role="region"
-        aria-label="Kontrol pemutar imersif"
-        className="im-dock"
+    <footer className="ypm-np-bottom" aria-label="Kontrol pemutar">
+      {/* 1. Collapse (Tutup Now Playing di ujung kiri seperti YesPlayMusic v33) */}
+      <button
+        type="button"
+        onClick={onExit}
+        aria-label="Tutup layar pemutar"
+        title="Tutup (Esc)"
+        className="ypm-np-seg"
       >
-        <div className="im-dock-left">
-          <button
-            type="button"
-            className="im-dock-btn"
-            onClick={toggleShuffle}
-            data-active={shuffle ? "1" : undefined}
-            aria-pressed={!!shuffle}
-            aria-label={shuffle ? "Matikan acak" : "Aktifkan acak"}
-            title={shuffle ? "Acak aktif" : "Acak"}
-          >
-            <IconShuffle className="h-[17px] w-[17px]" />
-          </button>
+        <IconChevronDown className="h-6 w-6" />
+      </button>
 
-          <button
-            type="button"
-            className="im-dock-btn"
-            onClick={prev}
-            aria-label="Lagu sebelumnya"
-            title="Lagu sebelumnya"
-          >
-            <IconPrev className="h-[18px] w-[18px]" />
-          </button>
+      {/* 2. Progress Scrubber Penuh 72px dengan dual-layer timestamp putih/hitam */}
+      <div
+        ref={scrubRef}
+        role="slider"
+        tabIndex={0}
+        aria-label="Posisi lagu"
+        aria-valuemin={0}
+        aria-valuemax={Math.floor(duration || 0)}
+        aria-valuenow={Math.floor(p.position || 0)}
+        onPointerDown={startScrub}
+        onPointerMove={moveScrub}
+        onPointerUp={endScrub}
+        onPointerCancel={endScrub}
+        onPointerLeave={() => {
+          hoverRatio.current = null;
+          kick();
+        }}
+        onKeyDown={(e) => {
+          if (!duration) return;
+          if (e.key === "ArrowRight") seek(Math.min(duration, p.position + 5));
+          if (e.key === "ArrowLeft") seek(Math.max(0, p.position - 5));
+        }}
+        className="ypm-np-progress"
+      >
+        <div ref={fillRef} className="ypm-np-progress-fill" />
+        <div ref={hoverFillRef} className="ypm-np-progress-hover" />
+        <div ref={hoverLineRef} className="ypm-np-progress-line" />
 
-          <button
-            type="button"
-            className="im-dock-btn im-dock-btn-play"
-            onClick={toggle}
-            aria-label={playing ? "Jeda" : "Putar"}
-            title={playing ? "Jeda (Space)" : "Putar (Space)"}
-          >
-            {playing ? (
-              <IconPause className="h-[18px] w-[18px]" />
-            ) : (
-              <IconPlay className="h-[18px] w-[18px]" />
-            )}
-          </button>
-
-          <button
-            type="button"
-            className="im-dock-btn"
-            onClick={next}
-            aria-label="Lagu berikutnya"
-            title="Lagu berikutnya"
-          >
-            <IconNext className="h-[18px] w-[18px]" />
-          </button>
-
-          <button
-            type="button"
-            className="im-dock-btn"
-            onClick={cycleRepeat}
-            data-active={repeat && repeat !== "off" ? "1" : undefined}
-            aria-pressed={!!(repeat && repeat !== "off")}
-            aria-label={repeatLabel}
-            title={repeatLabel}
-          >
-            {repeat === "one" ? (
-              <IconRepeatOne className="h-[17px] w-[17px]" />
-            ) : (
-              <IconRepeat className="h-[17px] w-[17px]" />
-            )}
-          </button>
-
-          <span ref={timeRef} className="im-dock-time" aria-hidden="true">
-            0:00 / -0:00
-          </span>
+        {/* Layer bawah: angka putih */}
+        <div className="ypm-np-progress-labels is-light" aria-hidden="true">
+          <span ref={elWhiteRef}>{fmt(p.position)}</span>
+          <span ref={durWhiteRef}>{fmt(duration)}</span>
         </div>
 
-        <div className="im-dock-track">
-          <div className="im-dock-track-text">
-            <p className="im-dock-track-title">{current.title || "Lagu tanpa judul"}</p>
-            {subtitle && <p className="im-dock-track-sub">{subtitle}</p>}
-          </div>
+        {/* Layer atas: angka hitam terpotong tepat di batas bar putih */}
+        <div
+          ref={darkLayerRef}
+          className="ypm-np-progress-labels is-dark"
+          aria-hidden="true"
+        >
+          <span ref={elDarkRef}>{fmt(p.position)}</span>
+          <span ref={durDarkRef}>{fmt(duration)}</span>
+        </div>
+      </div>
 
-          <div className="im-dock-track-actions">
-            <button
-              type="button"
-              className="im-dock-mini"
-              data-liked={liked ? "1" : undefined}
-              onClick={() => toggleLike?.(current)}
-              aria-pressed={liked}
-              aria-label={liked ? "Hapus dari disukai" : "Sukai lagu"}
-              title={liked ? "Disukai" : "Sukai"}
+      {/* 3. Shuffle */}
+      <button
+        type="button"
+        onClick={toggleShuffle}
+        aria-label="Acak antrean"
+        aria-pressed={shuffle}
+        title="Acak"
+        className={`ypm-np-seg ${shuffle ? "is-accent" : ""}`}
+      >
+        <IconShuffle className="h-6 w-6" />
+        <span className={`ypm-np-dot ${shuffle ? "is-on" : ""}`} />
+      </button>
+
+      {/* 4. _WhiteControls: kapsul putih solid 174x72 dengan ikon gelap */}
+      <div className="ypm-np-white-ctrl">
+        <button
+          type="button"
+          onClick={prev}
+          aria-label="Lagu sebelumnya"
+          title="Sebelumnya"
+          className="ypm-np-wbtn"
+        >
+          <IconPrev className="h-7 w-7" />
+        </button>
+        <button
+          type="button"
+          onClick={toggle}
+          aria-label={playing ? "Jeda" : "Putar"}
+          title={playing ? "Jeda" : "Putar"}
+          className="ypm-np-wbtn"
+        >
+          {playing ? (
+            <IconPause className="h-9 w-9" />
+          ) : (
+            <IconPlay className="h-9 w-9" />
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={next}
+          disabled={queue.length <= 1 && repeat === "off"}
+          aria-label="Lagu berikutnya"
+          title="Berikutnya"
+          className="ypm-np-wbtn"
+        >
+          <IconNext className="h-7 w-7" />
+        </button>
+      </div>
+
+      {/* 5. Repeat */}
+      <button
+        type="button"
+        onClick={cycleRepeat}
+        aria-label={repeatLabel}
+        aria-pressed={repeatOn}
+        title={repeatLabel}
+        className={`ypm-np-seg ${repeatOn ? "is-active-white" : "is-dim"}`}
+      >
+        {repeat === "one" ? (
+          <IconRepeatOne className="h-6 w-6" />
+        ) : (
+          <IconRepeat className="h-6 w-6" />
+        )}
+        <span className={`ypm-np-dot ${repeatOn ? "is-on" : ""}`} />
+      </button>
+
+      {/* 6. Heart */}
+      <button
+        type="button"
+        onClick={() => toggleLike?.(current)}
+        aria-label={liked ? "Hapus dari disukai" : "Sukai lagu ini"}
+        aria-pressed={liked}
+        title={liked ? "Hapus dari disukai" : "Sukai"}
+        className={`ypm-np-seg ${liked ? "is-heart" : ""}`}
+      >
+        <IconHeart className="h-6 w-6" filled={liked} />
+      </button>
+
+      {/* 7. Vertical Volume Segment (mengembang ke atas saat hover, mirip YesPlayMusic VolumeSeg) */}
+      <div
+        className="ypm-np-vol-wrap"
+        onMouseEnter={() => setVolOpen(true)}
+        onMouseLeave={() => {
+          if (!volDragging.current) setVolOpen(false);
+        }}
+      >
+        {volOpen && (
+          <div className="ypm-np-vol-pop">
+            <div
+              ref={volBarRef}
+              role="slider"
+              tabIndex={0}
+              aria-label="Volume"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(vol * 100)}
+              onPointerDown={(e) => {
+                e.currentTarget.setPointerCapture(e.pointerId);
+                volDragging.current = true;
+                setVolFromPointer(e.clientY);
+              }}
+              onPointerMove={(e) => {
+                if (volDragging.current) setVolFromPointer(e.clientY);
+              }}
+              onPointerUp={() => {
+                volDragging.current = false;
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "ArrowUp") setVolume(Math.min(1, vol + 0.05));
+                if (e.key === "ArrowDown") setVolume(Math.max(0, vol - 0.05));
+              }}
+              className="ypm-np-vol-rail"
             >
-              <IconHeart filled={liked} className="h-[15px] w-[15px]" />
-            </button>
-
-            <button
-              type="button"
-              className="im-dock-mini"
-              onClick={onOpenMenu}
-              aria-haspopup="menu"
-              aria-label="Opsi lagu lainnya"
-              title="Opsi lainnya"
-            >
-              <IconEllipsis className="h-[16px] w-[16px]" />
-            </button>
-          </div>
-
-          <div
-            ref={scrubRef}
-            className="im-dock-scrub"
-            role="slider"
-            tabIndex={0}
-            aria-label="Posisi lagu"
-            aria-valuemin={0}
-            aria-valuemax={Math.round(duration || 0)}
-            aria-valuenow={Math.round(p.position || 0)}
-            aria-valuetext={`${fmt(p.position)} dari ${fmt(duration)}`}
-            onPointerDown={onScrubDown}
-            onPointerMove={onScrubMove}
-            onPointerUp={onScrubUp}
-            onPointerCancel={onScrubUp}
-            onKeyDown={onScrubKey}
-          >
-            <div className="im-dock-scrub-rail">
-              <div ref={fillRef} className="im-dock-scrub-fill" />
+              <div
+                className="ypm-np-vol-fill"
+                style={{ height: `${Math.round(vol * 100)}%` }}
+              />
             </div>
           </div>
-        </div>
-
-        <div className="im-dock-right">
-          <div ref={volWrapRef} className="im-vol-wrap">
-            <button
-              type="button"
-              className="im-dock-btn"
-              onClick={() => setVolOpen((v) => !v)}
-              onDoubleClick={toggleMute}
-              data-active={volOpen ? "1" : undefined}
-              aria-expanded={volOpen}
-              aria-label={muted || volPct === 0 ? "Volume senyap" : `Atur volume (${volPct}%)`}
-              title="Volume"
-            >
-              {muted || volPct === 0 ? (
-                <IconVolumeMute className="h-[17px] w-[17px]" />
-              ) : (
-                <IconVolume className="h-[17px] w-[17px]" />
-              )}
-            </button>
-
-            {volOpen && (
-              <div className="im-vol-pop" role="dialog" aria-label="Pengaturan volume">
-                <button
-                  type="button"
-                  className="im-dock-mini"
-                  onClick={toggleMute}
-                  aria-label={muted ? "Bunyikan suara" : "Bisukan suara"}
-                >
-                  {muted || volPct === 0 ? (
-                    <IconVolumeMute className="h-4 w-4" />
-                  ) : (
-                    <IconVolume className="h-4 w-4" />
-                  )}
-                </button>
-                <label htmlFor="im-vol-slider" className="sr-only">
-                  Volume
-                </label>
-                <input
-                  id="im-vol-slider"
-                  type="range"
-                  min={0}
-                  max={1}
-                  step={0.01}
-                  value={muted ? 0 : volume ?? 1}
-                  onChange={(e) => setVolume?.(Number(e.target.value))}
-                  className="im-vol-range"
-                />
-                <span className="im-vol-val">{volPct}%</span>
-              </div>
-            )}
-          </div>
-
-          <button
-            type="button"
-            className="im-dock-btn"
-            onClick={onToggleQueue}
-            data-active={rightView === "queue" ? "1" : undefined}
-            aria-pressed={rightView === "queue"}
-            aria-label={`Antrean (${queueCount} lagu)`}
-            title="Antrean"
-          >
-            <IconQueue className="h-[17px] w-[17px]" />
-            {queueCount > 0 && (
-              <span className="im-dock-badge" aria-hidden="true">
-                {queueCount > 99 ? "99" : queueCount}
-              </span>
-            )}
-          </button>
-
-          <button
-            type="button"
-            className="im-dock-btn"
-            onClick={onToggleLyrics}
-            data-active={rightView === "lyrics" ? "1" : undefined}
-            aria-pressed={rightView === "lyrics"}
-            aria-label={rightView === "lyrics" ? "Sembunyikan lirik" : "Tampilkan lirik"}
-            title="Lirik"
-          >
-            <IconLyrics className="h-[17px] w-[17px]" />
-          </button>
-
-          {hasMotion && (
-            <button
-              type="button"
-              className="im-dock-btn"
-              onClick={onToggleMotion}
-              data-active={motionPaused ? undefined : "1"}
-              aria-pressed={!motionPaused}
-              aria-label={motionPaused ? "Putar animasi sampul" : "Jeda animasi sampul"}
-              title={motionPaused ? "Putar animasi sampul" : "Jeda animasi sampul"}
-            >
-              <IconMotion paused={motionPaused} className="h-[17px] w-[17px]" />
-            </button>
+        )}
+        <button
+          type="button"
+          onClick={toggleMute}
+          aria-label={muted ? "Aktifkan suara" : "Bisukan suara"}
+          title={`Volume ${Math.round(vol * 100)}%`}
+          className="ypm-np-seg"
+        >
+          {muted || vol === 0 ? (
+            <IconVolumeMute className="h-6 w-6" />
+          ) : (
+            <IconVolume className="h-6 w-6" />
           )}
+        </button>
+      </div>
 
-          <button
-            type="button"
-            className="im-dock-btn"
-            onClick={onExit}
-            aria-label="Keluar mode imersif"
-            title="Keluar mode imersif (Esc)"
-          >
-            <IconCollapse className="h-[16px] w-[16px]" />
-          </button>
-        </div>
-      </LiquidGlass>
-    </div>
+      {/* 8. More */}
+      <button
+        type="button"
+        onClick={onOpenMenu}
+        aria-label="Opsi lagu lainnya"
+        title="Lainnya"
+        className="ypm-np-seg"
+      >
+        <IconEllipsis className="h-6 w-6" />
+      </button>
+    </footer>
   );
 });

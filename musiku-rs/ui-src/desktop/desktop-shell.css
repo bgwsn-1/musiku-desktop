@@ -6,22 +6,37 @@
    - Kolom Kanan (.ds-right): Now Playing, Playing Next bernomor, AutoPlay footer
    ═══════════════════════════════════════════════════════════════════════ */
 
+:root {
+  --ypm-ground: #0b0b0d;
+  --ypm-surface: #18181b;
+  --ypm-raised: #242428;
+  --ypm-hover: #303036;
+  --ypm-ink: #f7f7f8;
+  --ypm-muted: #a1a1aa;
+  --ypm-faint: #85858f;
+  --ypm-heart: #ff5c7a;
+  --ypm-accent: #d6b0fa;
+  --ypm-border: rgba(255, 255, 255, 0.07);
+  --ypm-border-strong: rgba(255, 255, 255, 0.12);
+}
+
 .ds-shell {
   position: fixed;
   inset: 0;
   display: flex;
-  gap: 8px;
-  padding: 8px;
-  background: #0a090a;
-  color: #f3efec;
+  gap: 0;
+  padding: 0;
+  background: #0b0b0d;
+  color: #f7f7f8;
+  font-family: "Archivo", "Geist", system-ui, -apple-system, sans-serif;
   overflow: hidden;
-  --label-1: #f3efec;
-  --label-2: #b9b2ae;
-  --label-3: #9c9693;
-  --accent: #ff7a63;
-  --fill-1: rgba(255, 255, 255, 0.07);
-  --fill-2: rgba(255, 255, 255, 0.13);
-  --hairline: rgba(255, 255, 255, 0.1);
+  --label-1: #f7f7f8;
+  --label-2: #a1a1aa;
+  --label-3: #85858f;
+  --accent: #d6b0fa;
+  --fill-1: rgba(255, 255, 255, 0.06);
+  --fill-2: rgba(255, 255, 255, 0.12);
+  --hairline: rgba(255, 255, 255, 0.08);
 }
 
 /* ── Sidebar Kiri ─────────────────────────────────────────────────────── */
@@ -289,69 +304,185 @@
   outline-offset: 2px;
 }
 
-/* ── Kanvas Tengah Berbingkai ─────────────────────────────────────────── */
+/* ── Kanvas Utama (YesPlayMusic seamless ground) ─────────────────────── */
 .ds-center {
   flex: 1;
   min-width: 0;
   position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
-  border-radius: 18px;
-  background: #141213;
-  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 0;
+  background: transparent;
+  border: 0;
   overflow: hidden;
 }
 
-.ds-top-bar {
+/* ── Floating Top Chrome (YesPlayMusic Back Pill + Segmented Panel Toggle) */
+.ypm-topbar {
   position: absolute;
-  top: 12px;
-  left: 14px;
-  right: 14px;
-  z-index: 25;
+  top: 18px;
+  left: 40px;
+  right: 40px;
+  z-index: 28;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 12px;
   pointer-events: none;
 }
 
-.ds-top-group {
+.ypm-topbar-left,
+.ypm-topbar-right {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   pointer-events: auto;
-  padding: 4px;
-  border-radius: 999px;
-  background: rgba(16, 14, 15, 0.68);
-  border: 1px solid rgba(255, 255, 255, 0.11);
 }
 
-.ds-top-btn {
-  width: 30px;
-  height: 30px;
+.ypm-mobile-menu-btn {
+  display: none;
+  width: 36px;
+  height: 36px;
   border-radius: 999px;
+  border: 1px solid var(--ypm-border-strong);
+  background: rgba(24, 24, 27, 0.72);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  color: var(--ypm-ink);
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 140ms ease, transform 120ms ease;
+}
+
+@media (max-width: 1023px) {
+  .ypm-mobile-menu-btn {
+    display: inline-flex;
+  }
+
+  .ypm-topbar {
+    left: 20px;
+    right: 20px;
+  }
+}
+
+.ypm-nav-pair {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ypm-back-pill {
+  height: 36px;
+  padding: 0 14px 0 11px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(24, 24, 27, 0.72);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  color: var(--ypm-ink);
+  font-family: "ArchivoSemi", "Archivo", var(--font-sans), sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  transition: background 140ms ease, border-color 140ms ease, transform 120ms ease;
+}
+
+.ypm-back-pill:hover {
+  background: rgba(36, 36, 40, 0.9);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.ypm-back-pill:active {
+  transform: scale(0.96);
+}
+
+.ypm-nav-circle {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(24, 24, 27, 0.62);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  color: var(--ypm-muted);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: #f3efec;
-  background: transparent;
-  border: 0;
   cursor: pointer;
-  transition: background-color 0.15s ease, color 0.15s ease;
+  transition: background 140ms ease, color 140ms ease, transform 120ms ease;
 }
 
-.ds-top-btn:hover {
-  background: rgba(255, 255, 255, 0.14);
+.ypm-nav-circle:hover {
+  background: rgba(36, 36, 40, 0.88);
+  color: var(--ypm-ink);
 }
 
-.ds-top-btn[data-active="1"] {
-  color: #ff7a63;
-  background: rgba(255, 122, 99, 0.16);
+.ypm-nav-circle:active {
+  transform: scale(0.94);
 }
 
-.ds-top-btn:focus-visible {
-  outline: 2px solid #ffffff;
+.ypm-panel-seg {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(24, 24, 27, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+}
+
+.ypm-panel-seg-btn {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 0;
+  background: transparent;
+  color: var(--ypm-muted);
+  font-family: "ArchivoSemi", "Archivo", var(--font-sans), sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.ypm-panel-seg-btn:hover {
+  color: var(--ypm-ink);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.ypm-panel-seg-btn[data-active="1"] {
+  background: var(--ypm-ink);
+  color: var(--ypm-ground);
+}
+
+.ypm-mobile-menu-btn:focus-visible,
+.ypm-back-pill:focus-visible,
+.ypm-nav-circle:focus-visible,
+.ypm-panel-seg-btn:focus-visible {
+  outline: 2px solid var(--ypm-accent);
   outline-offset: 2px;
+}
+
+@media (max-width: 600px) {
+  .ypm-panel-seg-btn span {
+    display: none;
+  }
+
+  .ypm-panel-seg-btn {
+    padding: 0 9px;
+  }
 }
 
 .ds-scroll {
@@ -359,8 +490,8 @@
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  padding: 64px 28px 132px 28px;
-  scroll-padding-top: 64px;
+  padding: 72px 40px 140px 40px;
+  scroll-padding-top: 72px;
   overscroll-behavior: contain;
   outline: none;
 }
@@ -374,9 +505,9 @@
 }
 
 .ds-scroll .media-backdrop {
-  top: -64px;
-  left: -28px;
-  right: -28px;
+  top: -72px;
+  left: -40px;
+  right: -40px;
   width: auto;
   height: 440px;
   opacity: 0.72;
@@ -602,15 +733,20 @@
   cursor: pointer;
 }
 
-/* ── Panel Kanan (Now Playing + Playing Next + AutoPlay) ──────────────── */
+/* ── Panel Kanan (Floating Drawer On-Demand) ──────────────────────────── */
 .ds-right {
-  width: 308px;
-  flex: none;
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  bottom: 96px;
+  z-index: 48;
+  width: min(328px, calc(100vw - 32px));
   display: flex;
   flex-direction: column;
-  background: #111011;
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: #18181b;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.78);
   overflow: hidden;
 }
 
@@ -2066,3 +2202,4841 @@
     -webkit-backdrop-filter: none;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Phase 1: YesPlayMusic Shell + 72px Icon Rail + Segmented MiniPlayer + Beranda
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── 72px Left Icon Rail ──────────────────────────────────────────────── */
+.ypm-rail {
+  width: 72px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 0 22px;
+  background: transparent;
+  z-index: 35;
+}
+
+.ypm-rail[data-mobile="1"] {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 220px;
+  align-items: stretch;
+  padding: 18px 12px 22px;
+  background: #141417;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 16px 0 48px rgba(0, 0, 0, 0.75);
+  z-index: 50;
+}
+
+.ypm-rail-logo {
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #f7f7f8;
+  color: #0b0b0d;
+  text-decoration: none;
+  margin-bottom: 34px;
+  transition: transform 0.14s ease, opacity 0.14s ease;
+}
+
+.ypm-rail[data-mobile="1"] .ypm-rail-logo {
+  margin-left: 6px;
+  margin-bottom: 20px;
+}
+
+.ypm-rail-logo:hover {
+  transform: scale(0.95);
+}
+
+.ypm-rail-logo:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 3px;
+}
+
+.ypm-rail-nav {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.ypm-rail[data-mobile="1"] .ypm-rail-nav {
+  align-items: stretch;
+}
+
+.ypm-rail-btn {
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: #a1a1aa;
+  background: transparent;
+  text-decoration: none;
+  transition: background-color 0.16s ease, color 0.16s ease, transform 0.12s ease;
+}
+
+.ypm-rail[data-mobile="1"] .ypm-rail-btn {
+  width: 100%;
+  justify-content: flex-start;
+  padding: 0 12px;
+}
+
+.ypm-rail-btn:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: #f7f7f8;
+}
+
+.ypm-rail-btn:active {
+  transform: scale(0.94);
+}
+
+.ypm-rail-btn[data-active="1"] {
+  background: rgba(255, 255, 255, 0.12);
+  color: #f7f7f8;
+}
+
+.ypm-rail-btn:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+}
+
+.ypm-rail-label {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.ypm-rail-foot {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.ypm-rail-avatar-btn {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.14s ease;
+}
+
+.ypm-rail-avatar-btn:hover {
+  transform: scale(1.06);
+}
+
+.ypm-rail-avatar-btn:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+}
+
+.ypm-rail-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #d6b0fa;
+  color: #0b0b0d;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.ypm-rail-avatar[data-guest="1"] {
+  background: #242428;
+  color: #f7f7f8;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.ypm-rail-dot {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  border: 2px solid #0b0b0d;
+  background: #a1a1aa;
+}
+
+.ypm-rail-dot[data-state="synced"] {
+  background: #6ee7b7;
+}
+
+.ypm-rail-dot[data-state="syncing"] {
+  background: #d6b0fa;
+}
+
+.ypm-rail-dot[data-state="error"] {
+  background: #ff5c7a;
+}
+
+.ypm-icon-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #f7f7f8;
+  background: rgba(255, 255, 255, 0.08);
+  border: 0;
+  cursor: pointer;
+}
+
+/* ── Floating Segmented MiniPlayer ────────────────────────────────────── */
+.ypm-player-wrap {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 32;
+  display: flex;
+  justify-content: center;
+  padding: 0 18px 16px;
+  pointer-events: none;
+}
+
+.ypm-player-fade {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 110px;
+  background: linear-gradient(
+    to bottom,
+    rgba(11, 11, 13, 0) 0%,
+    rgba(11, 11, 13, 0.88) 48%,
+    #0b0b0d 100%
+  );
+  pointer-events: none;
+}
+
+.ypm-player-row {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 6px;
+  max-width: 100%;
+}
+
+.ypm-seg {
+  pointer-events: auto;
+  height: 64px;
+  border-radius: 22px;
+  background: #18181b;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.65);
+  transition: background-color 0.16s ease, transform 0.12s ease;
+}
+
+.ypm-seg-now {
+  width: 264px;
+  display: flex;
+  align-items: center;
+  padding: 8px 10px 8px 8px;
+  gap: 6px;
+}
+
+.ypm-seg-now:hover {
+  background: #222227;
+}
+
+.ypm-now-open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 14px;
+}
+
+.ypm-now-open:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+}
+
+.ypm-now-art-wrap {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  overflow: hidden;
+  flex: none;
+}
+
+.ypm-now-art {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.ypm-now-art-hover {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.58);
+  color: #ffffff;
+  opacity: 0;
+  transition: opacity 0.16s ease;
+}
+
+.ypm-now-open:hover .ypm-now-art-hover,
+.ypm-now-open:focus-visible .ypm-now-art-hover {
+  opacity: 1;
+}
+
+.ypm-now-meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ypm-now-title {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: #f7f7f8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ypm-now-sub {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #a1a1aa;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ypm-heart-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  color: #a1a1aa;
+  cursor: pointer;
+  transition: color 0.15s ease, transform 0.14s ease, background-color 0.15s ease;
+}
+
+.ypm-heart-btn:hover {
+  color: #f7f7f8;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.ypm-heart-btn[data-liked="1"] {
+  color: #ff5c7a;
+}
+
+.ypm-heart-btn:active {
+  transform: scale(0.86);
+}
+
+.ypm-heart-btn:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+}
+
+/* Segmen 2: Scrubber Progress Full-Height */
+.ypm-seg-lyric {
+  position: relative;
+  width: 280px;
+  overflow: hidden;
+  cursor: pointer;
+  touch-action: none;
+  outline: none;
+}
+
+.ypm-seg-lyric:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+}
+
+.ypm-scrub-fill {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.16);
+  transform-origin: 0 50%;
+  transform: scaleX(0);
+  pointer-events: none;
+}
+
+.ypm-scrub-hover {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.07);
+  transform-origin: 0 50%;
+  transform: scaleX(0);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.ypm-scrub-cursor {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #d6b0fa;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.ypm-scrub-times {
+  position: relative;
+  z-index: 2;
+  height: 100%;
+  padding: 0 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  pointer-events: none;
+}
+
+.ypm-scrub-t {
+  font-size: 12px;
+  font-weight: 600;
+  color: #f7f7f8;
+  font-variant-numeric: tabular-nums;
+}
+
+.ypm-scrub-t-dur {
+  color: #a1a1aa;
+}
+
+/* Segmen Ikon 52x64 */
+.ypm-seg-icon {
+  position: relative;
+  width: 52px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #a1a1aa;
+  cursor: pointer;
+}
+
+.ypm-seg-icon:hover {
+  background: #303036;
+  color: #f7f7f8;
+}
+
+.ypm-seg-icon[data-active="1"] {
+  color: #d6b0fa;
+}
+
+.ypm-seg-icon:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+}
+
+.ypm-seg-dot {
+  position: absolute;
+  bottom: 10px;
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: #d6b0fa;
+}
+
+/* Segmen Kontrol Prev/Play/Next 156x64 */
+.ypm-seg-ctrl {
+  width: 156px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+
+.ypm-ctrl-btn {
+  width: 52px;
+  height: 64px;
+  border-radius: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #f7f7f8;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  transition: background-color 0.14s ease, transform 0.12s ease;
+}
+
+.ypm-ctrl-btn:hover {
+  background: #303036;
+}
+
+.ypm-ctrl-btn:active {
+  transform: scale(0.88);
+}
+
+.ypm-ctrl-btn:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: -2px;
+}
+
+/* Segmen Volume Vertikal */
+.ypm-vol-wrap {
+  position: relative;
+  pointer-events: auto;
+}
+
+.ypm-vol-pop {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 52px;
+  height: 156px;
+  padding: 10px 0 12px;
+  border-radius: 22px;
+  background: #242428;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.72);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ypm-vol-pct {
+  font-size: 11px;
+  font-weight: 700;
+  color: #f7f7f8;
+  font-variant-numeric: tabular-nums;
+}
+
+.ypm-vol-vrange {
+  width: 96px;
+  height: 24px;
+  transform: rotate(-90deg);
+  transform-origin: center;
+  margin: auto 0;
+  accent-color: #d6b0fa;
+  cursor: pointer;
+}
+
+/* ── Halaman Beranda YesPlayMusic ─────────────────────────────────────── */
+.ypm-home {
+  display: flex;
+  flex-direction: column;
+  gap: 36px;
+}
+
+.ypm-hero-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+
+.ypm-hero-card {
+  position: relative;
+  height: 200px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+  display: flex;
+  align-items: stretch;
+}
+
+.ypm-hero-text {
+  position: relative;
+  z-index: 3;
+  flex: 1;
+  min-width: 0;
+  padding: 22px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.ypm-hero-covers .ypm-hero-text {
+  max-width: calc(100% - 210px);
+}
+
+.ypm-hero-eyebrow {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: #85858f;
+  text-transform: uppercase;
+}
+
+.ypm-hero-eyebrow-accent {
+  color: #d6b0fa;
+}
+
+.ypm-hero-title {
+  margin: 4px 0 0;
+  font-family: "ArchivoWide", "Archivo", sans-serif;
+  font-size: clamp(22px, 2.3vw, 29px);
+  font-weight: 900;
+  line-height: 1.15;
+  color: #f7f7f8;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.ypm-hero-sub {
+  margin: 6px 0 0;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #a1a1aa;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.ypm-hero-btns {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ypm-play-pill {
+  height: 38px;
+  padding: 0 20px;
+  border-radius: 999px;
+  border: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: #d6b0fa;
+  color: #0b0b0d;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.12s ease, opacity 0.14s ease;
+}
+
+.ypm-play-pill:hover:not(:disabled) {
+  opacity: 0.92;
+}
+
+.ypm-play-pill:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.ypm-play-pill:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.ypm-play-pill:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+}
+
+.ypm-ghost-pill {
+  height: 38px;
+  padding: 0 16px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.08);
+  color: #f7f7f8;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background-color 0.14s ease;
+}
+
+.ypm-ghost-pill:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.ypm-round-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  border: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.1);
+  color: #f7f7f8;
+  cursor: pointer;
+  transition: background-color 0.14s ease, transform 0.12s ease;
+}
+
+.ypm-round-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.ypm-round-btn:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+}
+
+/* 3 Sampul bertumpuk miring di sisi kanan Hero Kiri */
+.ypm-covers-stack {
+  position: relative;
+  width: 230px;
+  flex: none;
+  pointer-events: none;
+}
+
+.ypm-stack-img {
+  position: absolute;
+  width: 118px;
+  height: 118px;
+  border-radius: 8px;
+  object-fit: cover;
+  top: 50%;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.65);
+}
+
+.ypm-stack-img-0 {
+  right: 16px;
+  margin-top: -57px;
+  transform: rotate(-3deg);
+  z-index: 3;
+}
+
+.ypm-stack-img-1 {
+  right: 68px;
+  margin-top: -64px;
+  transform: rotate(6deg);
+  z-index: 2;
+}
+
+.ypm-stack-img-2 {
+  right: 120px;
+  margin-top: -54px;
+  transform: rotate(-9deg);
+  z-index: 1;
+}
+
+/* Hero Kanan: Radio Musiku */
+.ypm-station-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+
+.ypm-station-scrim {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(to right, #161618 0%, #161618 36%, rgba(22, 22, 24, 0.62) 64%, rgba(22, 22, 24, 0.1) 100%),
+    linear-gradient(to bottom, rgba(22, 22, 24, 0) 50%, rgba(22, 22, 24, 0.45) 100%);
+}
+
+/* Baris Mode / Mood 80px */
+.ypm-modes-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.ypm-mode-row {
+  height: 80px;
+  padding: 8px 16px 8px 8px;
+  border-radius: 16px;
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.ypm-mode-row:hover {
+  background: rgba(255, 255, 255, 0.085);
+}
+
+.ypm-mode-row[data-active="1"] {
+  background: rgba(214, 176, 250, 0.12);
+  border-color: rgba(214, 176, 250, 0.45);
+}
+
+.ypm-mode-row:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+}
+
+.ypm-mode-swatch {
+  width: 64px;
+  height: 64px;
+  border-radius: 10px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #242428;
+  color: #f7f7f8;
+}
+
+.ypm-mode-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ypm-mode-title {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: #f7f7f8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ypm-mode-sub {
+  font-size: 12px;
+  color: #a1a1aa;
+}
+
+/* Rak & Header dengan Pager < > */
+.ypm-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ypm-sec-head {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ypm-sec-titles {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  min-width: 0;
+}
+
+.ypm-sec-title {
+  margin: 0;
+  font-family: "ArchivoSemi", "Archivo", sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+  color: #f7f7f8;
+}
+
+.ypm-sec-sub {
+  font-size: 13px;
+  font-weight: 500;
+  color: #85858f;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ypm-pager {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
+.ypm-pager-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  border: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.08);
+  color: #f7f7f8;
+  cursor: pointer;
+  transition: background-color 0.14s ease;
+}
+
+.ypm-pager-btn:hover:not(:disabled) {
+  background: #303036;
+}
+
+.ypm-pager-btn:disabled {
+  opacity: 0.32;
+  cursor: not-allowed;
+}
+
+.ypm-pager-btn:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+}
+
+.ypm-card-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.ypm-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  text-decoration: none;
+  color: inherit;
+}
+
+.ypm-card-hit {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+}
+
+.ypm-card-hit:focus-visible,
+.ypm-card:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 4px;
+  border-radius: 14px;
+}
+
+.ypm-card-art {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #18181b;
+  transition: transform 0.18s ease;
+}
+
+.ypm-card-art-round {
+  border-radius: 999px;
+}
+
+.ypm-card:hover .ypm-card-art {
+  transform: translateY(-2px);
+}
+
+.ypm-card-play {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #d6b0fa;
+  color: #0b0b0d;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.55);
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.ypm-card:hover .ypm-card-play,
+.ypm-card[data-active="1"] .ypm-card-play {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.ypm-card-title {
+  margin: 10px 0 0;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: #f7f7f8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ypm-card[data-active="1"] .ypm-card-title {
+  color: #d6b0fa;
+}
+
+.ypm-card-sub {
+  margin: 3px 0 0;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #a1a1aa;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Responsif Phase 1 ────────────────────────────────────────────────── */
+@media (max-width: 1180px) {
+  .ypm-card-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 960px) {
+  .ypm-hero-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ypm-modes-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ypm-seg-lyric {
+    width: 190px;
+  }
+
+  .ypm-card-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 680px) {
+  .ds-top-bar {
+    top: 12px;
+    left: 16px;
+    right: 16px;
+  }
+
+  .ds-scroll {
+    padding: 64px 16px 140px 16px;
+  }
+
+  .ds-scroll .media-backdrop {
+    top: -64px;
+    left: -16px;
+    right: -16px;
+  }
+
+  .ypm-modes-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ypm-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  .ypm-covers-stack {
+    display: none;
+  }
+
+  .ypm-hero-covers .ypm-hero-text {
+    max-width: 100%;
+  }
+
+  .ypm-seg-lyric {
+    display: none;
+  }
+
+  .ypm-seg-now {
+    flex: 1;
+    width: auto;
+    min-width: 0;
+  }
+
+  .ypm-player-row {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ypm-rail-logo,
+  .ypm-rail-btn,
+  .ypm-rail-avatar-btn,
+  .ypm-seg,
+  .ypm-ctrl-btn,
+  .ypm-card-art,
+  .ypm-card-play,
+  .ypm-artist-sticky,
+  .ypm-latest-card,
+  .ypm-disc-art,
+  .ypm-disc-play {
+    transition: none;
+  }
+}
+
+/* =========================================================================
+   Phase 2: YesPlayMusic-inspired Artist Page (.ypm-artist-*)
+   ========================================================================= */
+
+.ypm-artist {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+
+.ypm-artist-empty {
+  padding: 64px 0;
+  text-align: center;
+}
+
+.ypm-artist-empty-title {
+  font-family: "ArchivoWide", "Archivo", var(--font-sans), sans-serif;
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--ypm-ink);
+  margin: 0;
+}
+
+.ypm-artist-empty-sub {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--ypm-muted);
+}
+
+/* Sticky bar saat scroll melewati header artis (menempel rata di top: 0 .ds-center) */
+.ypm-artist-sticky {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 26;
+  height: 72px;
+  padding: 0 216px 0 200px;
+  background: rgba(11, 11, 13, 0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--ypm-border);
+  opacity: 0;
+  transform: translateY(-6px);
+  pointer-events: none;
+  transition: opacity 180ms ease, transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ypm-artist-sticky.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.ypm-artist-sticky-inner {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.ypm-artist-sticky-id {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.ypm-artist-sticky-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.ypm-artist-sticky-name {
+  font-family: "ArchivoWide", "Archivo", var(--font-sans), sans-serif;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--ypm-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ypm-artist-sticky-acts {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* Header artis utama */
+.ypm-artist-head {
+  display: flex;
+  align-items: center;
+  gap: 30px;
+}
+
+.ypm-artist-avatar-wrap {
+  flex-shrink: 0;
+}
+
+.ypm-artist-avatar {
+  width: 148px;
+  height: 148px;
+  border-radius: 999px;
+  object-fit: cover;
+  display: block;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 20px 44px rgba(0, 0, 0, 0.45);
+}
+
+.ypm-artist-avatar-fb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ypm-surface);
+  color: var(--ypm-faint);
+}
+
+.ypm-artist-head-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ypm-artist-eyebrow {
+  font-family: "ArchivoSemi", "Archivo", var(--font-sans), sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ypm-muted);
+}
+
+.ypm-artist-name {
+  margin: 0;
+  font-family: "ArchivoWide", "Archivo", var(--font-sans), sans-serif;
+  font-size: clamp(32px, 4.2vw, 56px);
+  font-weight: 900;
+  letter-spacing: -0.025em;
+  line-height: 1.05;
+  color: var(--ypm-ink);
+  word-break: break-word;
+}
+
+.ypm-artist-meta {
+  margin: 2px 0 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ypm-muted);
+}
+
+.ypm-artist-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.ypm-pill {
+  height: 44px;
+  padding: 0 20px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-family: "ArchivoSemi", "Archivo", var(--font-sans), sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: transform 120ms ease, background 150ms ease, opacity 150ms ease;
+}
+
+.ypm-pill:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.ypm-pill:focus-visible,
+.ypm-round-btn:focus-visible,
+.ypm-toggle-pill:focus-visible,
+.ypm-tab:focus-visible,
+.ypm-pager-btn:focus-visible,
+.ypm-latest-card:focus-visible,
+.ypm-latest-play:focus-visible,
+.ypm-hot-row:focus-visible,
+.ypm-hot-like:focus-visible,
+.ypm-hot-more:focus-visible,
+.ypm-disc-card:focus-visible,
+.ypm-about-toggle:focus-visible {
+  outline: 2px solid var(--ypm-accent);
+  outline-offset: 2px;
+}
+
+.ypm-pill-primary {
+  background: var(--ypm-accent);
+  color: #0b0b0d;
+}
+
+.ypm-pill-primary:hover:not(:disabled) {
+  background: #e1c4fc;
+}
+
+.ypm-pill-ghost {
+  background: var(--ypm-surface);
+  color: var(--ypm-ink);
+  border-color: var(--ypm-border-strong);
+}
+
+.ypm-pill-ghost:hover:not(:disabled) {
+  background: var(--ypm-raised);
+}
+
+.ypm-pill-sm {
+  height: 36px;
+  padding: 0 15px;
+  font-size: 13px;
+}
+
+.ypm-artist-more-wrap {
+  position: relative;
+}
+
+.ypm-round-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  border: 1px solid var(--ypm-border-strong);
+  background: var(--ypm-surface);
+  color: var(--ypm-ink);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.ypm-round-btn:hover {
+  background: var(--ypm-raised);
+}
+
+.ypm-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 240px;
+  padding: 6px;
+  border-radius: 14px;
+  background: var(--ypm-raised);
+  border: 1px solid var(--ypm-border-strong);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.55);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ypm-dropdown-item {
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 0;
+  background: transparent;
+  color: var(--ypm-ink);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.ypm-dropdown-item:hover:not(:disabled) {
+  background: var(--ypm-hover);
+}
+
+.ypm-dropdown-item:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* 2-Kolom Atas: Rilis Terbaru + Lagu Populer */
+.ypm-artist-top {
+  display: grid;
+  grid-template-columns: 400px minmax(0, 1fr);
+  gap: 32px;
+  align-items: start;
+}
+
+.ypm-sec-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.ypm-sec-title {
+  margin: 0 0 14px;
+  font-family: "ArchivoSemi", "Archivo", var(--font-sans), sans-serif;
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--ypm-ink);
+  letter-spacing: -0.01em;
+}
+
+.ypm-sec-head .ypm-sec-title {
+  margin-bottom: 0;
+}
+
+.ypm-toggle-pill {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--ypm-border-strong);
+  background: var(--ypm-surface);
+  color: var(--ypm-muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ypm-toggle-pill:hover {
+  background: var(--ypm-raised);
+  color: var(--ypm-ink);
+}
+
+/* Kartu Rilis Terbaru 276px */
+.ypm-latest-card {
+  position: relative;
+  display: block;
+  height: 276px;
+  border-radius: 26px;
+  overflow: hidden;
+  background: var(--ypm-surface);
+  border: 1px solid var(--ypm-border-strong);
+  text-decoration: none;
+  color: var(--ypm-ink);
+  transition: transform 180ms ease, border-color 180ms ease;
+}
+
+.ypm-latest-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.ypm-latest-bg {
+  position: absolute;
+  inset: -24px;
+  width: calc(100% + 48px);
+  height: calc(100% + 48px);
+  object-fit: cover;
+  filter: blur(28px) saturate(1.25);
+  opacity: 0.28;
+  pointer-events: none;
+}
+
+.ypm-latest-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(24, 24, 27, 0.42) 0%,
+    rgba(11, 11, 13, 0.92) 100%
+  );
+  pointer-events: none;
+}
+
+.ypm-latest-content {
+  position: relative;
+  z-index: 2;
+  height: 100%;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.ypm-latest-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.ypm-latest-cover {
+  width: 136px;
+  height: 136px;
+  border-radius: 14px;
+  object-fit: cover;
+  flex-shrink: 0;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+}
+
+.ypm-latest-cover-fb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ypm-raised);
+  color: var(--ypm-faint);
+}
+
+.ypm-latest-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 4px;
+  min-width: 0;
+}
+
+.ypm-latest-kind {
+  font-family: "ArchivoSemi", "Archivo", var(--font-sans), sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ypm-accent);
+}
+
+.ypm-latest-year {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ypm-ink);
+}
+
+.ypm-latest-by {
+  font-size: 12px;
+  color: var(--ypm-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ypm-latest-bottom {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.ypm-latest-title {
+  margin: 0;
+  font-family: "ArchivoWide", "Archivo", var(--font-sans), sans-serif;
+  font-size: 22px;
+  font-weight: 900;
+  line-height: 1.12;
+  color: var(--ypm-ink);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.ypm-latest-play {
+  width: 52px;
+  height: 52px;
+  border-radius: 999px;
+  border: 0;
+  background: var(--ypm-ink);
+  color: #0b0b0d;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  cursor: pointer;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
+  transition: transform 140ms ease, background 140ms ease;
+}
+
+.ypm-latest-play:hover {
+  transform: scale(1.06);
+  background: var(--ypm-accent);
+}
+
+/* Daftar Lagu Populer */
+.ypm-hot-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ypm-hot-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 140ms ease;
+}
+
+.ypm-hot-row:hover {
+  background: var(--ypm-surface);
+}
+
+.ypm-hot-row.is-active {
+  background: rgba(214, 176, 250, 0.1);
+}
+
+.ypm-hot-num {
+  width: 22px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ypm-faint);
+  flex-shrink: 0;
+}
+
+.ypm-hot-row.is-active .ypm-hot-num {
+  color: var(--ypm-accent);
+}
+
+.ypm-hot-thumb-wrap {
+  position: relative;
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+}
+
+.ypm-hot-thumb {
+  width: 42px;
+  height: 42px;
+  border-radius: 9px;
+  object-fit: cover;
+  display: block;
+}
+
+.ypm-hot-thumb-fb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ypm-raised);
+  color: var(--ypm-faint);
+}
+
+.ypm-hot-thumb-play {
+  position: absolute;
+  inset: 0;
+  border-radius: 9px;
+  background: rgba(11, 11, 13, 0.65);
+  color: var(--ypm-ink);
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.ypm-hot-row:hover .ypm-hot-thumb-play,
+.ypm-hot-row.is-active .ypm-hot-thumb-play {
+  opacity: 1;
+}
+
+.ypm-hot-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.ypm-hot-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ypm-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ypm-hot-row.is-active .ypm-hot-title {
+  color: var(--ypm-accent);
+}
+
+.ypm-hot-sub {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--ypm-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ypm-hot-dur {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ypm-faint);
+  flex-shrink: 0;
+}
+
+.ypm-hot-acts {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.ypm-hot-like,
+.ypm-hot-more {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  border: 0;
+  background: transparent;
+  color: var(--ypm-muted);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.ypm-hot-like:hover,
+.ypm-hot-more:hover {
+  background: var(--ypm-raised);
+  color: var(--ypm-ink);
+}
+
+.ypm-hot-like.is-liked {
+  color: var(--ypm-heart);
+}
+
+/* Diskografi Bertab */
+.ypm-tabs {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.ypm-tab {
+  border: 0;
+  background: transparent;
+  padding: 4px 0;
+  font-family: "ArchivoSemi", "Archivo", var(--font-sans), sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--ypm-faint);
+  cursor: pointer;
+  transition: color 140ms ease;
+}
+
+.ypm-tab:hover {
+  color: var(--ypm-muted);
+}
+
+.ypm-tab.is-active {
+  color: var(--ypm-ink);
+}
+
+.ypm-tab-count {
+  margin-left: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ypm-muted);
+  vertical-align: super;
+}
+
+.ypm-tab.is-active .ypm-tab-count {
+  color: var(--ypm-accent);
+}
+
+.ypm-pager {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ypm-pager-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  border: 1px solid var(--ypm-border-strong);
+  background: var(--ypm-surface);
+  color: var(--ypm-ink);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.ypm-pager-btn:hover:not(:disabled) {
+  background: var(--ypm-raised);
+}
+
+.ypm-pager-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.ypm-disc-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.ypm-disc-card {
+  display: flex;
+  flex-direction: column;
+  text-decoration: none;
+  color: inherit;
+  min-width: 0;
+}
+
+.ypm-disc-art-wrap {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--ypm-surface);
+  border: 1px solid var(--ypm-border);
+}
+
+.ypm-disc-art {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 220ms ease;
+}
+
+.ypm-disc-art-fb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ypm-faint);
+}
+
+.ypm-disc-card:hover .ypm-disc-art {
+  transform: scale(1.03);
+}
+
+.ypm-disc-play {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  background: rgba(11, 11, 13, 0.85);
+  backdrop-filter: blur(8px);
+  color: var(--ypm-ink);
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 150ms ease, transform 150ms ease;
+}
+
+.ypm-disc-card:hover .ypm-disc-play {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.ypm-disc-title {
+  margin: 10px 0 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ypm-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ypm-disc-sub {
+  margin: 3px 0 0;
+  font-size: 12px;
+  color: var(--ypm-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Tentang */
+.ypm-about-card {
+  padding: 20px 22px;
+  border-radius: 20px;
+  background: var(--ypm-surface);
+  border: 1px solid var(--ypm-border);
+}
+
+.ypm-about-text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--ypm-muted);
+  white-space: pre-line;
+}
+
+.ypm-about-toggle {
+  margin-top: 12px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ypm-accent);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Skeleton loading */
+.ypm-skel {
+  background: linear-gradient(
+    90deg,
+    var(--ypm-surface) 25%,
+    var(--ypm-raised) 50%,
+    var(--ypm-surface) 75%
+  );
+  background-size: 200% 100%;
+  animation: ypm-shimmer 1.3s infinite linear;
+  border-radius: 12px;
+}
+
+.ypm-skel-avatar {
+  width: 148px;
+  height: 148px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.ypm-skel-eyebrow {
+  width: 64px;
+  height: 14px;
+}
+
+.ypm-skel-title {
+  width: min(380px, 70%);
+  height: 46px;
+}
+
+.ypm-skel-meta {
+  width: 210px;
+  height: 14px;
+}
+
+.ypm-skel-latest {
+  height: 276px;
+  border-radius: 26px;
+}
+
+.ypm-skel-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ypm-skel-row {
+  height: 54px;
+}
+
+@keyframes ypm-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@media (max-width: 1180px) {
+  .ypm-artist-top {
+    grid-template-columns: 340px minmax(0, 1fr);
+    gap: 24px;
+  }
+
+  .ypm-disc-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 960px) {
+  .ypm-artist-head {
+    flex-wrap: wrap;
+    gap: 20px;
+  }
+
+  .ypm-artist-top {
+    grid-template-columns: 1fr;
+  }
+
+  .ypm-artist-sticky {
+    padding: 0 24px;
+  }
+}
+
+@media (max-width: 680px) {
+  .ypm-artist-avatar {
+    width: 104px;
+    height: 104px;
+  }
+
+  .ypm-disc-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  .ypm-hot-like,
+  .ypm-hot-more,
+  .ypm-pager-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+/* =========================================================================
+   Phase 3: YesPlayMusic-inspired Split Playlist & Album (.ypm-split-*)
+   ========================================================================= */
+
+.ypm-split {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 48px;
+}
+
+.ypm-split-left {
+  width: 340px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 72px;
+}
+
+.ypm-split-right {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Kartu Squircle Playlist (Kiri) */
+.ypm-pl-card {
+  position: relative;
+  border-radius: 28px;
+  overflow: hidden;
+  background: var(--ypm-surface);
+  border: 1px solid var(--ypm-border-strong);
+  padding: 20px;
+  box-shadow: 0 24px 56px rgba(0, 0, 0, 0.45);
+}
+
+.ypm-pl-card-bg {
+  position: absolute;
+  inset: -32px;
+  width: calc(100% + 64px);
+  height: calc(100% + 64px);
+  object-fit: cover;
+  filter: blur(42px) saturate(1.4);
+  opacity: 0.34;
+  pointer-events: none;
+}
+
+.ypm-pl-card-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(24, 24, 27, 0.45) 0%,
+    rgba(11, 11, 13, 0.88) 100%
+  );
+  pointer-events: none;
+}
+
+.ypm-pl-card-inner {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.ypm-pl-cover {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 16px;
+  object-fit: cover;
+  display: block;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.45);
+}
+
+.ypm-pl-collage {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  overflow: hidden;
+  background: var(--ypm-raised);
+}
+
+.ypm-pl-collage-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.ypm-pl-cover-fb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ypm-raised);
+  color: var(--ypm-faint);
+}
+
+.ypm-pl-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 4px 4px;
+}
+
+.ypm-pl-eyebrow {
+  font-family: "ArchivoSemi", "Archivo", var(--font-sans), sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ypm-muted);
+}
+
+.ypm-pl-title {
+  margin: 0;
+  font-family: "ArchivoWide", "Archivo", var(--font-sans), sans-serif;
+  font-size: clamp(24px, 2.2vw, 32px);
+  font-weight: 900;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--ypm-ink);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.ypm-pl-owner-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.ypm-pl-owner-badge {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: #6a3fb5;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.ypm-pl-owner-meta {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ypm-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ypm-pl-card-acts {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.ypm-round-danger:hover {
+  background: rgba(255, 92, 122, 0.16);
+  border-color: rgba(255, 92, 122, 0.45);
+  color: var(--ypm-heart);
+}
+
+/* Toolbar pencarian + tab urutkan (Kanan) */
+.ypm-split-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+
+.ypm-filter-box {
+  position: relative;
+  width: 240px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: var(--ypm-surface);
+  border: 1px solid var(--ypm-border-strong);
+  gap: 8px;
+}
+
+.ypm-filter-box:focus-within {
+  border-color: var(--ypm-accent);
+}
+
+.ypm-filter-ico {
+  color: var(--ypm-faint);
+  flex-shrink: 0;
+}
+
+.ypm-filter-input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ypm-ink);
+  font-size: 13px;
+  outline: none;
+}
+
+.ypm-filter-input::placeholder {
+  color: var(--ypm-faint);
+}
+
+.ypm-filter-clear {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 0;
+  background: transparent;
+  color: var(--ypm-muted);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.ypm-filter-clear:hover {
+  color: var(--ypm-ink);
+}
+
+.ypm-sort-tabs {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.ypm-sort-tab {
+  border: 0;
+  background: transparent;
+  padding: 4px 0;
+  font-family: "ArchivoSemi", "Archivo", var(--font-sans), sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ypm-faint);
+  cursor: pointer;
+}
+
+.ypm-sort-tab:hover {
+  color: var(--ypm-muted);
+}
+
+.ypm-sort-tab.is-active {
+  color: var(--ypm-ink);
+}
+
+.ypm-sort-tab:focus-visible,
+.ypm-filter-clear:focus-visible,
+.ypm-album-artist-a:focus-visible,
+.ypm-modal-close:focus-visible,
+.ypm-modal-item:focus-visible {
+  outline: 2px solid var(--ypm-accent);
+  outline-offset: 2px;
+}
+
+/* Header & baris tabel playlist */
+.ypm-pl-colhead {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1.5fr) minmax(0, 1fr) 120px;
+  align-items: center;
+  gap: 12px;
+  padding: 0 10px 8px;
+  border-bottom: 1px solid var(--ypm-border);
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ypm-faint);
+}
+
+.ypm-col-dur {
+  text-align: right;
+}
+
+.ypm-pl-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ypm-pl-row {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1.5fr) minmax(0, 1fr) 120px;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 140ms ease;
+}
+
+.ypm-pl-row:hover {
+  background: var(--ypm-surface);
+}
+
+.ypm-pl-row.is-active {
+  background: rgba(214, 176, 250, 0.1);
+}
+
+.ypm-pl-row.is-active .ypm-col-num,
+.ypm-pl-row.is-active .ypm-hot-title {
+  color: var(--ypm-accent);
+}
+
+.ypm-col-num {
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ypm-faint);
+}
+
+.ypm-pl-title-cell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.ypm-pl-album-text {
+  font-size: 13px;
+  color: var(--ypm-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ypm-pl-row-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.ypm-pl-dur {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ypm-faint);
+  min-width: 36px;
+  text-align: right;
+}
+
+.ypm-split-empty {
+  padding: 48px 16px;
+  text-align: center;
+}
+
+.ypm-split-empty-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ypm-ink);
+}
+
+.ypm-split-empty-sub {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--ypm-muted);
+}
+
+/* Album Split Page + Ambient Cover Wash */
+.ypm-album-page {
+  position: relative;
+}
+
+.ypm-album-wash {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.ypm-album-wash-img {
+  position: absolute;
+  inset: -14%;
+  width: 128%;
+  height: 128%;
+  object-fit: cover;
+  filter: blur(88px) saturate(1.45) brightness(0.55);
+  opacity: 0.42;
+}
+
+.ypm-album-wash-scrim {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 22% 24%, rgba(11, 11, 13, 0.14) 0%, rgba(11, 11, 13, 0.68) 68%),
+    linear-gradient(180deg, rgba(11, 11, 13, 0.22) 0%, rgba(11, 11, 13, 0.72) 56%, var(--ypm-ground) 96%);
+}
+
+.ypm-album-split {
+  position: relative;
+  z-index: 1;
+}
+
+.ypm-album-left-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ypm-album-cover-box {
+  width: min(100%, 38vh);
+  aspect-ratio: 1 / 1;
+  border-radius: 20px;
+  overflow: hidden;
+  background: var(--ypm-surface);
+  border: 1px solid var(--ypm-border-strong);
+  box-shadow: 0 24px 56px rgba(0, 0, 0, 0.6);
+  margin-bottom: 4px;
+}
+
+.ypm-album-cover-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.ypm-album-eyebrow {
+  font-family: "ArchivoSemi", "Archivo", var(--font-sans), sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ypm-muted);
+}
+
+.ypm-album-heading {
+  margin: 0;
+  font-family: "ArchivoWide", "Archivo", var(--font-sans), sans-serif;
+  font-size: clamp(26px, 2.8vw, 42px);
+  font-weight: 900;
+  line-height: 1.06;
+  letter-spacing: -0.025em;
+  color: var(--ypm-ink);
+  word-break: break-word;
+}
+
+.ypm-album-artist {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 2px;
+}
+
+.ypm-album-artist-thumb {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  object-fit: cover;
+}
+
+.ypm-album-artist-a,
+.ypm-album-artist-text {
+  font-family: "ArchivoSemi", "Archivo", var(--font-sans), sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ypm-ink);
+  text-decoration: none;
+}
+
+.ypm-album-artist-a:hover {
+  color: var(--ypm-accent);
+}
+
+.ypm-album-acts {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.ypm-album-right-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.ypm-album-right-meta {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ypm-faint);
+}
+
+.ypm-album-divider {
+  height: 1px;
+  background: var(--ypm-border);
+  margin-bottom: 10px;
+}
+
+.ypm-album-row {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 140ms ease;
+}
+
+.ypm-album-row:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.ypm-album-row.is-active {
+  background: rgba(214, 176, 250, 0.12);
+}
+
+.ypm-album-row.is-active .ypm-col-num,
+.ypm-album-row.is-active .ypm-hot-title {
+  color: var(--ypm-accent);
+}
+
+.ypm-album-footer {
+  margin: 22px 0 0;
+  font-size: 12px;
+  color: var(--ypm-faint);
+}
+
+/* Modal tambah album ke playlist */
+.ypm-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(8px);
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+
+.ypm-modal {
+  width: min(420px, 100%);
+  padding: 20px;
+  border-radius: 22px;
+  background: var(--ypm-surface);
+  border: 1px solid var(--ypm-border-strong);
+  box-shadow: 0 28px 64px rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ypm-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ypm-modal-title {
+  margin: 0;
+  font-family: "ArchivoSemi", "Archivo", var(--font-sans), sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ypm-ink);
+}
+
+.ypm-modal-close {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  border: 0;
+  background: transparent;
+  color: var(--ypm-muted);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.ypm-modal-close:hover {
+  background: var(--ypm-raised);
+  color: var(--ypm-ink);
+}
+
+.ypm-modal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.ypm-modal-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 0;
+  background: var(--ypm-raised);
+  color: var(--ypm-ink);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ypm-modal-item:hover {
+  background: var(--ypm-hover);
+}
+
+.ypm-modal-count {
+  font-size: 12px;
+  color: var(--ypm-muted);
+}
+
+.ypm-modal-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ypm-modal-input {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--ypm-border-strong);
+  background: var(--ypm-ground);
+  color: var(--ypm-ink);
+  font-size: 13px;
+  outline: none;
+}
+
+.ypm-modal-input:focus {
+  border-color: var(--ypm-accent);
+}
+
+.ypm-skel-plcard {
+  width: 100%;
+  height: 460px;
+  border-radius: 28px;
+}
+
+@media (max-width: 1100px) {
+  .ypm-split {
+    gap: 28px;
+  }
+
+  .ypm-split-left {
+    width: 280px;
+  }
+
+  .ypm-pl-colhead,
+  .ypm-pl-row {
+    grid-template-columns: 28px minmax(0, 1fr) 110px;
+  }
+
+  .ypm-col-album {
+    display: none;
+  }
+}
+
+@media (max-width: 820px) {
+  .ypm-split {
+    flex-direction: column;
+  }
+
+  .ypm-split-left {
+    width: 100%;
+    position: static;
+  }
+
+  .ypm-album-wash {
+    left: 0;
+  }
+
+  .ypm-filter-box {
+    width: 100%;
+  }
+}
+
+/* =========================================================================
+   Phase 5: YesPlayMusic Library & Record Shelf (.ypm-lib-*, .ypm-shelf-*)
+   ========================================================================= */
+
+.ypm-lib {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.ypm-lib-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.ypm-lib-tabs {
+  display: flex;
+  align-items: baseline;
+  gap: 28px;
+  flex-wrap: wrap;
+}
+
+.ypm-lib-tab {
+  border: 0;
+  background: transparent;
+  padding: 4px 0;
+  font-family: "ArchivoSemi", "Archivo", var(--font-sans), sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--ypm-faint);
+  cursor: pointer;
+  transition: color 140ms ease;
+}
+
+.ypm-lib-tab:hover {
+  color: var(--ypm-muted);
+}
+
+.ypm-lib-tab.is-active {
+  color: var(--ypm-ink);
+}
+
+.ypm-lib-count {
+  margin-left: 5px;
+  font-family: "Archivo", var(--font-sans), sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ypm-faint);
+  vertical-align: super;
+}
+
+.ypm-lib-tab.is-active .ypm-lib-count {
+  color: var(--ypm-muted);
+}
+
+.ypm-lib-head-right {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.ypm-lib-sorts {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.ypm-lib-sort {
+  position: relative;
+  border: 0;
+  background: transparent;
+  padding: 4px 0 8px;
+  font-family: "ArchivoSemi", "Archivo", var(--font-sans), sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ypm-faint);
+  cursor: pointer;
+  transition: color 140ms ease;
+}
+
+.ypm-lib-sort:hover {
+  color: var(--ypm-muted);
+}
+
+.ypm-lib-sort.is-active {
+  color: var(--ypm-ink);
+}
+
+.ypm-lib-sort.is-active::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--ypm-ink);
+}
+
+.ypm-lib-cf-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  border: 1px solid var(--ypm-border-strong);
+  background: var(--ypm-surface);
+  color: var(--ypm-ink);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: background 140ms ease;
+}
+
+.ypm-lib-cf-btn:hover {
+  background: var(--ypm-raised);
+}
+
+.ypm-lib-tab:focus-visible,
+.ypm-lib-sort:focus-visible,
+.ypm-lib-cf-btn:focus-visible,
+.ypm-spine-play:focus-visible,
+.ypm-spine-more:focus-visible,
+.ypm-lib-pl-card:focus-visible,
+.ypm-lib-pl-play:focus-visible,
+.ypm-bubble:focus-visible {
+  outline: 2px solid var(--ypm-accent);
+  outline-offset: 2px;
+}
+
+.ypm-lib-empty {
+  padding: 72px 20px;
+  text-align: center;
+}
+
+.ypm-lib-empty-title {
+  margin: 0;
+  font-family: "ArchivoWide", "Archivo", var(--font-sans), sans-serif;
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--ypm-ink);
+}
+
+.ypm-lib-empty-sub {
+  margin: 8px 0 0;
+  font-size: 14px;
+  color: var(--ypm-muted);
+}
+
+/* ── Record Shelf (1:1 YesPlayMusic) ──────────────────────────────────── */
+.ypm-shelf-wrap {
+  margin: 0 -40px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  user-select: none;
+}
+
+.ypm-shelf-scaler {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+}
+
+.ypm-shelf-stage {
+  position: relative;
+  cursor: grab;
+  touch-action: pan-y;
+}
+
+.ypm-shelf-stage:active {
+  cursor: grabbing;
+}
+
+.ypm-spine-slot {
+  position: absolute;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: left, width, height;
+}
+
+.ypm-spine-slot.is-hoverable:hover {
+  transform: translateY(-10px);
+}
+
+/* Spine vertikal saat tertutup */
+.ypm-spine-face {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.ypm-spine-text {
+  position: absolute;
+  top: 18px;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  gap: 10px;
+  overflow: hidden;
+}
+
+.ypm-spine-title {
+  font-family: "ArchivoSemi", "Archivo", var(--font-sans), sans-serif;
+  font-size: 15px;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-height: 70%;
+}
+
+.ypm-spine-artist {
+  font-family: "Archivo", var(--font-sans), sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ypm-spine-mini {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.22);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ypm-spine-mini img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Kartu tengah terbuka (420x548) */
+.ypm-spine-card {
+  position: absolute;
+  left: 20px;
+  top: 20px;
+  width: 380px;
+  display: flex;
+  flex-direction: column;
+}
+
+.ypm-spine-card-cover {
+  width: 380px;
+  height: 380px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.25);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+}
+
+.ypm-spine-card-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.ypm-spine-card-fb {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ypm-spine-card-title {
+  margin: 12px 0 0;
+  font-family: "ArchivoWide", "Archivo", var(--font-sans), sans-serif;
+  font-size: 28px;
+  font-weight: 900;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ypm-spine-card-sub {
+  margin-top: 6px;
+  padding-left: 2px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.ypm-spine-card-artist {
+  opacity: 0.78;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ypm-spine-card-year {
+  opacity: 0.54;
+  flex-shrink: 0;
+}
+
+.ypm-spine-card-acts {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ypm-spine-play {
+  width: 56px;
+  height: 56px;
+  border-radius: 999px;
+  border: 0;
+  background: #ffffff;
+  color: #0b0b0d;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
+  transition: transform 140ms ease;
+}
+
+.ypm-spine-play:hover {
+  transform: scale(1.06);
+}
+
+.ypm-spine-more {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  border: 0;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: background 140ms ease;
+}
+
+.ypm-spine-more.is-on-dark {
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+}
+
+.ypm-spine-more.is-on-dark:hover {
+  background: rgba(255, 255, 255, 0.24);
+}
+
+.ypm-spine-more.is-on-light {
+  background: rgba(0, 0, 0, 0.1);
+  color: #0b0b0d;
+}
+
+.ypm-spine-more.is-on-light:hover {
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.ypm-shelf-menu {
+  left: 0;
+  right: auto;
+  top: auto;
+  bottom: calc(100% + 8px);
+}
+
+/* Fade kiri dan kanan rak */
+.ypm-shelf-fade {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 110px;
+  pointer-events: none;
+  z-index: 40;
+}
+
+.ypm-shelf-fade.is-left {
+  left: 0;
+  background: linear-gradient(90deg, var(--ypm-ground) 0%, rgba(11, 11, 13, 0) 100%);
+}
+
+.ypm-shelf-fade.is-right {
+  right: 0;
+  background: linear-gradient(270deg, var(--ypm-ground) 0%, rgba(11, 11, 13, 0) 100%);
+}
+
+/* Water-Column Timeline Scrubber */
+.ypm-shelf-timeline {
+  padding: 0 40px;
+  height: 72px;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.ypm-shelf-canvas {
+  display: block;
+}
+
+/* ── Tab Lagu ─────────────────────────────────────────────────────────── */
+.ypm-lib-songs-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.ypm-lib-songs-acts {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ypm-lib-songs-total {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ypm-faint);
+}
+
+/* ── Tab Playlist (4-kolom kartu berwarna sampul) ─────────────────────── */
+.ypm-lib-pl-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.ypm-lib-pl-card {
+  display: flex;
+  flex-direction: column;
+  height: 314px;
+  padding: 8px;
+  border-radius: 24px;
+  text-decoration: none;
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 220ms ease;
+}
+
+.ypm-lib-pl-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 20px 44px -10px rgba(0, 0, 0, 0.6);
+}
+
+.ypm-lib-pl-art {
+  height: 206px;
+  border-radius: 18px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.22);
+}
+
+.ypm-lib-pl-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 380ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ypm-lib-pl-card:hover .ypm-lib-pl-art img {
+  transform: scale(1.04);
+}
+
+.ypm-lib-pl-collage {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+
+.ypm-lib-pl-fb {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ypm-lib-pl-foot {
+  flex: 1;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ypm-lib-pl-info {
+  min-width: 0;
+  flex: 1;
+}
+
+.ypm-lib-pl-name {
+  margin: 0;
+  font-family: "ArchivoSemi", "Archivo", var(--font-sans), sans-serif;
+  font-size: 19px;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ypm-lib-pl-meta {
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.ypm-lib-pl-play {
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  border: 0;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: transform 140ms ease;
+}
+
+.ypm-lib-pl-play:hover {
+  transform: scale(1.08);
+}
+
+/* ── Tab Artis (Spiral Bubble Cloud) ──────────────────────────────────── */
+.ypm-bubble-wrap {
+  width: 100%;
+  padding-top: 8px;
+}
+
+.ypm-bubble-stage {
+  position: relative;
+  width: 100%;
+}
+
+.ypm-bubble {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  color: var(--ypm-ink);
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ypm-bubble:hover {
+  transform: scale(1.06);
+  z-index: 10;
+}
+
+.ypm-bubble-circle {
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--ypm-surface);
+  border: 1px solid var(--ypm-border-strong);
+  box-shadow: 0 14px 30px -8px rgba(0, 0, 0, 0.45);
+}
+
+.ypm-bubble.is-selected .ypm-bubble-circle {
+  border: 3px solid var(--ypm-accent);
+}
+
+.ypm-bubble-circle img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.ypm-bubble-fb {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ypm-bubble-name {
+  font-family: "ArchivoSemi", "Archivo", var(--font-sans), sans-serif;
+  font-weight: 700;
+  text-align: center;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ypm-bubble.is-selected .ypm-bubble-name {
+  color: var(--ypm-accent);
+}
+
+@media (max-width: 1180px) {
+  .ypm-lib-pl-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 820px) {
+  .ypm-lib-pl-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ypm-shelf-wrap {
+    margin: 0 -20px;
+  }
+
+  .ypm-shelf-timeline {
+    padding: 0 20px;
+  }
+}
+
+@media (max-width: 560px) {
+  .ypm-lib-pl-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* =========================================================================
+   YesPlayMusic Search Page (.ypm-search-*, .ypm-sr-*)
+   ========================================================================= */
+
+.ypm-search {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.ypm-search-form {
+  width: 100%;
+  max-width: 640px;
+}
+
+.ypm-search-box {
+  height: 48px;
+  padding: 0 16px;
+  border-radius: 16px;
+  background: var(--ypm-surface);
+  border: 1px solid var(--ypm-border-strong);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+
+.ypm-search-box:focus-within {
+  border-color: var(--ypm-accent);
+  background: var(--ypm-raised);
+}
+
+.ypm-search-ico {
+  color: var(--ypm-faint);
+  flex-shrink: 0;
+}
+
+.ypm-search-input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ypm-ink);
+  font-family: "Archivo", var(--font-sans), sans-serif;
+  font-size: 15px;
+  font-weight: 500;
+  outline: none;
+}
+
+.ypm-search-input::placeholder {
+  color: var(--ypm-faint);
+}
+
+.ypm-search-input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.ypm-search-clear {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 0;
+  background: transparent;
+  color: var(--ypm-muted);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.ypm-search-clear:hover {
+  background: var(--ypm-hover);
+  color: var(--ypm-ink);
+}
+
+/* Mode Idle */
+.ypm-search-idle {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.ypm-search-sec {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ypm-search-sec-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ypm-search-sec-title {
+  margin: 0;
+  font-family: "ArchivoSemi", "Archivo", var(--font-sans), sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--ypm-ink);
+}
+
+.ypm-search-sec-act {
+  border: 0;
+  background: transparent;
+  padding: 2px 0;
+  font-family: "ArchivoSemi", "Archivo", var(--font-sans), sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ypm-muted);
+  cursor: pointer;
+}
+
+.ypm-search-sec-act:hover {
+  color: var(--ypm-ink);
+}
+
+.ypm-search-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ypm-search-tag {
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--ypm-border-strong);
+  background: var(--ypm-surface);
+  color: var(--ypm-ink);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease;
+}
+
+.ypm-search-tag:hover {
+  background: var(--ypm-raised);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.ypm-search-2col {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 20px;
+  margin: 0 -8px;
+}
+
+.ypm-hit-row,
+.ypm-hotword-row {
+  height: 60px;
+  padding: 0 8px;
+  border-radius: 12px;
+  border: 0;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  cursor: pointer;
+  color: var(--ypm-ink);
+  transition: background 130ms ease;
+}
+
+.ypm-hit-row:hover,
+.ypm-hotword-row:hover {
+  background: var(--ypm-surface);
+}
+
+.ypm-hit-art {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--ypm-raised);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.ypm-hit-art.is-round {
+  border-radius: 999px;
+}
+
+.ypm-hit-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.ypm-hit-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.ypm-hit-title {
+  margin: 0;
+  font-family: "ArchivoSemi", "Archivo", var(--font-sans), sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ypm-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ypm-hit-sub {
+  margin: 2px 0 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ypm-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ypm-hit-badge {
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--ypm-raised);
+  color: var(--ypm-muted);
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.ypm-hit-rm {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 0;
+  background: transparent;
+  color: var(--ypm-muted);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease, color 120ms ease;
+}
+
+.ypm-hit-row:hover .ypm-hit-rm {
+  opacity: 1;
+}
+
+.ypm-hit-rm:hover {
+  color: var(--ypm-ink);
+}
+
+.ypm-hotword-num {
+  width: 32px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ypm-faint);
+  flex-shrink: 0;
+}
+
+.ypm-hotword-num.is-top {
+  color: var(--ypm-ink);
+}
+
+/* Mode Hasil Pencarian */
+.ypm-sr {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.ypm-sr-tabs {
+  display: flex;
+  align-items: baseline;
+  gap: 24px;
+  border-bottom: 1px solid var(--ypm-border);
+  padding-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.ypm-sr-tab {
+  position: relative;
+  border: 0;
+  background: transparent;
+  padding: 4px 0 10px;
+  margin-bottom: -11px;
+  font-family: "ArchivoSemi", "Archivo", var(--font-sans), sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ypm-faint);
+  cursor: pointer;
+}
+
+.ypm-sr-tab:hover {
+  color: var(--ypm-muted);
+}
+
+.ypm-sr-tab.is-active {
+  color: var(--ypm-ink);
+}
+
+.ypm-sr-tab.is-active::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--ypm-ink);
+}
+
+.ypm-sr-all {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 380px;
+  gap: 36px;
+  align-items: start;
+}
+
+.ypm-sr-all-left,
+.ypm-sr-all-right {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  min-width: 0;
+}
+
+.ypm-sr-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ypm-sr-seeall {
+  align-self: flex-start;
+  margin-top: 4px;
+  border: 0;
+  background: transparent;
+  padding: 2px 0;
+  font-family: "ArchivoSemi", "Archivo", var(--font-sans), sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ypm-muted);
+  cursor: pointer;
+}
+
+.ypm-sr-seeall:hover {
+  color: var(--ypm-ink);
+}
+
+.ypm-sr-more-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ypm-sr-song-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 -8px;
+}
+
+.ypm-sr-song {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1.4fr) minmax(0, 0.9fr) auto;
+  align-items: center;
+  gap: 12px;
+  height: 56px;
+  padding: 0 8px;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: background 110ms ease;
+}
+
+.ypm-sr-song:hover {
+  background: var(--ypm-surface);
+}
+
+.ypm-sr-song.is-active {
+  background: rgba(214, 176, 250, 0.1);
+}
+
+.ypm-sr-thumb-wrap {
+  position: relative;
+  width: 40px;
+  height: 40px;
+}
+
+.ypm-sr-thumb {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  object-fit: cover;
+  display: block;
+}
+
+.ypm-sr-thumb-fb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ypm-raised);
+  color: var(--ypm-faint);
+}
+
+.ypm-sr-play {
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #ffffff;
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.ypm-sr-song:hover .ypm-sr-play,
+.ypm-sr-song.is-active .ypm-sr-play {
+  opacity: 1;
+}
+
+.ypm-sr-song-main {
+  min-width: 0;
+}
+
+.ypm-sr-song-title {
+  margin: 0;
+  font-family: "ArchivoSemi", "Archivo", var(--font-sans), sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ypm-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ypm-sr-song.is-active .ypm-sr-song-title {
+  color: var(--ypm-accent);
+}
+
+.ypm-sr-song-sub {
+  margin: 2px 0 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ypm-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ypm-sr-song-album {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ypm-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ypm-sr-song-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Album Cards 124px */
+.ypm-sr-albums {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(124px, 1fr));
+  gap: 16px;
+}
+
+.ypm-sr-album-card {
+  display: flex;
+  flex-direction: column;
+  text-decoration: none;
+  color: inherit;
+  min-width: 0;
+}
+
+.ypm-sr-album-art {
+  aspect-ratio: 1 / 1;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--ypm-surface);
+  border: 1px solid var(--ypm-border);
+}
+
+.ypm-sr-album-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ypm-sr-album-card:hover .ypm-sr-album-art img {
+  transform: scale(1.06);
+}
+
+.ypm-sr-album-fb {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ypm-sr-album-title {
+  margin: 8px 0 0;
+  font-family: "ArchivoSemi", "Archivo", var(--font-sans), sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ypm-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ypm-sr-album-sub {
+  margin: 2px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ypm-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Artis & Video (Kolom Kanan) */
+.ypm-sr-artists {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ypm-sr-artist-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 6px 8px;
+  margin: 0 -8px;
+  border-radius: 12px;
+  text-decoration: none;
+  color: inherit;
+  transition: background 130ms ease;
+}
+
+.ypm-sr-artist-row:hover {
+  background: var(--ypm-surface);
+}
+
+.ypm-sr-artist-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--ypm-surface);
+  flex-shrink: 0;
+}
+
+.ypm-sr-artist-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.ypm-sr-artist-fb {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ypm-sr-artist-info {
+  min-width: 0;
+  flex: 1;
+}
+
+.ypm-sr-artist-name {
+  margin: 0;
+  font-family: "ArchivoSemi", "Archivo", var(--font-sans), sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ypm-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ypm-sr-artist-sub {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--ypm-muted);
+}
+
+.ypm-sr-videos {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 -8px;
+}
+
+.ypm-sr-video-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 56px;
+  padding: 0 8px;
+  border-radius: 12px;
+  border: 0;
+  background: transparent;
+  color: var(--ypm-ink);
+  text-align: left;
+  cursor: pointer;
+  transition: background 110ms ease;
+}
+
+.ypm-sr-video-row:hover {
+  background: var(--ypm-surface);
+}
+
+.ypm-sr-video-row.is-active {
+  background: rgba(214, 176, 250, 0.1);
+}
+
+.ypm-sr-video-thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--ypm-raised);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.ypm-sr-video-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.ypm-sr-video-info {
+  min-width: 0;
+  flex: 1;
+}
+
+.ypm-sr-video-title {
+  margin: 0;
+  font-family: "ArchivoSemi", "Archivo", var(--font-sans), sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ypm-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ypm-sr-video-row.is-active .ypm-sr-video-title {
+  color: var(--ypm-accent);
+}
+
+.ypm-sr-video-sub {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--ypm-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ypm-sr-narrow {
+  max-width: 640px;
+}
+
+.ypm-search-tag:focus-visible,
+.ypm-search-clear:focus-visible,
+.ypm-search-sec-act:focus-visible,
+.ypm-hit-row:focus-visible,
+.ypm-hit-rm:focus-visible,
+.ypm-hotword-row:focus-visible,
+.ypm-sr-tab:focus-visible,
+.ypm-sr-seeall:focus-visible,
+.ypm-sr-song:focus-visible,
+.ypm-sr-album-card:focus-visible,
+.ypm-sr-artist-row:focus-visible,
+.ypm-sr-video-row:focus-visible {
+  outline: 2px solid var(--ypm-accent);
+  outline-offset: 2px;
+}
+
+@media (max-width: 1040px) {
+  .ypm-sr-all {
+    grid-template-columns: 1fr;
+  }
+
+  .ypm-sr-song {
+    grid-template-columns: 40px minmax(0, 1fr) auto;
+  }
+
+  .ypm-sr-song-album {
+    display: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .ypm-search-2col {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* =========================================================================
+   YesPlayMusic Settings Page (.ypm-set-*)
+   ========================================================================= */
+
+.ypm-set {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.ypm-set-heading {
+  margin: 0;
+  font-family: "ArchivoWide", "Archivo", var(--font-sans), sans-serif;
+  font-size: clamp(32px, 3.6vw, 44px);
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  line-height: 1.08;
+  color: var(--ypm-ink);
+}
+
+.ypm-set-layout {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: 40px;
+  align-items: start;
+}
+
+.ypm-set-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: sticky;
+  top: 72px;
+}
+
+.ypm-set-nav-btn {
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 20px;
+  border: 0;
+  background: transparent;
+  color: var(--ypm-muted);
+  font-family: "ArchivoSemi", "Archivo", var(--font-sans), sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease;
+}
+
+.ypm-set-nav-btn:hover {
+  background: var(--ypm-surface);
+  color: var(--ypm-ink);
+}
+
+.ypm-set-nav-btn.is-active {
+  background: var(--ypm-raised);
+  color: var(--ypm-ink);
+}
+
+.ypm-set-cols {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+  align-items: start;
+}
+
+.ypm-set-col {
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+}
+
+.ypm-set-sec {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ypm-set-sec-title {
+  margin: 0;
+  font-family: "ArchivoSemi", "Archivo", var(--font-sans), sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ypm-muted);
+  padding-left: 4px;
+}
+
+.ypm-set-card {
+  border-radius: 20px;
+  background: var(--ypm-surface);
+  border: 1px solid var(--ypm-border);
+  overflow: hidden;
+}
+
+.ypm-set-row {
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.ypm-set-row-compact {
+  padding: 12px 20px;
+}
+
+.ypm-set-row-col {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+}
+
+.ypm-set-row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ypm-set-row-text {
+  min-width: 0;
+  flex: 1;
+}
+
+.ypm-set-label {
+  margin: 0;
+  font-family: "ArchivoSemi", "Archivo", var(--font-sans), sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ypm-ink);
+}
+
+.ypm-set-desc {
+  margin: 3px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ypm-muted);
+}
+
+.ypm-set-val {
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ypm-accent);
+}
+
+.ypm-set-rule {
+  height: 1px;
+  background: var(--ypm-border);
+  margin: 0 20px;
+}
+
+/* Switch toggle */
+.ypm-switch {
+  width: 44px;
+  height: 26px;
+  padding: 3px;
+  border-radius: 999px;
+  border: 0;
+  background: var(--ypm-hover);
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: background 160ms ease;
+}
+
+.ypm-switch.is-on {
+  background: var(--ypm-accent);
+}
+
+.ypm-switch-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: #ffffff;
+  transform: translateX(0);
+  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ypm-switch.is-on .ypm-switch-thumb {
+  transform: translateX(18px);
+  background: #0b0b0d;
+}
+
+/* Accent swatches */
+.ypm-swatch-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.ypm-swatch {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform 140ms ease, box-shadow 140ms ease;
+}
+
+.ypm-swatch:hover {
+  transform: scale(1.1);
+}
+
+.ypm-swatch.is-active {
+  box-shadow: 0 0 0 2px var(--ypm-surface), 0 0 0 4px #ffffff;
+}
+
+/* Crossfade preset pills */
+.ypm-seg-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ypm-choice-pill {
+  height: 30px;
+  padding: 0 11px;
+  border-radius: 999px;
+  border: 1px solid var(--ypm-border-strong);
+  background: var(--ypm-raised);
+  color: var(--ypm-muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ypm-choice-pill.is-active {
+  background: var(--ypm-accent);
+  border-color: transparent;
+  color: #0b0b0d;
+}
+
+.ypm-choice-pill:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Volume slider row */
+.ypm-set-vol-line {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ypm-set-vol-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  border: 0;
+  background: var(--ypm-raised);
+  color: var(--ypm-ink);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.ypm-set-range {
+  flex: 1;
+  accent-color: var(--ypm-accent);
+  cursor: pointer;
+}
+
+/* Keycaps */
+.ypm-keys {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ypm-keycap {
+  min-width: 28px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 7px;
+  background: var(--ypm-raised);
+  border: 1px solid var(--ypm-border-strong);
+  color: var(--ypm-ink);
+  font-family: "ArchivoSemi", "Archivo", var(--font-sans), sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ypm-set-hint {
+  margin: 0;
+  padding-left: 4px;
+  font-size: 12px;
+  color: var(--ypm-faint);
+}
+
+/* Tab Tentang */
+.ypm-set-about {
+  max-width: 720px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.ypm-about-hero {
+  padding: 24px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.ypm-about-logo {
+  width: 64px;
+  height: 64px;
+  border-radius: 20px;
+  background: var(--ypm-accent);
+  color: #0b0b0d;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.ypm-about-name {
+  margin: 0;
+  font-family: "ArchivoWide", "Archivo", var(--font-sans), sans-serif;
+  font-size: 22px;
+  font-weight: 900;
+  color: var(--ypm-ink);
+}
+
+.ypm-about-ver {
+  margin: 4px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ypm-muted);
+}
+
+.ypm-set-upd-acts {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.ypm-set-nav-btn:focus-visible,
+.ypm-switch:focus-visible,
+.ypm-swatch:focus-visible,
+.ypm-choice-pill:focus-visible,
+.ypm-set-vol-btn:focus-visible {
+  outline: 2px solid var(--ypm-accent);
+  outline-offset: 2px;
+}
+
+@media (max-width: 1120px) {
+  .ypm-set-cols {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 820px) {
+  .ypm-set-layout {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .ypm-set-nav {
+    position: static;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+}
+
+/* =========================================================================
+   YesPlayMusic Profile, Explore & Radio (.ypm-prof-*, .ypm-exp-*, .ypm-radio-*)
+   ========================================================================= */
+
+.ypm-prof {
+  display: flex;
+  flex-direction: column;
+  gap: 36px;
+}
+
+.ypm-prof-head {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  flex-wrap: wrap;
+}
+
+.ypm-prof-avatar {
+  width: 118px;
+  height: 118px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #6a3fb5 0%, #9b6cf6 100%);
+  color: #ffffff;
+  font-family: "ArchivoWide", "Archivo", var(--font-sans), sans-serif;
+  font-size: 48px;
+  font-weight: 900;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+}
+
+.ypm-prof-id {
+  flex: 1;
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ypm-prof-name {
+  margin: 0;
+  font-family: "ArchivoWide", "Archivo", var(--font-sans), sans-serif;
+  font-size: clamp(28px, 3.6vw, 44px);
+  font-weight: 800;
+  line-height: 1.06;
+  color: var(--ypm-ink);
+}
+
+.ypm-prof-badges {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.ypm-prof-badge {
+  padding: 4px 11px;
+  border-radius: 999px;
+  background: var(--ypm-surface);
+  border: 1px solid var(--ypm-border-strong);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ypm-muted);
+}
+
+.ypm-prof-badge.is-accent {
+  background: var(--ypm-accent);
+  border-color: transparent;
+  color: #0b0b0d;
+}
+
+.ypm-prof-fact {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ypm-muted);
+}
+
+.ypm-prof-fact strong {
+  color: var(--ypm-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.ypm-prof-email {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ypm-faint);
+}
+
+.ypm-prof-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Stat Cards Row */
+.ypm-prof-stats {
+  display: grid;
+  grid-template-columns: 220px 220px minmax(260px, 1fr) 220px;
+  gap: 16px;
+}
+
+.ypm-stat-card {
+  position: relative;
+  height: 156px;
+  padding: 20px;
+  border-radius: 24px;
+  text-decoration: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ypm-stat-card:hover {
+  transform: translateY(-4px);
+}
+
+.ypm-stat-label {
+  font-family: "ArchivoSemi", "Archivo", var(--font-sans), sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  opacity: 0.72;
+}
+
+.ypm-stat-num-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.ypm-stat-num {
+  font-family: "ArchivoWide", "Archivo", var(--font-sans), sans-serif;
+  font-size: 40px;
+  font-weight: 900;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.ypm-stat-unit {
+  font-size: 13px;
+  font-weight: 700;
+  opacity: 0.7;
+}
+
+.ypm-stat-wide {
+  flex-direction: row;
+  align-items: center;
+  gap: 16px;
+}
+
+.ypm-stat-artist-left {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.ypm-stat-artist-name {
+  font-family: "ArchivoWide", "Archivo", var(--font-sans), sans-serif;
+  font-size: 24px;
+  font-weight: 900;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ypm-stat-artist-sub {
+  font-size: 13px;
+  font-weight: 600;
+  opacity: 0.72;
+}
+
+.ypm-stat-artist-img {
+  width: 104px;
+  height: 104px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.ypm-stat-artist-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.ypm-prof-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  gap: 36px;
+  align-items: start;
+}
+
+.ypm-prof-pl-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ypm-prof-pl-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 14px;
+  background: var(--ypm-surface);
+  border: 1px solid var(--ypm-border);
+  text-decoration: none;
+  color: inherit;
+  transition: background 140ms ease;
+}
+
+.ypm-prof-pl-row:hover {
+  background: var(--ypm-raised);
+}
+
+.ypm-prof-pl-art {
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--ypm-raised);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.ypm-prof-pl-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.ypm-prof-pl-play {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 0;
+  background: var(--ypm-raised);
+  color: var(--ypm-ink);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.ypm-prof-pl-play:hover {
+  background: var(--ypm-accent);
+  color: #0b0b0d;
+}
+
+/* Explore & Radio */
+.ypm-exp {
+  display: flex;
+  flex-direction: column;
+  gap: 34px;
+}
+
+.ypm-exp-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ypm-exp-sub {
+  margin: 0;
+  font-size: 14px;
+  color: var(--ypm-muted);
+}
+
+.ypm-exp-sec {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ypm-mood-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ypm-mood-pill {
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid var(--ypm-border-strong);
+  background: var(--ypm-surface);
+  color: var(--ypm-ink);
+  font-family: "ArchivoSemi", "Archivo", var(--font-sans), sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease;
+}
+
+.ypm-mood-pill:hover:not(:disabled) {
+  background: var(--ypm-raised);
+  border-color: var(--ypm-accent);
+}
+
+.ypm-exp-round {
+  border-radius: 999px;
+}
+
+/* Radio Stations Grid */
+.ypm-radio-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.ypm-radio-card {
+  position: relative;
+  height: 200px;
+  border-radius: 26px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ypm-radio-card:hover {
+  transform: translateY(-4px);
+}
+
+.ypm-radio-card-bg {
+  position: absolute;
+  right: -12px;
+  top: -12px;
+  width: 220px;
+  height: 220px;
+  object-fit: cover;
+  opacity: 0.28;
+  -webkit-mask-image: linear-gradient(270deg, #000 10%, transparent 90%);
+  mask-image: linear-gradient(270deg, #000 10%, transparent 90%);
+  pointer-events: none;
+}
+
+.ypm-radio-card-inner {
+  position: relative;
+  z-index: 2;
+  height: 100%;
+  padding: 22px 24px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.ypm-radio-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: "ArchivoSemi", "Archivo", var(--font-sans), sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  opacity: 0.78;
+}
+
+.ypm-radio-card-bottom {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.ypm-radio-title {
+  margin: 0;
+  font-family: "ArchivoWide", "Archivo", var(--font-sans), sans-serif;
+  font-size: 26px;
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+.ypm-radio-sub {
+  margin: 6px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  opacity: 0.75;
+}
+
+.ypm-radio-play {
+  width: 50px;
+  height: 50px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25);
+}
+
+.ypm-stat-card:focus-visible,
+.ypm-prof-pl-row:focus-visible,
+.ypm-prof-pl-play:focus-visible,
+.ypm-mood-pill:focus-visible,
+.ypm-radio-card:focus-visible {
+  outline: 2px solid var(--ypm-accent);
+  outline-offset: 2px;
+}
+
+@media (max-width: 1180px) {
+  .ypm-prof-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .ypm-prof-cols,
+  .ypm-radio-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .ypm-prof-stats {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+
+
+
+

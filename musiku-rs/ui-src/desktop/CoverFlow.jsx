@@ -1,403 +1,729 @@
-// Cover Flow — HANYA bundle desktop (Windows/Linux).
-// Web/Android memakai stub di src/components/CoverFlow.tsx.
+// Cover Flow 3D desktop 1:1 mengikuti YesPlayMusic (lib/pages/coverflow.dart):
+// - Latar atas warna dominan sampul aktif (CoverTone) yang memudar halus ke hitam pekat #000.
+// - Tab terpusat di atas: Antrean, Lagu, Album, Playlist, Artis + tombol tutup kanan atas.
+// - Geometri 3D iPod Cover Flow: sudut samping 75 derajat, kedalaman perspektif 2000px,
+//   bayangan jarak, refleksi cermin 42% di bawah sampul, dan tombol Play putih 80px saat hover.
+// - Judul ArchivoWide 30px + subjudul di bawah sampul aktif dengan kontrol drag, wheel, dan keyboard.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { usePlayer } from "@/lib/player";
-import { AuroraBackground } from "@/components/AuroraBackground";
-import { IconClose } from "@/components/Icons";
-import { TrackMenu } from "@/components/TrackMenu";
-import { AddToPlaylistMenu } from "@/components/TrackRow";
-import { CF_LAYOUT, CF_MOTION, CF_FX, clamp } from "./coverFlowMath";
-import { useCoverFlowMotion } from "./useCoverFlowMotion";
-import { useAppleArtwork } from "./useAppleArtwork";
-import { CoverItem } from "./CoverItem";
-import { CoverFlowBottom } from "./CoverFlowBottom";
+import { toast } from "@/components/Toast";
+import {
+  IconClose,
+  IconMusic,
+  IconNext,
+  IconPause,
+  IconPlay,
+  IconPrev,
+  IconUser,
+} from "@/components/Icons";
+import { extractCoverPalette, FALLBACK_PALETTE } from "./coverColor.js";
+
+function artistOf(t) {
+  if (Array.isArray(t.artists)) return t.artists.filter(Boolean).join(", ");
+  return t.artists || t.artist || "Artis tidak diketahui";
+}
+
+function albumOf(t) {
+  if (typeof t.album === "string" && t.album.trim()) return t.album.trim();
+  if (t.album && typeof t.album === "object" && t.album.name) return t.album.name;
+  return "";
+}
+
+function fmtCount(n) {
+  return n < 1000 ? String(n) : n.toLocaleString("en-US");
+}
 
 export function CoverFlow({ onExit }) {
+  const router = useRouter();
   const p = usePlayer();
-  const queue = useMemo(
-    () => (p.queue?.length ? p.queue : p.current ? [p.current] : []),
-    [p.queue, p.current],
+  const {
+    current,
+    queue = [],
+    index = 0,
+    playing,
+    liked = [],
+    playlists = [],
+    recent = [],
+    toggle,
+    next,
+    prev,
+    jumpTo,
+    playTracks,
+  } = p;
+
+  const [tab, setTab] = useState(() => (queue.length > 0 ? "queue" : "albums"));
+  const [selectedIdx, setSelectedIdx] = useState(() =>
+    queue.length > 0 ? Math.max(0, Math.min(index, queue.length - 1)) : 0
   );
-  const [active, setActive] = useState(() => clamp(p.index, 0, Math.max(0, queue.length - 1)));
-  const [menu, setMenu] = useState(null);
-  const [addOpen, setAddOpen] = useState(false);
-  const [trackPulse, setTrackPulse] = useState(0);
-  const auroraRef = useRef(null);
-  const stageRef = useRef(null);
-  const motion = useCoverFlowMotion(queue.length);
-  const activeTrack = queue[active] || p.current;
-  const art = useAppleArtwork(activeTrack);
+  const [renderPos, setRenderPos] = useState(selectedIdx);
+  const [dir, setDir] = useState(0);
+  const [tone, setTone] = useState(FALLBACK_PALETTE.deep);
+  const [stageSize, setStageSize] = useState({
+    w: typeof window !== "undefined" ? window.innerWidth : 1280,
+    h: typeof window !== "undefined" ? window.innerHeight : 800,
+  });
 
-  // Ref selalu segar: dipakai timer debounce & efek player tanpa re-register.
-  const playerRef = useRef({ index: p.index, videoId: p.current?.videoId });
-  playerRef.current = { index: p.index, videoId: p.current?.videoId };
-  const playerIndexRef = useRef(p.index);
-  const seekTimer = useRef(null);
-  const externalDuringDrag = useRef(null);
+  const posRef = useRef(selectedIdx);
+  const velRef = useRef(0);
+  const targetRef = useRef(selectedIdx);
+  const dragRef = useRef({
+    active: false,
+    startX: 0,
+    startPos: 0,
+    lastX: 0,
+    lastT: 0,
+    vel: 0,
+    moved: false,
+  });
+  const rafRef = useRef(0);
+  const lastFrameRef = useRef(0);
 
-  // Player punya `recent` (riwayat, terbaru duluan). Pakai hanya kalau kita
-  // berada di track pertama antrian; kalau kosong, sisi kiri dibiarkan kosong.
-  const historyTrack = useMemo(() => {
-    if (active !== 0 || !p.recent?.length || !activeTrack) return null;
-    return p.recent.find((r) => r.videoId !== activeTrack.videoId) || null;
-  }, [active, p.recent, activeTrack?.videoId]);
+  // Kumpulkan semua lagu unik dari pustaka & riwayat
+  const libraryTracks = useMemo(() => {
+    const seen = new Set();
+    const out = [];
+    const push = (t) => {
+      if (!t || !t.videoId || seen.has(t.videoId)) return;
+      seen.add(t.videoId);
+      out.push(t);
+    };
+    liked.forEach(push);
+    playlists.forEach((pl) => (pl.tracks || []).forEach(push));
+    recent.forEach(push);
+    return out;
+  }, [liked, playlists, recent]);
 
-  const onExitRef = useRef(onExit);
-  onExitRef.current = onExit;
+  // Bangun daftar item untuk tiap tab
+  const collections = useMemo(() => {
+    const queueItems = (queue.length > 0 ? queue : current ? [current] : []).map(
+      (t, i) => ({
+        key: `q-${t.videoId}-${i}`,
+        title: t.title || "Lagu tanpa judul",
+        sub: artistOf(t),
+        cover: t.thumbs || t.thumb || "",
+        round: false,
+        isPlaying: current?.videoId === t.videoId,
+        play: () => {
+          if (current?.videoId === t.videoId) toggle();
+          else if (queue.length > 0) jumpTo(i);
+          else playTracks([t], 0);
+        },
+        open: () => {
+          if (t.albumId) {
+            onExit?.();
+            router.push(`/album/${encodeURIComponent(t.albumId)}`);
+          }
+        },
+      })
+    );
 
-  const cancelSeek = useCallback(() => {
-    if (seekTimer.current) clearTimeout(seekTimer.current);
-    seekTimer.current = null;
+    const songList = liked.length > 0 ? liked : recent;
+    const songItems = songList.map((t, i) => ({
+      key: `s-${t.videoId}-${i}`,
+      title: t.title || "Lagu tanpa judul",
+      sub: artistOf(t),
+      cover: t.thumbs || t.thumb || "",
+      round: false,
+      isPlaying: current?.videoId === t.videoId,
+      play: () => {
+        if (current?.videoId === t.videoId) toggle();
+        else playTracks(songList, i);
+      },
+      open: () => {
+        if (t.albumId) {
+          onExit?.();
+          router.push(`/album/${encodeURIComponent(t.albumId)}`);
+        }
+      },
+    }));
+
+    const albumMap = new Map();
+    for (const t of libraryTracks) {
+      const aName = albumOf(t);
+      const art = artistOf(t);
+      const key =
+        t.albumId ||
+        (aName
+          ? `al:${aName.toLowerCase()}::${art.toLowerCase()}`
+          : `sg:${t.videoId}`);
+      if (!albumMap.has(key)) {
+        albumMap.set(key, {
+          key,
+          title: aName || t.title,
+          sub: art,
+          cover: t.thumbs || t.thumb || "",
+          browseId: t.albumId || null,
+          tracks: [t],
+        });
+      } else {
+        const entry = albumMap.get(key);
+        entry.tracks.push(t);
+        if (!entry.cover && (t.thumbs || t.thumb)) {
+          entry.cover = t.thumbs || t.thumb;
+        }
+      }
+    }
+    const albumItems = [...albumMap.values()].map((al) => ({
+      key: `a-${al.key}`,
+      title: al.title,
+      sub: al.sub,
+      cover: al.cover,
+      round: false,
+      isPlaying: al.tracks.some((t) => t.videoId === current?.videoId),
+      play: () => playTracks(al.tracks, 0),
+      open: () => {
+        if (al.browseId) {
+          onExit?.();
+          router.push(`/album/${encodeURIComponent(al.browseId)}`);
+        } else {
+          playTracks(al.tracks, 0);
+        }
+      },
+    }));
+
+    const playlistItems = playlists.map((pl) => ({
+      key: `p-${pl.id}`,
+      title: pl.name,
+      sub: `${pl.tracks?.length || 0} lagu`,
+      cover:
+        pl.tracks?.find((t) => t.thumbs || t.thumb)?.thumbs ||
+        pl.tracks?.find((t) => t.thumb)?.thumb ||
+        "",
+      round: false,
+      isPlaying: (pl.tracks || []).some((t) => t.videoId === current?.videoId),
+      play: () => {
+        if (pl.tracks?.length) playTracks(pl.tracks, 0);
+        else toast("Playlist masih kosong");
+      },
+      open: () => {
+        onExit?.();
+        router.push(`/playlist/${encodeURIComponent(pl.id)}`);
+      },
+    }));
+
+    const artistMap = new Map();
+    for (const t of libraryTracks) {
+      const name = artistOf(t).split(",")[0].trim();
+      if (!name || name === "Artis tidak diketahui") continue;
+      const key = t.artistId || name.toLowerCase();
+      if (!artistMap.has(key)) {
+        artistMap.set(key, {
+          key,
+          name,
+          artistId: t.artistId || null,
+          cover: t.thumbs || t.thumb || "",
+          tracks: [t],
+        });
+      } else {
+        const entry = artistMap.get(key);
+        entry.tracks.push(t);
+        if (!entry.artistId && t.artistId) entry.artistId = t.artistId;
+        if (!entry.cover && (t.thumbs || t.thumb)) {
+          entry.cover = t.thumbs || t.thumb;
+        }
+      }
+    }
+    const artistItems = [...artistMap.values()]
+      .sort((a, b) => b.tracks.length - a.tracks.length)
+      .map((ar) => ({
+        key: `ar-${ar.key}`,
+        title: ar.name,
+        sub: `${ar.tracks.length} lagu`,
+        cover: ar.cover,
+        round: true,
+        isPlaying: ar.tracks.some((t) => t.videoId === current?.videoId),
+        play: () => playTracks(ar.tracks, 0),
+        open: () => {
+          onExit?.();
+          if (ar.artistId) {
+            router.push(`/artist/${encodeURIComponent(ar.artistId)}`);
+          } else {
+            router.push(`/search?q=${encodeURIComponent(ar.name)}`);
+          }
+        },
+      }));
+
+    return {
+      queue: queueItems,
+      songs: songItems,
+      albums: albumItems,
+      playlists: playlistItems,
+      artists: artistItems,
+    };
+  }, [
+    queue,
+    current,
+    liked,
+    recent,
+    playlists,
+    libraryTracks,
+    toggle,
+    jumpTo,
+    playTracks,
+    onExit,
+    router,
+  ]);
+
+  const items = collections[tab] || [];
+  const n = items.length;
+  const curItem = n > 0 ? items[Math.min(selectedIdx, n - 1)] : null;
+
+  // Hitung metrik panggung 3D proporsional ukuran jendela (persis _StageMetrics)
+  const metrics = useMemo(() => {
+    const s = Math.max(
+      0.45,
+      Math.min(1.8, Math.min(stageSize.h / 900, stageSize.w / 780))
+    );
+    const size = Math.round(460 * s);
+    return {
+      scale: s,
+      size,
+      camera: 2000 * s,
+      gap1: 410 * s,
+      depth: 745 * s,
+      step: 162 * s,
+      pace: 120 * s,
+    };
+  }, [stageSize]);
+
+  useEffect(() => {
+    const onResize = () =>
+      setStageSize({ w: window.innerWidth, h: window.innerHeight });
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
   }, []);
 
-  const exit = useCallback(() => {
-    cancelSeek();
-    onExitRef.current?.();
-  }, [cancelSeek]);
-
-  // Gerakan visual saja — tidak menyentuh player.
-  const jump = useCallback(
-    (i) => {
-      const next = clamp(i, 0, Math.max(0, queue.length - 1));
-      setActive(next);
-      motion.goTo(next);
-      return next;
-    },
-    [queue.length, motion],
-  );
-
-  // Satu-satunya jalur yang menyuruh player berpindah trek.
-  const playIndex = useCallback(
-    (i) => {
-      const next = clamp(i, 0, Math.max(0, queue.length - 1));
-      cancelSeek();
-      if (next === playerRef.current.index) return; // jangan restart lagu yang sama
-      playerIndexRef.current = next;
-      p.jumpTo(next);
-    },
-    [cancelSeek, p.jumpTo, queue.length],
-  );
-
-  // Geser bebas → putar setelah diam ~300ms. Cover yang dilewati tidak diputar.
-  const scheduleSeek = useCallback(
-    (i) => {
-      cancelSeek();
-      const next = clamp(i, 0, Math.max(0, queue.length - 1));
-      seekTimer.current = setTimeout(() => {
-        seekTimer.current = null;
-        if (motion.dragging.current) return;
-        playIndex(next);
-      }, CF_FX.seekDebounceMs);
-    },
-    [cancelSeek, motion, playIndex, queue.length],
-  );
-
-  const browse = useCallback(
-    (i) => {
-      const next = jump(i);
-      scheduleSeek(next);
-    },
-    [jump, scheduleSeek],
-  );
-
-  // Perubahan dari player (next/prev bawah, auto-next): carousel ikut.
-  // Tidak memanggil play lagi; pending debounce milik user dibatalkan.
+  // Ekstrak warna dominan sampul aktif (CoverTone)
   useEffect(() => {
-    if (p.index < 0 || p.index >= queue.length) return;
-    if (motion.dragging.current) {
-      externalDuringDrag.current = p.index;
-      playerIndexRef.current = p.index;
+    let alive = true;
+    if (!curItem?.cover) {
+      setTone("#1c1c20");
       return;
     }
-    if (p.index === playerIndexRef.current) return;
-    playerIndexRef.current = p.index;
-    cancelSeek();
-    jump(p.index);
-  }, [p.index, queue.length, motion, jump, cancelSeek]);
+    extractCoverPalette(curItem.cover, curItem.key).then((pal) => {
+      if (alive && pal?.deep) setTone(pal.deep);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [curItem?.cover, curItem?.key]);
 
-  useEffect(() => {
-    const next = clamp(active, 0, Math.max(0, queue.length - 1));
-    if (next !== active) jump(next);
-  }, [queue.length, active, jump]);
+  // Reset posisi saat ganti tab
+  const selectTab = (nextTab) => {
+    if (nextTab === tab) return;
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = 0;
+    }
+    const nextList = collections[nextTab] || [];
+    const startIdx = Math.max(
+      0,
+      nextList.findIndex((it) => it.isPlaying)
+    );
+    setTab(nextTab);
+    setDir(0);
+    setSelectedIdx(startIdx);
+    targetRef.current = startIdx;
+    posRef.current = startIdx;
+    velRef.current = 0;
+    setRenderPos(startIdx);
+  };
 
-  useEffect(() => {
-    motion.sync();
-  }, [active, queue, motion, historyTrack?.videoId]);
+  const stepSpring = useCallback((now) => {
+    if (!lastFrameRef.current) lastFrameRef.current = now;
+    const dt = Math.min(0.032, Math.max(0.004, (now - lastFrameRef.current) / 1000));
+    lastFrameRef.current = now;
 
-  // Aurora mengikuti cover tengah, di-debounce supaya tidak crossfade terus.
-  useEffect(() => {
-    if (!activeTrack) return;
-    const id = setTimeout(() => {
-      auroraRef.current?.setCover(art.still || activeTrack.thumbs || null);
-    }, CF_MOTION.auroraMs);
-    return () => clearTimeout(id);
-  }, [active, activeTrack?.videoId, activeTrack?.thumbs, art.ready, art.still]);
+    if (dragRef.current.active) {
+      rafRef.current = 0;
+      return;
+    }
 
-  // Pulse khusus efek: naik hanya saat trek player berubah (bukan saat browse).
-  useEffect(() => {
-    setTrackPulse((n) => n + 1);
-  }, [p.index]);
+    const k = 210;
+    const c = 27;
+    const x = posRef.current - targetRef.current;
+    const acc = -k * x - c * velRef.current;
+    velRef.current += acc * dt;
+    posRef.current += velRef.current * dt;
 
-  // Timer debounce ikut mati saat overlay ditutup / komponen unmount.
-  useEffect(() => cancelSeek, [cancelSeek]);
+    if (Math.abs(x) < 0.0015 && Math.abs(velRef.current) < 0.01) {
+      posRef.current = targetRef.current;
+      velRef.current = 0;
+      setRenderPos(targetRef.current);
+      rafRef.current = 0;
+      lastFrameRef.current = 0;
+      return;
+    }
 
-  const select = useCallback(
-    (i) => {
-      cancelSeek();
-      if (i === active) {
-        const tr = queue[active];
-        if (!tr) return;
-        if (p.current?.videoId === tr.videoId) p.toggle();
-        else playIndex(active);
-        return;
+    setRenderPos(posRef.current);
+    rafRef.current = requestAnimationFrame(stepSpring);
+  }, []);
+
+  const goTo = useCallback(
+    (idx) => {
+      if (n === 0) return;
+      const clamped = Math.max(0, Math.min(n - 1, idx));
+      if (clamped !== targetRef.current) {
+        setDir(clamped > targetRef.current ? 1 : -1);
       }
-      jump(i);
-      playIndex(i); // klik samping langsung putar trek itu
+      targetRef.current = clamped;
+      setSelectedIdx(clamped);
+      lastFrameRef.current = 0;
+      if (!rafRef.current) rafRef.current = requestAnimationFrame(stepSpring);
     },
-    [active, queue, p.current?.videoId, p.toggle, cancelSeek, playIndex, jump],
+    [n, stepSpring]
   );
 
-  const playCenter = useCallback(() => select(active), [select, active]);
-
-  const openMenu = useCallback((i, e) => {
-    const r = e.currentTarget.getBoundingClientRect();
-    setMenu({ anchor: { x: r.right, y: r.bottom + 4, end: true }, track: null, index: i });
+  // Bersihkan rAF hanya saat komponen unmount (bukan setiap curItem berubah)
+  useEffect(() => {
+    return () => {
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = 0;
+      }
+    };
   }, []);
-  const menuTrack = menu ? queue[menu.index] || p.current : null;
 
-  // Tutup otomatis jika lebar jendela turun di bawah breakpoint `lg` (1024px)
-  // agar overlay yang tersembunyi (`hidden lg:flex`) tidak tetap ter-mount.
+  // Sinkronkan posisi Cover Flow saat lagu aktif berubah (termasuk klik Next / Prev)
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const mq = window.matchMedia("(min-width: 1024px)");
-    const syncViewport = () => {
-      if (!mq.matches) exit();
-    };
-    syncViewport();
-    mq.addEventListener("change", syncViewport);
-    return () => mq.removeEventListener("change", syncViewport);
-  }, [exit]);
+    if (dragRef.current.active || n === 0) return;
+    if (tab === "queue") {
+      const clamped = Math.max(0, Math.min(n - 1, index));
+      if (clamped !== targetRef.current) {
+        goTo(clamped);
+      }
+      return;
+    }
+    if (current?.videoId) {
+      const matchIdx = items.findIndex((it) => it.isPlaying);
+      if (matchIdx >= 0 && matchIdx !== targetRef.current) {
+        goTo(matchIdx);
+      }
+    }
+  }, [index, current?.videoId, tab, n, items, goTo]);
 
-  // ── Keyboard ──────────────────────────────────────────────────────────
   useEffect(() => {
-    const isEditable = (el) =>
-      !!el?.closest?.("input, textarea, select, [contenteditable=''], [contenteditable='true']") ||
-      !!el?.isContentEditable;
-
     const onKey = (e) => {
-      if (e.defaultPrevented) return;
-      if (typeof window !== "undefined" && !window.matchMedia("(min-width: 1024px)").matches) {
-        return;
-      }
-      if (isEditable(e.target) || isEditable(document.activeElement)) return;
       if (e.key === "Escape") {
-        if (document.querySelector("[role=menu]")) return; // bentrok dengan TrackMenu
         e.preventDefault();
-        exit();
-        return;
-      }
-      if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+        onExit?.();
+      } else if (e.key === "ArrowLeft") {
         e.preventDefault();
-        browse(active + (e.key === "ArrowRight" ? 1 : -1));
-        return;
-      }
-      if (e.key === "Home" || e.key === "End") {
+        goTo(targetRef.current - 1);
+      } else if (e.key === "ArrowRight") {
         e.preventDefault();
-        browse(e.key === "Home" ? 0 : queue.length - 1);
-        return;
-      }
-      if (/^[1-9]$/.test(e.key)) {
-        const i = Number(e.key) - 1;
-        if (i < queue.length) {
-          e.preventDefault();
-          browse(i);
-        }
-        return;
-      }
-      if (e.key === "Enter" || e.key === " ") {
-        if (document.activeElement?.closest?.("button, [role=slider]")) return;
+        goTo(targetRef.current + 1);
+      } else if (e.key === " ") {
         e.preventDefault();
-        playCenter();
+        toggle();
+      } else if (e.key === "Enter" && curItem) {
+        e.preventDefault();
+        curItem.open?.();
       }
     };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [active, queue.length, browse, playCenter, exit]);
-
-  // ── Wheel / trackpad: satu langkah per throttle ───────────────────────
-  const wheelAt = useRef(0);
-  useEffect(() => {
-    const el = stageRef.current;
-    if (!el) return;
-    const onWheel = (e) => {
-      const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-      if (Math.abs(d) < 4) return;
-      e.preventDefault();
-      const now = performance.now();
-      if (now - wheelAt.current < CF_MOTION.wheelMs) return;
-      wheelAt.current = now;
-      browse(active + (d > 0 ? 1 : -1));
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
     };
-    el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
-  }, [active, browse]);
+  }, [onExit, goTo, toggle, curItem]);
 
-  // ── Drag pointer dengan inersia ringan ────────────────────────────────
-  const drag = useRef({ on: false, x: 0, start: 0, lastX: 0, lastT: 0, v: 0, moved: 0 });
-  const suppressClick = useRef(false);
   const onPointerDown = (e) => {
-    if (e.pointerType === "mouse" && e.button !== 0) return;
-    const now = performance.now();
-    drag.current = {
-      on: true,
-      x: e.clientX,
-      start: motion.pos.current,
+    if (e.target.closest("button, a") || n === 0) return;
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = 0;
+    }
+    dragRef.current = {
+      active: true,
+      startX: e.clientX,
+      startPos: posRef.current,
       lastX: e.clientX,
-      lastT: now,
-      v: 0,
-      moved: 0,
+      lastT: performance.now(),
+      vel: 0,
+      moved: false,
     };
-    motion.dragging.current = true;
+    e.currentTarget.setPointerCapture(e.pointerId);
   };
+
   const onPointerMove = (e) => {
-    const d = drag.current;
-    if (!d.on) return;
-    const dx = e.clientX - d.x;
-    d.moved = Math.max(d.moved, Math.abs(dx));
+    const d = dragRef.current;
+    if (!d.active) return;
+    const dx = e.clientX - d.startX;
+    if (Math.abs(dx) > 6) d.moved = true;
     const now = performance.now();
-    d.v = (e.clientX - d.lastX) / Math.max(1, now - d.lastT);
+    const dt = Math.max(1, now - d.lastT);
+    d.vel = ((e.clientX - d.lastX) / dt) * 1000;
     d.lastX = e.clientX;
     d.lastT = now;
-    motion.setPos(d.start - dx / CF_LAYOUT.spacingNear);
-  };
-  const onPointerUp = () => {
-    const d = drag.current;
-    if (!d.on) return;
-    d.on = false;
-    motion.dragging.current = false;
-    externalDuringDrag.current = null; // keputusan user setelah drag yang menang
-    if (d.moved < 6) return;
-    suppressClick.current = true;
-    setTimeout(() => {
-      suppressClick.current = false;
-    }, 0);
-    const bias = clamp(
-      (-d.v * 1000 * CF_MOTION.inertiaSec) / CF_LAYOUT.spacingNear,
-      -0.65,
-      0.65,
+
+    const nextPos = Math.max(
+      -0.4,
+      Math.min(n - 1 + 0.4, d.startPos - dx / metrics.pace)
     );
-    browse(Math.round(motion.pos.current + bias));
+    posRef.current = nextPos;
+    setRenderPos(nextPos);
   };
 
-  // Tanpa pointer capture: klik tombol cover tetap sampai, drag tetap jalan
-  // walau pointer keluar dari stage.
-  const moveRef = useRef(null);
-  const upRef = useRef(null);
-  moveRef.current = onPointerMove;
-  upRef.current = onPointerUp;
-  useEffect(() => {
-    const move = (e) => moveRef.current?.(e);
-    const up = () => upRef.current?.();
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
-    window.addEventListener("pointercancel", up);
-    return () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-      window.removeEventListener("pointercancel", up);
-    };
-  }, []);
+  const endDrag = () => {
+    const d = dragRef.current;
+    if (!d.active) return;
+    d.active = false;
+    const projected = posRef.current - (d.vel / metrics.pace) * 0.15;
+    goTo(Math.round(projected));
+  };
 
-  if (!queue.length) return null;
+  const onWheel = (e) => {
+    if (n === 0) return;
+    const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+    if (Math.abs(delta) > 6) {
+      e.preventDefault();
+      goTo(targetRef.current + (delta > 0 ? 1 : -1));
+    }
+  };
 
-  const start = Math.max(0, active - CF_LAYOUT.radius);
-  const end = Math.min(queue.length - 1, active + CF_LAYOUT.radius);
-  const visible = [];
-  for (let i = start; i <= end; i++) visible.push(i);
+  // Hitung item yang terlihat di panggung & urutkan dari paling jauh ke paling depan
+  const reach = Math.ceil(stageSize.w / 2 / metrics.pace) + 2;
+  const lo = Math.max(0, Math.floor(renderPos) - reach);
+  const hi = Math.min(n - 1, Math.ceil(renderPos) + reach);
+  const visibleOrder = [];
+  for (let i = lo; i <= hi; i++) visibleOrder.push(i);
+  visibleOrder.sort((a, b) => Math.abs(b - renderPos) - Math.abs(a - renderPos));
 
   return (
     <div
-      role="region"
-      aria-roledescription="carousel"
-      aria-label="Cover Flow"
-      className="cf-root force-dark dialog-in fixed inset-0 z-[70] hidden overflow-hidden bg-window lg:flex"
-      style={{
-        "--cf-pop-ms": `${CF_FX.popMs}ms`,
-        "--cf-pop-scale": CF_FX.popScale,
-        "--cf-caption-ms": `${CF_FX.captionMs}ms`,
-        "--cf-caption-shift": `${CF_FX.captionShiftPx}px`,
-        "--cf-press-scale": CF_FX.pressScale,
-        "--cf-pause-scale": CF_FX.pauseScale,
-        "--cf-playpause-ms": `${CF_FX.playPauseMs}ms`,
-        "--cf-icon-ms": `${CF_FX.iconMs}ms`,
-      }}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Cover Flow 3D"
+      className="ypm-cf force-dark dialog-in"
+      style={{ "--cf-tone": tone }}
     >
-      <AuroraBackground ref={auroraRef} />
-      <div className="cf-scrim" aria-hidden="true" />
+      {/* Latar gradasi CoverTone -> Hitam Pekat */}
+      <div className="ypm-cf-bg" aria-hidden="true" />
 
-      <button
-        onClick={exit}
-        className="cf-exit glass-btn"
-        aria-label="Keluar Cover Flow"
-        title="Keluar Cover Flow (Esc)"
-      >
-        <IconClose className="h-5 w-5" />
-      </button>
-
-      <div
-        ref={stageRef}
-        className="cf-stage"
-        onPointerDown={onPointerDown}
-      >
-        <div className="cf-track" role="group" aria-label="Cover album">
-          {historyTrack && (
-            <CoverItem
-              key={`history-${historyTrack.videoId}`}
-              track={historyTrack}
-              index={-1}
-              active={false}
-              history
-              showLabel={CF_LAYOUT.labelDistance >= 1}
-              src={historyTrack.thumbs}
-              register={motion.register}
-              onSelect={() => {}}
-              onMenu={openMenu}
-            />
-          )}
-          {visible.map((i) => (
-            <CoverItem
-              key={`${queue[i].videoId}-${i}`}
-              track={queue[i]}
-              index={i}
-              active={i === active}
-              showLabel={Math.abs(i - active) <= CF_LAYOUT.labelDistance}
-              pulse={trackPulse}
-              captionKey={i === active ? `play-${p.index}` : i}
-              playing={p.playing}
-              src={i === active ? art.still || queue[i].thumbs : queue[i].thumbs}
-              register={motion.register}
-              onSelect={(idx) => {
-                if (!suppressClick.current) select(idx);
-              }}
-              onMenu={openMenu}
-            />
+      {/* Topbar: Tab terpusat + tombol tutup kanan atas */}
+      <header className="ypm-cf-top">
+        <div className="ypm-cf-pills" role="tablist" aria-label="Kategori Cover Flow">
+          {[
+            { id: "queue", label: "Antrean", count: collections.queue.length },
+            { id: "songs", label: "Lagu", count: collections.songs.length },
+            { id: "albums", label: "Album", count: collections.albums.length },
+            { id: "playlists", label: "Playlist", count: collections.playlists.length },
+            { id: "artists", label: "Artis", count: collections.artists.length },
+          ].map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              aria-selected={tab === t.id}
+              onClick={() => selectTab(t.id)}
+              className={`ypm-cf-pill ${tab === t.id ? "is-active" : ""}`}
+            >
+              <span>{t.label}</span>
+              <sup className="ypm-cf-pill-count">{fmtCount(t.count)}</sup>
+            </button>
           ))}
         </div>
+
+        <button
+          type="button"
+          onClick={onExit}
+          aria-label="Tutup Cover Flow"
+          title="Tutup (Esc)"
+          className="ypm-cf-close"
+        >
+          <IconClose className="h-5 w-5" />
+        </button>
+      </header>
+
+      {/* Panggung 3D Cover Flow */}
+      <div
+        className="ypm-cf-stage"
+        style={{ perspective: `${metrics.camera}px` }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+        onWheel={onWheel}
+      >
+        {n === 0 ? (
+          <div className="ypm-cf-empty">
+            <p className="ypm-cf-empty-title">Belum ada item di kategori ini</p>
+            <p className="ypm-cf-empty-sub">
+              Putar atau sukai musik untuk menjelajahinya di Cover Flow.
+            </p>
+          </div>
+        ) : (
+          visibleOrder.map((i) => {
+            const it = items[i];
+            const d = i - renderPos;
+            const ad = Math.abs(d);
+            const isFront = ad < 0.5;
+            const k = Math.min(ad, 1);
+            const sign = d < 0 ? -1 : 1;
+            const off =
+              k * metrics.gap1 + (ad > 1 ? (ad - 1) * metrics.step : 0);
+            const z = -k * metrics.depth;
+            const rotY = -sign * 75 * k;
+            const shade = Math.min(0.08 * ad, 0.48);
+            const reflOp = Math.max(0.24 - 0.02 * ad, 0.12);
+            const showPause = it.isPlaying && playing;
+
+            return (
+              <div
+                key={it.key}
+                className={`ypm-cf-card ${isFront ? "is-front" : ""} ${it.round ? "is-round" : ""}`}
+                style={{
+                  width: `${metrics.size}px`,
+                  height: `${metrics.size}px`,
+                  transform: `translate3d(${sign * off}px, 0, ${z}px) rotateY(${rotY}deg)`,
+                  zIndex: Math.round(1000 - ad * 10),
+                }}
+                onClick={() => {
+                  if (dragRef.current.moved) return;
+                  if (!isFront) goTo(i);
+                }}
+                onDoubleClick={() => {
+                  if (isFront) it.play?.();
+                }}
+              >
+                <div className="ypm-cf-art-box">
+                  {it.cover ? (
+                    <img
+                      src={it.cover}
+                      alt={it.title}
+                      className="ypm-cf-art-img"
+                      draggable={false}
+                    />
+                  ) : (
+                    <div className="ypm-cf-art-fb">
+                      {it.round ? (
+                        <IconUser className="h-20 w-20 opacity-20" />
+                      ) : (
+                        <IconMusic className="h-20 w-20 opacity-20" />
+                      )}
+                    </div>
+                  )}
+
+                  {shade > 0.005 && (
+                    <div
+                      className="ypm-cf-shade"
+                      style={{ opacity: shade }}
+                      aria-hidden="true"
+                    />
+                  )}
+
+                  {isFront && (
+                    <div className="ypm-cf-hover">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          it.play?.();
+                        }}
+                        aria-label={
+                          showPause ? `Jeda ${it.title}` : `Putar ${it.title}`
+                        }
+                        className="ypm-cf-play-btn"
+                      >
+                        {showPause ? (
+                          <IconPause className="h-9 w-9" />
+                        ) : (
+                          <IconPlay className="h-9 w-9" />
+                        )}
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Refleksi cermin 42% di bawah sampul */}
+                <div
+                  className="ypm-cf-refl"
+                  style={{
+                    height: `${Math.round(metrics.size * 0.42)}px`,
+                    opacity: reflOp,
+                  }}
+                  aria-hidden="true"
+                >
+                  {it.cover ? (
+                    <img
+                      src={it.cover}
+                      alt=""
+                      className="ypm-cf-refl-img"
+                      style={{
+                        width: `${metrics.size}px`,
+                        height: `${metrics.size}px`,
+                      }}
+                    />
+                  ) : (
+                    <div
+                      className="ypm-cf-art-fb"
+                      style={{
+                        width: `${metrics.size}px`,
+                        height: `${metrics.size}px`,
+                      }}
+                    />
+                  )}
+                </div>
+              </div>
+            );
+          })
+        )}
+
+        {/* Lapisan pudar hitam untuk ujung bawah refleksi */}
+        <div className="ypm-cf-floor-fade" aria-hidden="true" />
       </div>
 
-      <CoverFlowBottom />
+      {/* Info Judul ArchivoWide + Transport Kompak Bawah */}
+      <footer className="ypm-cf-footer">
+        {curItem && (
+          <div
+            key={`${tab}-${selectedIdx}`}
+            className="ypm-cf-meta"
+            data-dir={dir}
+          >
+            <button
+              type="button"
+              onClick={() => curItem.open?.()}
+              className="ypm-cf-title-btn"
+            >
+              {curItem.title}
+            </button>
+            <p className="ypm-cf-sub">{curItem.sub}</p>
+          </div>
+        )}
 
-      {menuTrack && (
-        <TrackMenu
-          track={menuTrack}
-          anchor={menu.anchor}
-          onClose={() => setMenu(null)}
-          onAddToPlaylist={() => setAddOpen(true)}
-        />
-      )}
-      {addOpen && menuTrack && (
-        <AddToPlaylistMenu track={menuTrack} onClose={() => setAddOpen(false)} />
-      )}
+        <div className="ypm-cf-bar">
+          <button
+            type="button"
+            onClick={prev}
+            aria-label="Lagu sebelumnya"
+            className="ypm-cf-ctrl"
+          >
+            <IconPrev className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            onClick={toggle}
+            aria-label={playing ? "Jeda" : "Putar"}
+            className="ypm-cf-ctrl is-main"
+          >
+            {playing ? (
+              <IconPause className="h-6 w-6" />
+            ) : (
+              <IconPlay className="h-6 w-6" />
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={next}
+            aria-label="Lagu berikutnya"
+            className="ypm-cf-ctrl"
+          >
+            <IconNext className="h-5 w-5" />
+          </button>
+        </div>
+      </footer>
     </div>
   );
 }

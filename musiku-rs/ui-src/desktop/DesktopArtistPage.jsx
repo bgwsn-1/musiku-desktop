@@ -1,23 +1,28 @@
-// Halaman artis desktop: hero full-bleed di puncak bingkai kanvas tengah,
-// kartu Rilis Terbaru + grid Top Songs multi-kolom dengan pager < >,
-// serta shelf Album, Single & EP, dan Tentang.
+// Halaman artis desktop bergaya YesPlayMusic:
+// header avatar bulat 148px + sticky bar saat scroll,
+// 2 kolom atas (Rilis Terbaru + Lagu Populer dengan toggle Semua/Ringkas),
+// diskografi bertab (Album / Single & EP) dengan pager < >, dan Tentang.
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { usePlayer } from "@/lib/player";
 import { toast } from "@/components/Toast";
-import { GridCard, Shelf } from "@/components/GridCard";
 import { TrackMenu } from "@/components/TrackMenu";
 import { AddToPlaylistMenu } from "@/components/TrackRow";
 import {
   IconBack,
   IconEllipsis,
   IconForward,
+  IconHeart,
   IconMusic,
+  IconPause,
   IconPlay,
   IconShuffle,
 } from "@/components/Icons";
 
-const TOP_PAGE_SIZE = 6;
+const HOT_COLLAPSED_COUNT = 5;
+const DISC_PAGE_SIZE = 6;
 
 const reduced = () =>
   typeof window !== "undefined" &&
@@ -32,319 +37,515 @@ function shuffleTracks(list) {
   return arr;
 }
 
-function descSnippet(d) {
-  return d.length > 700 ? d.slice(0, 700).trimEnd() + "…" : d;
+function fmtMeta(artist) {
+  const parts = [];
+  if (artist.monthlyListeners) parts.push(artist.monthlyListeners);
+  if (artist.subscribers) parts.push(`${artist.subscribers} subscriber`);
+  return parts.join(" · ");
 }
 
 export function DesktopArtistPage({ id }) {
-  const { current, playTracks, enqueue } = usePlayer();
+  const router = useRouter();
+  const { current, playing, playTracks, enqueue, toggle, isLiked, toggleLike } =
+    usePlayer();
   const [artist, setArtist] = useState(null);
-  const [missing, setMissing] = useState(false);
-  const [page, setPage] = useState(0);
-  const [videoPaused, setVideoPaused] = useState(() => reduced());
-  const [videoFailed, setVideoFailed] = useState(false);
-  const [menuState, setMenuState] = useState(null);
-  const [addTrack, setAddTrack] = useState(null);
-  const videoRef = useRef(null);
+  const [err, setErr] = useState(null);
+  const [scrolled, setScrolled] = useState(false);
+  const [showAllHot, setShowAllHot] = useState(false);
+  const [discTab, setDiscTab] = useState("albums");
+  const [discPage, setDiscPage] = useState(0);
+  const [descExpanded, setDescExpanded] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [openTrackMenu, setOpenTrackMenu] = useState(null);
+  const [playlistTarget, setPlaylistTarget] = useState(null);
+  const menuRef = useRef(null);
 
   useEffect(() => {
-    let live = true;
-    const ac = new AbortController();
+    let alive = true;
     setArtist(null);
-    setMissing(false);
-    setPage(0);
-    setVideoFailed(false);
-    fetch(`/api/artist/${encodeURIComponent(id)}`, { signal: ac.signal })
-      .then((r) => {
-        if (!r.ok) throw new Error(String(r.status));
-        return r.json();
+    setErr(null);
+    setShowAllHot(false);
+    setDiscTab("albums");
+    setDiscPage(0);
+    setDescExpanded(false);
+    setMenuOpen(false);
+    setScrolled(false);
+    fetch(`/api/artist/${encodeURIComponent(id)}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((d) => {
+        if (!alive) return;
+        setArtist(d);
+        if ((!d.albums || d.albums.length === 0) && d.singles?.length > 0) {
+          setDiscTab("singles");
+        }
       })
-      .then((a) => {
-        if (live) setArtist(a);
-      })
-      .catch((err) => {
-        if (err?.name !== "AbortError" && live) setMissing(true);
-      });
+      .catch((e) => alive && setErr(String(e)));
     return () => {
-      live = false;
-      ac.abort();
+      alive = false;
     };
   }, [id]);
 
+  // Pantau scroll #main untuk menampilkan sticky header artis
   useEffect(() => {
-    const v = videoRef.current;
-    if (!v) return;
-    if (videoPaused || reduced()) {
-      v.pause();
-    } else {
-      v.play().catch(() => {});
+    const mainEl = document.getElementById("main");
+    if (!mainEl) return;
+    const onScroll = () => {
+      setScrolled(mainEl.scrollTop > 180);
+    };
+    onScroll();
+    mainEl.addEventListener("scroll", onScroll, { passive: true });
+    return () => mainEl.removeEventListener("scroll", onScroll);
+  }, [id]);
+
+  // Tutup dropdown menu saat klik luar atau Escape
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDown = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setMenuOpen(false);
+      }
+    };
+    const onKey = (e) => e.key === "Escape" && setMenuOpen(false);
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [menuOpen]);
+
+  const topSongs = useMemo(() => artist?.topSongs || [], [artist]);
+  const albums = useMemo(() => artist?.albums || [], [artist]);
+  const singles = useMemo(() => artist?.singles || [], [artist]);
+
+  const latest = albums[0] || singles[0] || null;
+  const latestKind = albums[0] ? "Album" : "Single & EP";
+
+  const visibleHotSongs = showAllHot
+    ? topSongs
+    : topSongs.slice(0, HOT_COLLAPSED_COUNT);
+
+  const activeDiscList = discTab === "albums" ? albums : singles;
+  const totalDiscPages = Math.max(
+    1,
+    Math.ceil(activeDiscList.length / DISC_PAGE_SIZE)
+  );
+  const safeDiscPage = Math.min(discPage, totalDiscPages - 1);
+  const visibleDisc = activeDiscList.slice(
+    safeDiscPage * DISC_PAGE_SIZE,
+    (safeDiscPage + 1) * DISC_PAGE_SIZE
+  );
+
+  const handlePlayAll = () => {
+    if (topSongs.length > 0) playTracks(topSongs, 0);
+    else toast("Belum ada lagu populer untuk diputar");
+  };
+
+  const handleShuffle = () => {
+    if (topSongs.length > 0) playTracks(shuffleTracks(topSongs), 0);
+    else toast("Belum ada lagu populer untuk diacak");
+  };
+
+  const handlePlayLatest = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!latest?.browseId) return;
+    try {
+      const res = await fetch(`/api/album/${encodeURIComponent(latest.browseId)}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (data.tracks && data.tracks.length > 0) {
+        playTracks(data.tracks, 0);
+        return;
+      }
+    } catch {
+      // Fallback ke halaman album bila gagal fetch track
     }
-  }, [videoPaused, artist?.topVideoId]);
+    router.push(`/album/${encodeURIComponent(latest.browseId)}`);
+  };
 
-  const latestRelease = useMemo(() => {
-    if (!artist) return null;
-    const pool = [...(artist.singles || []), ...(artist.albums || [])].filter(
-      (x) => x && x.title,
-    );
-    if (!pool.length) return null;
-    return pool.sort((a, b) => Number(b.year || 0) - Number(a.year || 0))[0];
-  }, [artist]);
-
-  if (missing) {
+  if (err) {
     return (
-      <div className="px-7 py-24 text-center">
-        <p className="text-[17px] font-semibold text-[#f3efec]">Artis tidak ditemukan</p>
-        <p className="mt-1 text-[14px] text-[#a9a3a0]">
-          Mungkin sudah dihapus atau tautannya salah.
-        </p>
+      <div className="ypm-artist-empty">
+        <p className="ypm-artist-empty-title">Gagal memuat halaman artis</p>
+        <p className="ypm-artist-empty-sub">{err}</p>
       </div>
     );
   }
 
   if (!artist) {
     return (
-      <div className="animate-pulse space-y-4 p-7 pt-16">
-        <div className="h-64 rounded-2xl bg-white/5" />
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          {[...Array(6)].map((_, i) => (
-            <div key={i} className="h-14 rounded-xl bg-white/5" />
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (!artist.name) {
-    return (
-      <div className="px-7 py-24 text-center">
-        <p className="text-[17px] font-semibold text-[#f3efec]">Artis tidak ditemukan</p>
-        <p className="mt-1 text-[14px] text-[#a9a3a0]">
-          Mungkin sudah dihapus atau tautannya salah.
-        </p>
-      </div>
-    );
-  }
-
-  const topSongs = Array.isArray(artist.topSongs) ? artist.topSongs : [];
-  const totalPages = Math.max(1, Math.ceil(topSongs.length / TOP_PAGE_SIZE));
-  const safePage = Math.min(page, totalPages - 1);
-  const pageSongs = topSongs.slice(
-    safePage * TOP_PAGE_SIZE,
-    safePage * TOP_PAGE_SIZE + TOP_PAGE_SIZE,
-  );
-
-  const heroImg = artist.banner || artist.thumbs || artist.avatar || null;
-  const showHeroVideo = !!artist.topVideoId && !videoFailed && !reduced();
-  const statLine = [
-    artist.monthlyListeners ? String(artist.monthlyListeners) : null,
-    artist.subscribers ? `${artist.subscribers} pengikut` : null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
-
-  return (
-    <div>
-      <section className="ds-artist-hero" aria-label={`Profil ${artist.name}`}>
-        {showHeroVideo ? (
-          <video
-            ref={videoRef}
-            src={`/api/stream/${encodeURIComponent(artist.topVideoId)}?video=1`}
-            poster={heroImg || undefined}
-            muted
-            loop
-            playsInline
-            autoPlay={!videoPaused}
-            onError={() => setVideoFailed(true)}
-            className="ds-artist-bg"
-          />
-        ) : (
-          heroImg && (
-            <img
-              src={heroImg}
-              alt={`Foto ${artist.name}`}
-              width="1600"
-              height="720"
-              fetchPriority="high"
-              className="ds-artist-bg"
-            />
-          )
-        )}
-
-        <div className="ds-artist-scrim" aria-hidden="true" />
-
-        <div className="ds-artist-hero-body">
-          <div>
-            {statLine && <p className="ds-artist-stats">{statLine}</p>}
-            <h1 className="ds-artist-name">{artist.name}</h1>
-            <div className="ds-artist-actions">
-              <button
-                type="button"
-                className="ds-circle-btn"
-                disabled={topSongs.length === 0}
-                onClick={() => {
-                  if (!topSongs.length) return;
-                  enqueue(topSongs[0]);
-                  toast(`${topSongs[0].title} ditambahkan ke antrean`);
-                }}
-                aria-label="Tambahkan lagu populer ke antrean"
-                title="Tambahkan ke antrean"
-              >
-                <IconEllipsis className="h-5 w-5" />
-              </button>
-
-              <button
-                type="button"
-                className="ds-circle-btn ds-circle-play"
-                disabled={topSongs.length === 0}
-                onClick={() => topSongs.length && playTracks(topSongs, 0)}
-                aria-label={`Putar lagu populer ${artist.name}`}
-                title="Putar"
-              >
-                <IconPlay className="h-5 w-5" />
-              </button>
-
-              <button
-                type="button"
-                className="ds-circle-btn"
-                disabled={topSongs.length === 0}
-                onClick={() => topSongs.length && playTracks(shuffleTracks(topSongs), 0)}
-                aria-label={`Acak lagu populer ${artist.name}`}
-                title="Acak"
-              >
-                <IconShuffle className="h-[18px] w-[18px]" />
-              </button>
-
-              {showHeroVideo && (
-                <button
-                  type="button"
-                  className="ds-circle-btn text-[11px] font-semibold"
-                  onClick={() => setVideoPaused((v) => !v)}
-                  aria-pressed={videoPaused}
-                  aria-label={videoPaused ? "Putar video latar" : "Jeda video latar"}
-                  title={videoPaused ? "Putar video latar" : "Jeda video latar"}
-                >
-                  {videoPaused ? "Play" : "Jeda"}
-                </button>
-              )}
-            </div>
+      <div className="ypm-artist" aria-busy="true">
+        <div className="ypm-artist-head">
+          <div className="ypm-skel ypm-skel-avatar" />
+          <div className="ypm-artist-head-info">
+            <div className="ypm-skel ypm-skel-eyebrow" />
+            <div className="ypm-skel ypm-skel-title" />
+            <div className="ypm-skel ypm-skel-meta" />
           </div>
         </div>
-      </section>
+        <div className="ypm-artist-top">
+          <div className="ypm-skel ypm-skel-latest" />
+          <div className="ypm-skel-rows">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="ypm-skel ypm-skel-row" />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-      {(latestRelease || topSongs.length > 0) && (
-        <section className="ds-artist-showcase" aria-label="Rilis terbaru dan lagu populer">
-          {latestRelease ? (
-            <div>
-              <h2 className="ds-top-title mb-2.5">Rilis Terbaru</h2>
-              <Link
-                href={latestRelease.browseId ? `/album/${latestRelease.browseId}` : `/artist/${id}`}
-                className="ds-latest-card"
-              >
-                {latestRelease.thumbs ? (
+  const avatar =
+    artist.avatar ||
+    (typeof artist.thumbs === "string"
+      ? artist.thumbs
+      : artist.thumbs?.[artist.thumbs.length - 1]?.url) ||
+    artist.banner ||
+    null;
+  const latestThumb = latest?.thumbs || latest?.thumb || null;
+  const metaLine = fmtMeta(artist);
+  const desc = artist.desc || "";
+  const isLongDesc = desc.length > 280;
+  const shownDesc =
+    isLongDesc && !descExpanded ? `${desc.slice(0, 280).trimEnd()}...` : desc;
+
+  const stickyHost =
+    typeof document !== "undefined"
+      ? document.querySelector(".ds-center")
+      : null;
+
+  return (
+    <div className="ypm-artist">
+      {/* Sticky top header saat scroll melewati hero artis (di-portal ke .ds-center agar menempel rata di top: 0) */}
+      {stickyHost &&
+        createPortal(
+          <div
+            className={`ypm-artist-sticky ${scrolled ? "is-visible" : ""}`}
+            aria-hidden={!scrolled}
+          >
+            <div className="ypm-artist-sticky-inner">
+              <div className="ypm-artist-sticky-id">
+                {avatar ? (
                   <img
-                    src={latestRelease.thumbs}
-                    alt={`Sampul ${latestRelease.title}`}
-                    width="96"
-                    height="96"
-                    className="ds-latest-art"
+                    src={avatar}
+                    alt=""
+                    className="ypm-artist-sticky-avatar"
+                    loading="eager"
                   />
                 ) : (
-                  <span className="ds-latest-art flex items-center justify-center">
-                    <IconMusic className="h-7 w-7 text-white/40" />
-                  </span>
+                  <div className="ypm-artist-sticky-avatar ypm-artist-avatar-fb">
+                    <IconMusic className="h-4 w-4" />
+                  </div>
                 )}
-                <div className="min-w-0 flex-1">
-                  {latestRelease.year && (
-                    <span className="ds-latest-kicker">{latestRelease.year}</span>
-                  )}
-                  <p className="ds-latest-title">{latestRelease.title}</p>
-                  <span className="ds-latest-meta">Buka rilis</span>
+                <span className="ypm-artist-sticky-name">{artist.name}</span>
+              </div>
+              <div className="ypm-artist-sticky-acts">
+                <button
+                  type="button"
+                  onClick={handlePlayAll}
+                  disabled={topSongs.length === 0}
+                  className="ypm-pill ypm-pill-primary ypm-pill-sm"
+                >
+                  <IconPlay className="h-3.5 w-3.5" />
+                  Putar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleShuffle}
+                  disabled={topSongs.length === 0}
+                  className="ypm-pill ypm-pill-ghost ypm-pill-sm"
+                >
+                  <IconShuffle className="h-3.5 w-3.5" />
+                  Acak
+                </button>
+              </div>
+            </div>
+          </div>,
+          stickyHost
+        )}
+
+      {/* Header Artis: Avatar bulat 148px + Judul ArchivoWide + Tombol aksi */}
+      <header className="ypm-artist-head">
+        <div className="ypm-artist-avatar-wrap">
+          {avatar ? (
+            <img
+              src={avatar}
+              alt={artist.name}
+              className="ypm-artist-avatar"
+              loading="eager"
+            />
+          ) : (
+            <div className="ypm-artist-avatar ypm-artist-avatar-fb">
+              <IconMusic size={48} />
+            </div>
+          )}
+        </div>
+
+        <div className="ypm-artist-head-info">
+          <span className="ypm-artist-eyebrow">Artis</span>
+          <h1 className="ypm-artist-name">{artist.name}</h1>
+          {metaLine && <p className="ypm-artist-meta">{metaLine}</p>}
+        </div>
+
+        <div className="ypm-artist-actions">
+          <button
+            type="button"
+            onClick={handlePlayAll}
+            disabled={topSongs.length === 0}
+            className="ypm-pill ypm-pill-primary"
+          >
+            <IconPlay size={15} />
+            Putar
+          </button>
+          <button
+            type="button"
+            onClick={handleShuffle}
+            disabled={topSongs.length === 0}
+            className="ypm-pill ypm-pill-ghost"
+          >
+            <IconShuffle size={15} />
+            Acak
+          </button>
+
+          <div className="ypm-artist-more-wrap" ref={menuRef}>
+            <button
+              type="button"
+              onClick={() => setMenuOpen((v) => !v)}
+              aria-label="Opsi artis lainnya"
+              aria-expanded={menuOpen}
+              className="ypm-round-btn"
+            >
+              <IconEllipsis size={17} />
+            </button>
+
+            {menuOpen && (
+              <div className="ypm-dropdown" role="menu">
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="ypm-dropdown-item"
+                  disabled={topSongs.length === 0}
+                  onClick={() => {
+                    topSongs.forEach((t) => enqueue(t));
+                    toast(
+                      `${topSongs.length} lagu populer ditambahkan ke antrean`
+                    );
+                    setMenuOpen(false);
+                  }}
+                >
+                  Tambahkan lagu populer ke antrean
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="ypm-dropdown-item"
+                  onClick={() => {
+                    navigator.clipboard
+                      ?.writeText(window.location.href)
+                      .catch(() => {});
+                    toast("Tautan artis disalin");
+                    setMenuOpen(false);
+                  }}
+                >
+                  Salin tautan artis
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </header>
+
+      {/* 2-Kolom Atas: Rilis Terbaru (kiri 400px) + Lagu Populer (kanan flex) */}
+      {(latest || topSongs.length > 0) && (
+        <section className="ypm-artist-top">
+          {latest && (
+            <div className="ypm-artist-latest-col">
+              <h2 className="ypm-sec-title">Rilis Terbaru</h2>
+              <Link
+                href={`/album/${encodeURIComponent(latest.browseId)}`}
+                className="ypm-latest-card"
+              >
+                {latestThumb && (
+                  <img
+                    src={latestThumb}
+                    alt=""
+                    aria-hidden="true"
+                    className="ypm-latest-bg"
+                  />
+                )}
+                <div className="ypm-latest-scrim" aria-hidden="true" />
+
+                <div className="ypm-latest-content">
+                  <div className="ypm-latest-top">
+                    {latestThumb ? (
+                      <img
+                        src={latestThumb}
+                        alt={latest.title}
+                        className="ypm-latest-cover"
+                      />
+                    ) : (
+                      <div className="ypm-latest-cover ypm-latest-cover-fb">
+                        <IconMusic className="h-9 w-9" />
+                      </div>
+                    )}
+                    <div className="ypm-latest-meta">
+                      <span className="ypm-latest-kind">{latestKind}</span>
+                      {latest.year && (
+                        <span className="ypm-latest-year">{latest.year}</span>
+                      )}
+                      <span className="ypm-latest-by">{artist.name}</span>
+                    </div>
+                  </div>
+
+                  <div className="ypm-latest-bottom">
+                    <h3 className="ypm-latest-title">{latest.title}</h3>
+                    <button
+                      type="button"
+                      onClick={handlePlayLatest}
+                      aria-label={`Putar ${latest.title}`}
+                      className="ypm-latest-play"
+                    >
+                      <IconPlay size={20} />
+                    </button>
+                  </div>
                 </div>
               </Link>
             </div>
-          ) : (
-            <div />
           )}
 
           {topSongs.length > 0 && (
-            <div className="min-w-0">
-              <div className="ds-top-head">
-                <h2 className="ds-top-title">Top Songs</h2>
-                {totalPages > 1 && (
-                  <div className="ds-top-pager">
-                    <button
-                      type="button"
-                      className="ds-pager-btn"
-                      disabled={safePage === 0}
-                      onClick={() => setPage((p) => Math.max(0, p - 1))}
-                      aria-label="Halaman lagu sebelumnya"
-                    >
-                      <IconBack className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      className="ds-pager-btn"
-                      disabled={safePage >= totalPages - 1}
-                      onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-                      aria-label="Halaman lagu berikutnya"
-                    >
-                      <IconForward className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
+            <div className="ypm-artist-hot-col">
+              <div className="ypm-sec-head">
+                <h2 className="ypm-sec-title">Lagu Populer</h2>
+                {topSongs.length > HOT_COLLAPSED_COUNT && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllHot((v) => !v)}
+                    className="ypm-toggle-pill"
+                  >
+                    {showAllHot ? "Ringkas" : `Semua (${topSongs.length})`}
+                  </button>
                 )}
               </div>
 
-              <div className="ds-top-grid">
-                {pageSongs.map((t, localIdx) => {
-                  const realIdx = safePage * TOP_PAGE_SIZE + localIdx;
-                  const active = current?.videoId === t.videoId;
-                  const sub = [t.album, t.artist || artist.name].filter(Boolean).join(" · ");
+              <div className="ypm-hot-list">
+                {visibleHotSongs.map((t, idx) => {
+                  const isActive = current?.videoId === t.videoId;
+                  const isPlayingNow = isActive && playing;
+                  const liked = isLiked(t.videoId);
+                  const trackThumb = t.thumbs || t.thumb || null;
+                  const trackSub =
+                    (typeof t.album === "string" && t.album.trim()) ||
+                    t.album?.name ||
+                    (Array.isArray(t.artists)
+                      ? t.artists.filter(Boolean).join(", ")
+                      : t.artists || t.artist) ||
+                    artist.name;
                   return (
                     <div
-                      key={`${t.videoId}-${realIdx}`}
-                      className="ds-song-cell"
-                      data-active={active ? "1" : undefined}
+                      key={`${t.videoId}-${idx}`}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => {
+                        if (isActive) toggle();
+                        else playTracks(topSongs, idx);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          if (isActive) toggle();
+                          else playTracks(topSongs, idx);
+                        }
+                      }}
+                      className={`ypm-hot-row ${isActive ? "is-active" : ""}`}
                     >
-                      <button
-                        type="button"
-                        className="ds-song-hit"
-                        onClick={() => playTracks(topSongs, realIdx)}
-                        aria-current={active ? "true" : undefined}
-                      >
-                        {t.thumbs ? (
+                      <span className="ypm-hot-num" aria-hidden="true">
+                        {isPlayingNow ? (
+                          <span className="ypm-eq">
+                            <i />
+                            <i />
+                            <i />
+                          </span>
+                        ) : (
+                          idx + 1
+                        )}
+                      </span>
+
+                      <div className="ypm-hot-thumb-wrap">
+                        {trackThumb ? (
                           <img
-                            src={t.thumbs}
+                            src={trackThumb}
                             alt=""
-                            width="42"
-                            height="42"
-                            className="ds-song-thumb"
+                            className="ypm-hot-thumb"
                             loading="lazy"
                           />
                         ) : (
-                          <span className="ds-song-thumb flex items-center justify-center">
-                            <IconMusic className="h-4 w-4 text-white/40" />
-                          </span>
+                          <div className="ypm-hot-thumb ypm-hot-thumb-fb">
+                            <IconMusic className="h-4 w-4" />
+                          </div>
                         )}
-                        <span className="min-w-0 flex-1">
-                          <span className="ds-song-title">{t.title}</span>
-                          {sub && <span className="ds-song-sub">{sub}</span>}
+                        <span className="ypm-hot-thumb-play" aria-hidden="true">
+                          {isPlayingNow ? (
+                            <IconPause className="h-3.5 w-3.5" />
+                          ) : (
+                            <IconPlay className="h-3.5 w-3.5" />
+                          )}
                         </span>
-                      </button>
-                      <button
-                        type="button"
-                        className="ds-song-more"
-                        onClick={(e) => {
-                          const r = e.currentTarget.getBoundingClientRect();
-                          setMenuState({
-                            track: t,
-                            anchor: { x: r.right, y: r.bottom + 4, end: true },
-                          });
-                        }}
-                        aria-haspopup="menu"
-                        aria-label={`Opsi untuk ${t.title}`}
+                      </div>
+
+                      <div className="ypm-hot-info">
+                        <p className="ypm-hot-title">{t.title}</p>
+                        <p className="ypm-hot-sub">{trackSub}</p>
+                      </div>
+
+                      {t.duration && (
+                        <span className="ypm-hot-dur">{t.duration}</span>
+                      )}
+
+                      <div
+                        className="ypm-hot-acts"
+                        onClick={(e) => e.stopPropagation()}
                       >
-                        <IconEllipsis className="h-4 w-4" />
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => toggleLike(t)}
+                          aria-label={
+                            liked
+                              ? `Hapus ${t.title} dari disukai`
+                              : `Sukai ${t.title}`
+                          }
+                          aria-pressed={liked}
+                          className={`ypm-hot-like ${liked ? "is-liked" : ""}`}
+                        >
+                          <IconHeart size={15} filled={liked} />
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setOpenTrackMenu(
+                              openTrackMenu === t.videoId ? null : t.videoId
+                            )
+                          }
+                          aria-label={`Opsi untuk ${t.title}`}
+                          aria-expanded={openTrackMenu === t.videoId}
+                          className="ypm-hot-more"
+                        >
+                          <IconEllipsis size={15} />
+                        </button>
+
+                        {openTrackMenu === t.videoId && (
+                          <TrackMenu
+                            track={t}
+                            onClose={() => setOpenTrackMenu(null)}
+                            onOpenPlaylistPicker={() => {
+                              setOpenTrackMenu(null);
+                              setPlaylistTarget(t);
+                            }}
+                          />
+                        )}
+                      </div>
                     </div>
                   );
                 })}
@@ -354,58 +555,135 @@ export function DesktopArtistPage({ id }) {
         </section>
       )}
 
-      <div className="ds-artist-sections">
-        {artist.albums?.length > 0 && (
-          <div className="mt-6">
-            <Shelf title="Album">
-              {artist.albums.map((a, i) => (
-                <GridCard
-                  key={`a${i}-${a.browseId}`}
-                  i={i}
-                  title={a.title}
-                  subtitle={a.year ?? undefined}
-                  href={a.browseId ? `/album/${a.browseId}` : undefined}
-                  img={a.thumbs}
-                />
-              ))}
-            </Shelf>
+      {/* Diskografi Bertab: Album + Single & EP dengan pager < > */}
+      {(albums.length > 0 || singles.length > 0) && (
+        <section className="ypm-artist-disc">
+          <div className="ypm-sec-head">
+            <div className="ypm-tabs" role="tablist" aria-label="Diskografi">
+              {albums.length > 0 && (
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={discTab === "albums"}
+                  onClick={() => {
+                    setDiscTab("albums");
+                    setDiscPage(0);
+                  }}
+                  className={`ypm-tab ${discTab === "albums" ? "is-active" : ""}`}
+                >
+                  Album
+                  <sup className="ypm-tab-count">{albums.length}</sup>
+                </button>
+              )}
+              {singles.length > 0 && (
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={discTab === "singles"}
+                  onClick={() => {
+                    setDiscTab("singles");
+                    setDiscPage(0);
+                  }}
+                  className={`ypm-tab ${discTab === "singles" ? "is-active" : ""}`}
+                >
+                  Single & EP
+                  <sup className="ypm-tab-count">{singles.length}</sup>
+                </button>
+              )}
+            </div>
+
+            {totalDiscPages > 1 && (
+              <div className="ypm-pager">
+                <button
+                  type="button"
+                  onClick={() => setDiscPage((p) => Math.max(0, p - 1))}
+                  disabled={safeDiscPage === 0}
+                  aria-label="Halaman diskografi sebelumnya"
+                  className="ypm-pager-btn"
+                >
+                  <IconBack size={14} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setDiscPage((p) => Math.min(totalDiscPages - 1, p + 1))
+                  }
+                  disabled={safeDiscPage >= totalDiscPages - 1}
+                  aria-label="Halaman diskografi berikutnya"
+                  className="ypm-pager-btn"
+                >
+                  <IconForward size={14} />
+                </button>
+              </div>
+            )}
           </div>
-        )}
 
-        {artist.singles?.length > 0 && (
-          <Shelf title="Single & EP">
-            {artist.singles.map((a, i) => (
-              <GridCard
-                key={`s${i}-${a.browseId}`}
-                i={i}
-                title={a.title}
-                subtitle={a.year ?? undefined}
-                href={a.browseId ? `/album/${a.browseId}` : undefined}
-                img={a.thumbs}
-              />
-            ))}
-          </Shelf>
-        )}
+          <div
+            className="ypm-disc-grid"
+            style={{ scrollBehavior: reduced() ? "auto" : "smooth" }}
+          >
+            {visibleDisc.map((al) => {
+              const alThumb = al.thumbs || al.thumb || null;
+              return (
+                <Link
+                  key={al.browseId}
+                  href={`/album/${encodeURIComponent(al.browseId)}`}
+                  className="ypm-disc-card"
+                >
+                  <div className="ypm-disc-art-wrap">
+                    {alThumb ? (
+                      <img
+                        src={alThumb}
+                        alt={al.title}
+                        className="ypm-disc-art"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="ypm-disc-art ypm-disc-art-fb">
+                        <IconMusic className="h-8 w-8" />
+                      </div>
+                    )}
+                    <span className="ypm-disc-play" aria-hidden="true">
+                      <IconPlay className="h-4 w-4" />
+                    </span>
+                  </div>
+                  <p className="ypm-disc-title">{al.title}</p>
+                  <p className="ypm-disc-sub">
+                    {[al.year, al.kind].filter(Boolean).join(" · ") ||
+                      (discTab === "albums" ? "Album" : "Single")}
+                  </p>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
-        {artist.desc && (
-          <section className="mt-4 pb-6" aria-label="Tentang">
-            <h2 className="ds-top-title mb-2">Tentang</h2>
-            <p className="max-w-2xl whitespace-pre-line text-[14.5px] leading-relaxed text-[#a9a3a0]">
-              {descSnippet(artist.desc)}
-            </p>
-          </section>
-        )}
-      </div>
+      {/* Tentang Artis */}
+      {desc && (
+        <section className="ypm-artist-about">
+          <h2 className="ypm-sec-title">Tentang</h2>
+          <div className="ypm-about-card">
+            <p className="ypm-about-text">{shownDesc}</p>
+            {isLongDesc && (
+              <button
+                type="button"
+                onClick={() => setDescExpanded((v) => !v)}
+                className="ypm-about-toggle"
+              >
+                {descExpanded ? "Tampilkan lebih sedikit" : "Baca selengkapnya"}
+              </button>
+            )}
+          </div>
+        </section>
+      )}
 
-      {menuState && (
-        <TrackMenu
-          track={menuState.track}
-          anchor={menuState.anchor}
-          onClose={() => setMenuState(null)}
-          onAddToPlaylist={() => setAddTrack(menuState.track)}
+      {playlistTarget && (
+        <AddToPlaylistMenu
+          track={playlistTarget}
+          onClose={() => setPlaylistTarget(null)}
         />
       )}
-      {addTrack && <AddToPlaylistMenu track={addTrack} onClose={() => setAddTrack(null)} />}
     </div>
   );
 }

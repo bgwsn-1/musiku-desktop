@@ -1,61 +1,95 @@
-// Mode lirik imersif — HANYA untuk bundle desktop (Windows/Linux/macOS).
-// Web/Android memakai stub di src/components/ImmersiveLyrics.tsx.
+// Playing Screen desktop 100% mengikuti YesPlayMusic (lib/pages/now_playing.dart):
+// - Topbar tab terpusat di atas: [Sedang Diputar] [Antrean] (tanpa tombol X di pojok kanan).
+// - Kiri atas: _TrackInfo (judul 22px ArchivoWide, artis 13px, garis aksen 48x3px) di atas Lirik / Antrean.
+// - Jika lagu tidak punya lirik pada tab Sedang Diputar: tampilkan _BigInfo (judul raksasa 80px ArchivoWide).
+// - Kanan: _Art miring 6 derajat meluber sedikit ke tepi kanan, mengecil 0.94 saat pause, mendukung Apple Motion Art.
+// - Bawah: _BottomBar tersegmentasi 72px (Collapse | Scrubber Putih Penuh | Shuffle | Kontrol Putih | Repeat | Heart | Volume | More).
 import { memo, useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import Hls from "hls.js";
 import { usePlayer } from "@/lib/player";
-import { LyricsPanel } from "@/components/LyricsPanel";
-import { IconMusic } from "@/components/Icons";
+import { IconMusic, IconPause, IconPlay } from "@/components/Icons";
 import { TrackMenu } from "@/components/TrackMenu";
 import { AddToPlaylistMenu } from "@/components/TrackRow";
 import { AuroraBackground } from "@/components/AuroraBackground";
 import { ImmersiveDock } from "./ImmersiveDock";
 import { ImmersiveQueue } from "./ImmersiveQueue";
+import { DesktopNowPlayingLyrics } from "./DesktopNowPlayingLyrics";
 import { trackKeyOf, useAppleArtwork } from "./useAppleArtwork";
 
 const reduced = () =>
   typeof window !== "undefined" &&
   window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-// Stage di-memo: tick posisi player tidak me-render ulang artwork / HLS / aurora.
 const ImmersiveStage = memo(function ImmersiveStage({ track, onExit }) {
   const t = track;
+  const { playing, toggle } = usePlayer();
   const videoRef = useRef(null);
   const auroraRef = useRef(null);
   const [motionOk, setMotionOk] = useState(true);
   const [motionPaused, setMotionPaused] = useState(() => reduced());
   const [failedSrc, setFailedSrc] = useState(null);
-  const [rightView, setRightView] = useState("lyrics"); // "lyrics" | "queue" | null
+  const [tab, setTab] = useState("lyrics"); // "lyrics" | "queue"
+  const [lyricsStatus, setLyricsStatus] = useState({
+    loading: true,
+    hasLyrics: false,
+  });
   const [visible, setVisible] = useState(
-    () => typeof document === "undefined" || document.visibilityState === "visible",
+    () => typeof document === "undefined" || document.visibilityState === "visible"
   );
   const [ctx, setCtx] = useState(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [closing, setClosing] = useState(false);
+  const closeTimerRef = useRef(null);
+
+  const requestExit = useCallback(() => {
+    if (closeTimerRef.current) return;
+    if (reduced()) {
+      onExit?.();
+      return;
+    }
+    setCtx(null);
+    setAddOpen(false);
+    setClosing(true);
+    closeTimerRef.current = setTimeout(() => {
+      closeTimerRef.current = null;
+      onExit?.();
+    }, 340);
+  }, [onExit]);
+
+  useEffect(() => {
+    return () => {
+      if (closeTimerRef.current) {
+        clearTimeout(closeTimerRef.current);
+        closeTimerRef.current = null;
+      }
+    };
+  }, []);
 
   const trackKey = trackKeyOf(t);
   const art = useAppleArtwork(t);
 
-  // Hentikan motion art saat window tak terlihat (minimize / tab lain).
   useEffect(() => {
     const sync = () =>
-      setVisible(typeof document === "undefined" || document.visibilityState === "visible");
+      setVisible(
+        typeof document === "undefined" || document.visibilityState === "visible"
+      );
     sync();
     document.addEventListener("visibilitychange", sync);
     return () => document.removeEventListener("visibilitychange", sync);
   }, []);
 
-  // Palet aurora: tunggu resolver artwork selesai supaya hanya crossfade sekali.
   useEffect(() => {
     if (!t || !art.ready) return;
     auroraRef.current?.setCover(art.still || t.thumbs || null);
   }, [trackKey, art.ready, art.still, t?.thumbs]);
 
-  // Reset state lokal per lagu.
   useEffect(() => {
     setMotionOk(true);
     setFailedSrc(null);
+    setLyricsStatus({ loading: true, hasLyrics: false });
   }, [trackKey]);
 
-  // Motion Art = HLS. hls.js membersihkan InstancedHttpStream-nya saat unmount.
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !art.motion || !motionOk || !visible) return;
@@ -69,7 +103,11 @@ const ImmersiveStage = memo(function ImmersiveStage({ track, onExit }) {
     };
 
     if (Hls.isSupported()) {
-      hls = new Hls({ enableWorker: true, maxBufferLength: 12, backBufferLength: 12 });
+      hls = new Hls({
+        enableWorker: true,
+        maxBufferLength: 12,
+        backBufferLength: 12,
+      });
       hls.loadSource(art.motion);
       hls.attachMedia(video);
       hls.on(Hls.Events.MANIFEST_PARSED, syncPlay);
@@ -91,7 +129,6 @@ const ImmersiveStage = memo(function ImmersiveStage({ track, onExit }) {
     };
   }, [art.motion, motionOk, trackKey, visible]);
 
-  // Sinkronkan jeda/putar Motion Art saat user menekan tombol kontrol motion.
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !art.motion || !motionOk) return;
@@ -110,18 +147,14 @@ const ImmersiveStage = memo(function ImmersiveStage({ track, onExit }) {
         setAddOpen(false);
         return;
       }
-      onExit?.();
+      requestExit();
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [onExit, addOpen]);
+  }, [requestExit, addOpen]);
 
-  const handleToggleLyrics = useCallback(() => {
-    setRightView((v) => (v === "lyrics" ? null : "lyrics"));
-  }, []);
-
-  const handleToggleQueue = useCallback(() => {
-    setRightView((v) => (v === "queue" ? null : "queue"));
+  const handleLyricsStatus = useCallback((st) => {
+    setLyricsStatus(st);
   }, []);
 
   const handleToggleMotion = useCallback(() => {
@@ -142,82 +175,198 @@ const ImmersiveStage = memo(function ImmersiveStage({ track, onExit }) {
       : t.thumbs && failedSrc !== t.thumbs
         ? t.thumbs
         : null;
-  const panelOpen = rightView !== null;
+  const artistLabel = Array.isArray(t.artists)
+    ? t.artists.filter(Boolean).join(", ")
+    : t.artists || t.artist || "Artis tidak diketahui";
+  const albumLabel =
+    typeof t.album === "string" ? t.album : t.album?.name || "";
+  const albumHref = t.albumId ? `/album/${encodeURIComponent(t.albumId)}` : null;
+  const artistHref = t.artistId
+    ? `/artist/${encodeURIComponent(t.artistId)}`
+    : null;
+
+  const showBigInfo =
+    tab === "lyrics" && !lyricsStatus.loading && !lyricsStatus.hasLyrics;
 
   return (
     <div
       role="region"
-      aria-label="Lirik imersif"
-      data-panel={panelOpen ? "open" : "closed"}
-      className="im-root im-stage force-dark dialog-in"
+      aria-label="Layar pemutar"
+      className={`ypm-np force-dark ${closing ? "is-closing" : "is-opening"}`}
     >
       <AuroraBackground ref={auroraRef} />
 
-      <div className="im-hero-layer" aria-hidden="true">
-        {stillSrc && (
-          <img
-            src={stillSrc}
-            alt=""
-            width="1200"
-            height="1200"
-            className="im-hero-ambient"
-          />
-        )}
-        {useMotion ? (
-          <video
-            ref={videoRef}
-            className="im-hero-art"
-            width="1200"
-            height="1200"
-            poster={stillSrc || undefined}
-            muted
-            loop
-            playsInline
-            aria-label={`Motion Art ${t.title}`}
-          />
-        ) : stillSrc ? (
-          <img
-            src={stillSrc}
-            alt={`Sampul ${t.title}`}
-            className="im-hero-art"
-            width="1200"
-            height="1200"
-            fetchPriority="high"
-            onError={() => setFailedSrc(stillSrc)}
-          />
-        ) : (
-          <div className="im-hero-fallback">
-            <IconMusic className="h-32 w-32 text-white/40" />
-          </div>
-        )}
-      </div>
+      {stillSrc && (
+        <img
+          src={stillSrc}
+          alt=""
+          aria-hidden="true"
+          className="ypm-np-bg"
+        />
+      )}
+      <div className="ypm-np-scrim" aria-hidden="true" />
 
-      <div className="im-hero-scrim" aria-hidden="true" />
-
-      <div className="im-workspace">
-        {panelOpen && (
-          <div className="im-panel-card">
-            {rightView === "lyrics" ? (
-              <div className="im-lyrics">
-                <LyricsPanel immersive />
-              </div>
+      {/* Artwork Miring 6 Derajat di Kanan (meluber sedikit ke tepi kanan seperti YesPlayMusic _Art) */}
+      <div className="ypm-np-art-layer">
+        <div
+          className={`ypm-np-art-scale ${playing ? "is-playing" : "is-paused"}`}
+        >
+          <div
+            className="ypm-np-art-card"
+            onDoubleClick={toggle}
+            title="Klik dua kali untuk putar/jeda"
+          >
+            {useMotion ? (
+              <video
+                ref={videoRef}
+                className="ypm-np-art-media"
+                poster={stillSrc || undefined}
+                muted
+                loop
+                playsInline
+                aria-label={`Motion Art ${t.title}`}
+              />
+            ) : stillSrc ? (
+              <img
+                src={stillSrc}
+                alt={`Sampul ${t.title}`}
+                className="ypm-np-art-media"
+                fetchPriority="high"
+                onError={() => setFailedSrc(stillSrc)}
+              />
             ) : (
-              <ImmersiveQueue />
+              <div className="ypm-np-art-media ypm-np-art-fb">
+                <IconMusic className="h-24 w-24" />
+              </div>
+            )}
+
+            {useMotion && (
+              <button
+                type="button"
+                onClick={toggle}
+                aria-label={playing ? "Jeda" : "Putar"}
+                className={`ypm-np-art-play ${!playing ? "is-paused" : ""}`}
+              >
+                {playing ? (
+                  <IconPause className="h-7 w-7" />
+                ) : (
+                  <IconPlay className="h-7 w-7" />
+                )}
+              </button>
             )}
           </div>
-        )}
+        </div>
       </div>
 
-      <ImmersiveDock
-        rightView={rightView}
-        onToggleLyrics={handleToggleLyrics}
-        onToggleQueue={handleToggleQueue}
-        hasMotion={useMotion}
-        motionPaused={motionPaused}
-        onToggleMotion={handleToggleMotion}
-        onOpenMenu={handleOpenMenu}
-        onExit={onExit}
-      />
+      {/* Topbar Terpusat (YesPlayMusic _TopBar: [Sedang Diputar] [Antrean]) */}
+      <header className="ypm-np-topbar">
+        <div className="ypm-np-pills" role="tablist" aria-label="Tampilan pemutar">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "lyrics"}
+            onClick={() => setTab("lyrics")}
+            className={`ypm-np-pill ${tab === "lyrics" ? "is-active" : ""}`}
+          >
+            Sedang Diputar
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "queue"}
+            onClick={() => setTab("queue")}
+            className={`ypm-np-pill ${tab === "queue" ? "is-active" : ""}`}
+          >
+            Antrean
+          </button>
+          {useMotion && (
+            <button
+              type="button"
+              onClick={handleToggleMotion}
+              aria-pressed={!motionPaused}
+              className={`ypm-np-pill ${!motionPaused ? "is-active" : ""}`}
+            >
+              {motionPaused ? "Motion: Jeda" : "Motion Art"}
+            </button>
+          )}
+        </div>
+      </header>
+
+      {/* Kolom Konten Kiri (left: 40px, width: min(760px, 56vw), bottom: 118px) */}
+      <div className="ypm-np-left-col">
+        {/* _TrackInfo kompak (tersembunyi saat mode _BigInfo tanpa lirik) */}
+        <div
+          className={`ypm-np-trackinfo ${showBigInfo ? "is-hidden" : ""}`}
+          aria-hidden={showBigInfo}
+        >
+          {albumLabel &&
+            (albumHref ? (
+              <Link
+                href={albumHref}
+                onClick={requestExit}
+                className="ypm-np-from"
+              >
+                Dari {albumLabel}
+              </Link>
+            ) : (
+              <span className="ypm-np-from">Dari {albumLabel}</span>
+            ))}
+
+          {albumHref ? (
+            <Link
+              href={albumHref}
+              onClick={requestExit}
+              className="ypm-np-ti-title"
+            >
+              {t.title}
+            </Link>
+          ) : (
+            <h1 className="ypm-np-ti-title">{t.title}</h1>
+          )}
+
+          {artistHref ? (
+            <Link
+              href={artistHref}
+              onClick={requestExit}
+              className="ypm-np-ti-artist"
+            >
+              {artistLabel}
+            </Link>
+          ) : (
+            <p className="ypm-np-ti-artist">{artistLabel}</p>
+          )}
+
+          <div className="ypm-np-ti-bar" aria-hidden="true" />
+        </div>
+
+        {/* _BigInfo saat tidak ada lirik (80px ArchivoWide) */}
+        {showBigInfo && (
+          <div className="ypm-np-biginfo">
+            {albumLabel && (
+              <span className="ypm-np-big-from">Dari {albumLabel}</span>
+            )}
+            <h1 className="ypm-np-big-title">{t.title}</h1>
+            <p className="ypm-np-big-artist">{artistLabel}</p>
+          </div>
+        )}
+
+        {/* Area Lirik atau Antrean (dimulai di bawah _TrackInfo) */}
+        <div
+          className={`ypm-np-body ${showBigInfo ? "is-hidden" : ""}`}
+        >
+          {tab === "lyrics" ? (
+            <DesktopNowPlayingLyrics
+              trackId={t.videoId}
+              onStatus={handleLyricsStatus}
+            />
+          ) : (
+            <ImmersiveQueue />
+          )}
+        </div>
+      </div>
+
+      {/* Bottom Segmented Bar (72px tinggi, radius 24px, persis YesPlayMusic _BottomBar) */}
+      <ImmersiveDock onExit={requestExit} onOpenMenu={handleOpenMenu} />
 
       {ctx && (
         <TrackMenu
@@ -227,7 +376,9 @@ const ImmersiveStage = memo(function ImmersiveStage({ track, onExit }) {
           onAddToPlaylist={() => setAddOpen(true)}
         />
       )}
-      {addOpen && <AddToPlaylistMenu track={t} onClose={() => setAddOpen(false)} />}
+      {addOpen && (
+        <AddToPlaylistMenu track={t} onClose={() => setAddOpen(false)} />
+      )}
     </div>
   );
 });

@@ -541,6 +541,18 @@ fn font_bytes(name: &str) -> Option<&'static [u8]> {
         "9eb5a876700c0028-s.1uyisp29ctx0d.woff2",
         "b0c6b664fd57c2c6-s.31988l_ccedte.woff2",
         "f58031ded4338640-s.390ncx5urfkfu.woff2",
+        "Archivo-400.ttf",
+        "Archivo-500.ttf",
+        "Archivo-600.ttf",
+        "Archivo-700.ttf",
+        "Archivo-800.ttf",
+        "Archivo-900.ttf",
+        "ArchivoSemiExpanded-600.ttf",
+        "ArchivoSemiExpanded-700.ttf",
+        "ArchivoSemiExpanded-800.ttf",
+        "ArchivoExpanded-700.ttf",
+        "ArchivoExpanded-800.ttf",
+        "ArchivoExpanded-900.ttf",
     )
 }
 
@@ -614,7 +626,14 @@ async fn asset_js(headers: HeaderMap) -> Response {
 
 async fn asset_font(Path(name): Path<String>) -> Response {
     match font_bytes(&name) {
-        Some(b) => immutable_asset(b, "font/woff2"),
+        Some(b) => {
+            let ctype = if name.ends_with(".ttf") {
+                "font/ttf"
+            } else {
+                "font/woff2"
+            };
+            immutable_asset(b, ctype)
+        }
         None => StatusCode::NOT_FOUND.into_response(),
     }
 }
